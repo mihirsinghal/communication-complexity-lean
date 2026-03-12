@@ -1,1 +1,3 @@
-import CommunicationComplexity.Basic
+import CommunicationComplexity.Det.Basic
+import CommunicationComplexity.Det.Generalized
+import CommunicationComplexity.Rand.Basic
