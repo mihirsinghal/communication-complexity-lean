@@ -11,7 +11,7 @@ import Mathlib.Data.Nat.Bitwise
 
 /-- A generalized deterministic two-party communication protocol where at each step,
 a player sends an element of an arbitrary finite type `β` (rather than just a `Bool`).
-This is equivalent to `DetProtocol` up to complexity (see `det_protocol_generalized_to_det_protocol`),
+Equivalent to `DetProtocol` up to complexity (see `det_protocol_generalized_to_det_protocol`)
 where sending a `β`-valued message costs `⌈log₂ |β|⌉` bits. -/
 inductive DetProtocolGeneralized (X Y α : Type*) where
   | output (val : α) : DetProtocolGeneralized X Y α
