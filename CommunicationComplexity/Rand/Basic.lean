@@ -16,12 +16,12 @@ inductive RandProtocol
   | alice
       (f : X → Ω_X → Bool)
       (hf : ∀ x, Measurable (f x))
-      (P0 P1 : RandProtocol Ω_X Ω_Y X Y α) :
+      (P : Bool → RandProtocol Ω_X Ω_Y X Y α) :
       RandProtocol Ω_X Ω_Y X Y α
   | bob
       (f : Y → Ω_Y → Bool)
       (hf : ∀ y, Measurable (f y))
-      (P0 P1 : RandProtocol Ω_X Ω_Y X Y α) :
+      (P : Bool → RandProtocol Ω_X Ω_Y X Y α) :
       RandProtocol Ω_X Ω_Y X Y α
 
 namespace RandProtocol
@@ -37,10 +37,8 @@ def run
     α :=
   match p with
   | RandProtocol.output a => a
-  | RandProtocol.alice f _ P0 P1 =>
-      if f x ω_x then P1.run x y ω_x ω_y else P0.run x y ω_x ω_y
-  | RandProtocol.bob f _ P0 P1 =>
-      if f y ω_y then P1.run x y ω_x ω_y else P0.run x y ω_x ω_y
+  | RandProtocol.alice f _ P => (P (f x ω_x)).run x y ω_x ω_y
+  | RandProtocol.bob f _ P => (P (f y ω_y)).run x y ω_x ω_y
 
 /-- The preimage of any set under the protocol's output is measurable in the product
 probability space, which is needed to make sense of error probabilities. -/
@@ -52,13 +50,14 @@ theorem measurable_preimage_run
     unfold run
     unfold Set.preimage
     simp only [measurableSet_setOf, measurable_const]
-  | alice f hf P0 P1 ih0 ih1 =>
+  | alice f hf P ih =>
     unfold run
     unfold Set.preimage
+    -- Split on whether f x ω.1 is true or false
     have key : {ω : Ω_X × Ω_Y |
-        (if f x ω.1 = true then P1.run x y ω.1 ω.2 else P0.run x y ω.1 ω.2) ∈ s} =
-      ({ω | f x ω.1 = true} ∩ {ω | P1.run x y ω.1 ω.2 ∈ s}) ∪
-      ({ω | ¬(f x ω.1 = true)} ∩ {ω | P0.run x y ω.1 ω.2 ∈ s}) := by
+        (P (f x ω.1)).run x y ω.1 ω.2 ∈ s} =
+      ({ω | f x ω.1 = true} ∩ {ω | (P true).run x y ω.1 ω.2 ∈ s}) ∪
+      ({ω | ¬(f x ω.1 = true)} ∩ {ω | (P false).run x y ω.1 ω.2 ∈ s}) := by
       ext ω
       simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff]
       by_cases h : f x ω.1 = true <;> simp [h]
@@ -68,14 +67,14 @@ theorem measurable_preimage_run
         ext ω; simp [Set.mem_preimage]
       rw [this]
       exact ((hf x).comp measurable_fst) (measurableSet_singleton true)
-    exact (hcond.inter ih1).union (hcond.compl.inter ih0)
-  | bob f hf P0 P1 ih0 ih1 =>
+    exact (hcond.inter (ih true)).union (hcond.compl.inter (ih false))
+  | bob f hf P ih =>
     unfold run
     unfold Set.preimage
     have key : {ω : Ω_X × Ω_Y |
-        (if f y ω.2 = true then P1.run x y ω.1 ω.2 else P0.run x y ω.1 ω.2) ∈ s} =
-      ({ω | f y ω.2 = true} ∩ {ω | P1.run x y ω.1 ω.2 ∈ s}) ∪
-      ({ω | ¬(f y ω.2 = true)} ∩ {ω | P0.run x y ω.1 ω.2 ∈ s}) := by
+        (P (f y ω.2)).run x y ω.1 ω.2 ∈ s} =
+      ({ω | f y ω.2 = true} ∩ {ω | (P true).run x y ω.1 ω.2 ∈ s}) ∪
+      ({ω | ¬(f y ω.2 = true)} ∩ {ω | (P false).run x y ω.1 ω.2 ∈ s}) := by
       ext ω
       simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff]
       by_cases h : f y ω.2 = true <;> simp [h]
@@ -85,7 +84,7 @@ theorem measurable_preimage_run
         ext ω; simp [Set.mem_preimage]
       rw [this]
       exact ((hf y).comp measurable_snd) (measurableSet_singleton true)
-    exact (hcond.inter ih1).union (hcond.compl.inter ih0)
+    exact (hcond.inter (ih true)).union (hcond.compl.inter (ih false))
 
 /-- A randomized protocol `ε`-computes a function `f` if for every input `(x, y)`,
 the probability of outputting a value other than `f x y` is at most `ε`. -/

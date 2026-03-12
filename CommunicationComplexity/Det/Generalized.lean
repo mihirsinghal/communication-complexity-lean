@@ -30,9 +30,8 @@ private def completeTreeAlice (d : ℕ) (query : Fin d → X → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) : DetProtocol X Y α :=
   match d with
   | 0 => Q Fin.elim0
-  | d + 1 => DetProtocol.alice (query 0)
-      (completeTreeAlice d (query ∘ Fin.succ) (fun bits => Q (Fin.cons false bits)))
-      (completeTreeAlice d (query ∘ Fin.succ) (fun bits => Q (Fin.cons true bits)))
+  | d + 1 => DetProtocol.alice (query 0) (fun b =>
+      completeTreeAlice d (query ∘ Fin.succ) (fun bits => Q (Fin.cons b bits)))
 
 private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) (x : X) (y : Y) :
@@ -43,16 +42,14 @@ private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Bool)
     congr; ext i; exact i.elim0
   | succ d ih =>
     simp only [completeTreeAlice, DetProtocol.run]
-    have cons_eq : ∀ b, b = query 0 x →
-        Fin.cons b (fun j => query (Fin.succ j) x) = fun i => query i x := by
-      intro b hb; ext i; refine Fin.cases ?_ ?_ i
-      · simp [Fin.cons, hb]
-      · intro j; simp [Fin.cons]
-    by_cases h : query 0 x = true
-    · simp only [h, ↓reduceIte, ih, Function.comp]; rw [cons_eq true h.symm]
-    · push_neg at h
-      simp only [Bool.eq_false_iff.mpr h, Bool.false_eq_true, ↓reduceIte, ih, Function.comp]
-      rw [cons_eq false (Bool.eq_false_iff.mpr h).symm]
+    rw [ih]
+    -- Goal: (Q (Fin.cons (query 0 x) ...)).run x y = (Q (fun i => query i x)).run x y
+    -- Suffices to show the arguments to Q are equal
+    have : Fin.cons (query 0 x) (fun i => (query ∘ Fin.succ) i x) = fun i => query i x := by
+      ext i; refine Fin.cases ?_ ?_ i
+      · simp [Fin.cons]
+      · intro j; simp [Fin.cons, Function.comp]
+    rw [this]
 
 private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) :
@@ -69,6 +66,7 @@ private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → 
       · intro _; exact Finset.mem_univ x
     rw [this, Finset.sup_singleton]
   | succ d ih =>
+    -- Unfold to 1 + max (rec false).complexity (rec true).complexity
     simp only [completeTreeAlice, DetProtocol.complexity]
     rw [ih, ih, Nat.succ_add, Nat.add_max_add_left]
     -- Need: max(sup over false-cons, sup over true-cons) = sup over all Fin (d+1) → Bool
@@ -88,9 +86,8 @@ private def completeTreeBob (d : ℕ) (query : Fin d → Y → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) : DetProtocol X Y α :=
   match d with
   | 0 => Q Fin.elim0
-  | d + 1 => DetProtocol.bob (query 0)
-      (completeTreeBob d (query ∘ Fin.succ) (fun bits => Q (Fin.cons false bits)))
-      (completeTreeBob d (query ∘ Fin.succ) (fun bits => Q (Fin.cons true bits)))
+  | d + 1 => DetProtocol.bob (query 0) (fun b =>
+      completeTreeBob d (query ∘ Fin.succ) (fun bits => Q (Fin.cons b bits)))
 
 private theorem completeTreeBob_run (d : ℕ) (query : Fin d → Y → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) (x : X) (y : Y) :
@@ -101,16 +98,12 @@ private theorem completeTreeBob_run (d : ℕ) (query : Fin d → Y → Bool)
     congr; ext i; exact i.elim0
   | succ d ih =>
     simp only [completeTreeBob, DetProtocol.run]
-    have cons_eq : ∀ b, b = query 0 y →
-        Fin.cons b (fun j => query (Fin.succ j) y) = fun i => query i y := by
-      intro b hb; ext i; refine Fin.cases ?_ ?_ i
-      · simp [Fin.cons, hb]
-      · intro j; simp [Fin.cons]
-    by_cases h : query 0 y = true
-    · simp only [h, ↓reduceIte, ih, Function.comp]; rw [cons_eq true h.symm]
-    · push_neg at h
-      simp only [Bool.eq_false_iff.mpr h, Bool.false_eq_true, ↓reduceIte, ih, Function.comp]
-      rw [cons_eq false (Bool.eq_false_iff.mpr h).symm]
+    rw [ih]
+    have : Fin.cons (query 0 y) (fun i => (query ∘ Fin.succ) i y) = fun i => query i y := by
+      ext i; refine Fin.cases ?_ ?_ i
+      · simp [Fin.cons]
+      · intro j; simp [Fin.cons, Function.comp]
+    rw [this]
 
 private theorem completeTreeBob_complexity (d : ℕ) (query : Fin d → Y → Bool)
     (Q : (Fin d → Bool) → DetProtocol X Y α) :
@@ -127,6 +120,7 @@ private theorem completeTreeBob_complexity (d : ℕ) (query : Fin d → Y → Bo
       · intro _; exact Finset.mem_univ x
     rw [this, Finset.sup_singleton]
   | succ d ih =>
+    -- Unfold to 1 + max (rec false).complexity (rec true).complexity
     simp only [completeTreeBob, DetProtocol.complexity]
     rw [ih, ih, Nat.succ_add, Nat.add_max_add_left]
     have hsplit : Finset.univ.sup (fun bits : Fin (d + 1) → Bool => (Q bits).complexity) =
