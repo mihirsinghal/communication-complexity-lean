@@ -42,8 +42,8 @@ def run
 
 def complexity : RandProtocol Ω_X Ω_Y X Y α → ℕ
   | RandProtocol.output _ => 0
-  | RandProtocol.alice _ _ P0 P1 => 1 + max P0.complexity P1.complexity
-  | RandProtocol.bob _ _ P0 P1 => 1 + max P0.complexity P1.complexity
+  | RandProtocol.alice _ _ P => 1 + max (P false).complexity (P true).complexity
+  | RandProtocol.bob _ _ P => 1 + max (P false).complexity (P true).complexity
 
 /-- The preimage of any set under the protocol's output is measurable in the product
 probability space, which is needed to make sense of error probabilities. -/
