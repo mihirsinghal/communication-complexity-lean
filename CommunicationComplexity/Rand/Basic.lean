@@ -40,6 +40,11 @@ def run
   | RandProtocol.alice f _ P => (P (f x ω_x)).run x y ω_x ω_y
   | RandProtocol.bob f _ P => (P (f y ω_y)).run x y ω_x ω_y
 
+def complexity : RandProtocol Ω_X Ω_Y X Y α → ℕ
+  | RandProtocol.output _ => 0
+  | RandProtocol.alice _ _ P0 P1 => 1 + max P0.complexity P1.complexity
+  | RandProtocol.bob _ _ P0 P1 => 1 + max P0.complexity P1.complexity
+
 /-- The preimage of any set under the protocol's output is measurable in the product
 probability space, which is needed to make sense of error probabilities. -/
 theorem measurable_preimage_run
