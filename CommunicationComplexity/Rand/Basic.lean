@@ -1,6 +1,7 @@
-import Mathlib
+import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
+import Mathlib.MeasureTheory.Measure.Prod
 
-open MeasureTheory ProbabilityTheory
+open MeasureTheory
 
 /-- A randomized two-party communication protocol. Each player has access to private
 randomness (`Ω_X` for Alice, `Ω_Y` for Bob), modeled as probability spaces.
