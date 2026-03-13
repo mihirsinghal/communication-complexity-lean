@@ -19,6 +19,18 @@ theorem det_cc_EQ_le (n : ℕ) :
           not_false_eq_true, add_right_inj_of_ne_top, Nat.cast_eq_one]
         decide
 
+/-- When n = 0, EQ has communication complexity 0: both inputs are
+the unique empty function, so the output is always `true`. -/
+theorem det_cc_EQ_zero :
+    deterministic_communication_complexity (EQ 0) = 0 := by
+  apply le_antisymm
+  · change deterministic_communication_complexity (EQ 0) ≤ (0 : ℕ)
+    rw [det_cc_le_iff]
+    exact ⟨DetProtocol.output true, by
+      ext x y; simp [EQ, DetProtocol.run, Subsingleton.elim x y],
+      by simp [DetProtocol.complexity]⟩
+  · exact bot_le
+
 open DetProtocol in
 /-- The deterministic communication complexity of EQ on n-bit strings
 is at least n + 1 (for n ≥ 1). Any monochromatic rectangle containing
@@ -69,3 +81,14 @@ theorem le_det_cc_EQ (n : ℕ) (hn : 1 ≤ n) :
           hR0_not_diag), Set.ncard_singleton]; omega
     _ ≤ Set.ncard Part :=
         Set.ncard_le_ncard hinsert (Set.toFinite Part)
+
+/-- The exact deterministic communication complexity of EQ on
+`n`-bit strings: 0 when `n = 0`, and `n + 1` otherwise. -/
+theorem det_cc_EQ (n : ℕ) :
+    deterministic_communication_complexity (EQ n) =
+      if n = 0 then 0 else n + 1 := by
+  split
+  · next h => subst h; exact det_cc_EQ_zero
+  · next h =>
+    apply le_antisymm (det_cc_EQ_le n)
+    exact le_det_cc_EQ n (by omega)
