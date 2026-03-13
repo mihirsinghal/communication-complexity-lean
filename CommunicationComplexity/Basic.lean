@@ -1,116 +1,212 @@
-import Mathlib
+import CommunicationComplexity.Det.Basic
+import CommunicationComplexity.Det.Generalized
+import CommunicationComplexity.Rand.Basic
+import CommunicationComplexity.Rand.Generalized
+import Mathlib.MeasureTheory.Measure.Dirac
 
-open MeasureTheory ProbabilityTheory
+open MeasureTheory
 
-inductive DetProtocol (X Y α : Type*) where
-  | result (val : α) : DetProtocol X Y α
-  | alice (f : X → Bool) (P0 : DetProtocol X Y α) (P1 : DetProtocol X Y α) : DetProtocol X Y α
-  | bob (f : Y → Bool) (P0 : DetProtocol X Y α) (P1 : DetProtocol X Y α) : DetProtocol X Y α
+@[simp]
+private theorem WithTop.iInf_le_coe_iff {ι : Sort*} {f : ι → WithTop ℕ} {n : ℕ} :
+    iInf f ≤ ↑n ↔ ∃ i, f i ≤ ↑n := by
+  constructor
+  · intro h
+    by_contra hne
+    push_neg at hne
+    apply not_lt.mpr h
+    have : ∀ i, (↑(n + 1) : WithTop ℕ) ≤ f i := fun i => by
+      match f i, hne i with
+      | none, _ => exact le_top
+      | some m, hi => exact WithTop.coe_le_coe.mpr (Nat.succ_le_of_lt (WithTop.coe_lt_coe.mp hi))
+    exact lt_of_lt_of_le (WithTop.coe_lt_coe.mpr (Nat.lt_succ_self n)) (le_iInf this)
+  · rintro ⟨i, hi⟩
+    exact (iInf_le f i).trans hi
 
-namespace DetProtocol
+/-- The deterministic communication complexity of a function `f : X → Y → α`, defined as the
+minimum worst-case number of bits exchanged over all deterministic protocols computing `f`.
+Returns `⊤` if no finite protocol computes `f`. -/
+noncomputable def deterministic_communication_complexity {X Y α} (f : X → Y → α) : WithTop ℕ :=
+  ⨅ (p : DetProtocol X Y α) (_ : p.computes f), (p.complexity : WithTop ℕ)
 
-variable {X Y α : Type*}
+/-- The deterministic communication complexity of `f` is at most `n` iff there exists a
+deterministic protocol computing `f` with complexity at most `n`. -/
+theorem det_cc_le_iff {X Y α} (f : X → Y → α) (n : ℕ) :
+    deterministic_communication_complexity f ≤ n ↔
+      ∃ p : DetProtocol X Y α, p.computes f ∧ p.complexity ≤ n := by
+  simp only [deterministic_communication_complexity, WithTop.iInf_le_coe_iff, Nat.cast_le,
+    exists_prop]
 
-def run (p : DetProtocol X Y α) (x : X) (y : Y) : α :=
-  match p with
-  | DetProtocol.result val => val
-  | DetProtocol.alice f P0 P1 => if f x then P1.run x y else P0.run x y
-  | DetProtocol.bob f P0 P1 => if f y then P1.run x y else P0.run x y
+/-- The deterministic communication complexity of `f` is at most `n` iff there exists a
+generalized deterministic protocol computing `f` with complexity at most `n`. -/
+theorem det_cc_le_iff_generalized {X Y α} (f : X → Y → α) (n : ℕ) :
+    deterministic_communication_complexity f ≤ n ↔
+      ∃ p : DetProtocolGeneralized X Y α, p.run = f ∧ p.complexity ≤ n := by
+  rw [det_cc_le_iff]
+  constructor
+  · rintro ⟨p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ := DetProtocolGeneralized.det_protocol_to_det_protocol_generalized p
+    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
+  · rintro ⟨p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ := DetProtocolGeneralized.det_protocol_generalized_to_det_protocol p
+    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
 
-def complexity : DetProtocol X Y α → ℕ
-  | DetProtocol.result _ => 0
-  | DetProtocol.alice _ P0 P1 => 1 + max P0.complexity P1.complexity
-  | DetProtocol.bob _ P0 P1 => 1 + max P0.complexity P1.complexity
+/-- The deterministic communication complexity of `f` is at least `n` iff every deterministic
+protocol computing `f` has complexity at least `n`. -/
+theorem le_det_cc_iff {X Y α} (f : X → Y → α) (n : ℕ) :
+    (n : WithTop ℕ) ≤ deterministic_communication_complexity f ↔
+      ∀ p : DetProtocol X Y α, p.computes f → n ≤ p.complexity := by
+  simp only [deterministic_communication_complexity, le_iInf_iff, Nat.cast_le]
 
-def equiv (p q : DetProtocol X Y α) : Prop :=
-  ∀ x y, p.run x y = q.run x y
+/-- The `ε`-error randomized communication complexity of a function `f : X → Y → α`, defined as
+the minimum worst-case number of bits exchanged over all randomized protocols that compute `f`
+with error probability at most `ε` on every input. The randomness spaces are required to be finite.
+Returns `⊤` if no finite protocol `ε`-computes `f`. -/
+noncomputable def randomized_communication_complexity {X Y α} (f : X → Y → α) (ε : ℝ) : WithTop ℕ :=
+  ⨅ (Ω_X : Type) (Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+    (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
+    (_ : IsProbabilityMeasure (volume : Measure Ω_X))
+    (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
+    (p : RandProtocol Ω_X Ω_Y X Y α) (_ : p.approx_computes f ε),
+    (p.complexity : WithTop ℕ)
 
-def computes (p : DetProtocol X Y α) (f : X → Y → α) : Prop :=
-  ∀ x y, p.run x y = f x y
+/-- The randomized communication complexity of `f` at error `ε` is at most `n` iff there exist
+finite probability spaces and a randomized protocol that `ε`-computes `f` with complexity at
+most `n`. -/
+theorem rand_cc_le_iff {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
+    randomized_communication_complexity f ε ≤ n ↔
+      ∃ (Ω_X Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+        (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
+        (_ : IsProbabilityMeasure (volume : Measure Ω_X))
+        (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
+        (p : RandProtocol Ω_X Ω_Y X Y α),
+        p.approx_computes f ε ∧ p.complexity ≤ n := by
+  simp only [randomized_communication_complexity, WithTop.iInf_le_coe_iff, Nat.cast_le, exists_prop,
+    exists_const_iff, exists_and_left]
 
-end DetProtocol
-
-inductive RandProtocol
-    (Ω_X Ω_Y : Type*)
+set_option linter.unusedFintypeInType false in
+/-- Helper: to show rand CC ≤ n, provide a randomized protocol that ε-computes `f`
+with complexity ≤ n. Typeclass arguments are inferred automatically. -/
+theorem rand_cc_le_of_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
+    {Ω_X Ω_Y : Type} [Fintype Ω_X] [Fintype Ω_Y]
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
-    (X Y α : Type*) where
-  | output (a : α) :
-      RandProtocol Ω_X Ω_Y X Y α
-  | alice
-      (f : X → Ω_X → Bool)
-      (hf : ∀ x, Measurable (f x))
-      (P0 P1 : RandProtocol Ω_X Ω_Y X Y α) :
-      RandProtocol Ω_X Ω_Y X Y α
-  | bob
-      (f : Y → Ω_Y → Bool)
-      (hf : ∀ y, Measurable (f y))
-      (P0 P1 : RandProtocol Ω_X Ω_Y X Y α) :
-      RandProtocol Ω_X Ω_Y X Y α
+    (p : RandProtocol Ω_X Ω_Y X Y α)
+    (hp : p.approx_computes f ε) (hc : p.complexity ≤ n) :
+    randomized_communication_complexity f ε ≤ n :=
+  (rand_cc_le_iff f ε n).mpr
+    ⟨Ω_X, Ω_Y, inferInstance, inferInstance, inferInstance, inferInstance,
+     inferInstance, inferInstance, p, hp, hc⟩
 
-namespace RandProtocol
+/-- The randomized communication complexity of `f` at error `ε` is at least `n` iff every
+randomized protocol that `ε`-computes `f` (over any finite probability spaces) has complexity
+at least `n`. -/
+theorem le_rand_cc_iff {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
+    (n : WithTop ℕ) ≤ randomized_communication_complexity f ε ↔
+      ∀ (Ω_X Ω_Y : Type) [Fintype Ω_X] [Fintype Ω_Y]
+        [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
+        [IsProbabilityMeasure (volume : Measure Ω_X)]
+        [IsProbabilityMeasure (volume : Measure Ω_Y)]
+        (p : RandProtocol Ω_X Ω_Y X Y α),
+        p.approx_computes f ε → n ≤ p.complexity := by
+  unfold randomized_communication_complexity
+  simp only [le_iInf_iff, Nat.cast_le]
 
-variable {Ω_X Ω_Y X Y α : Type*}
+/-- The randomized communication complexity of `f` at error `ε` is at most `n` iff there exist
+finite probability spaces and a generalized randomized protocol that `ε`-computes `f` with
+complexity at most `n`. -/
+theorem rand_cc_le_iff_generalized {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
+    randomized_communication_complexity f ε ≤ n ↔
+      ∃ (Ω_X Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+        (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
+        (_ : IsProbabilityMeasure (volume : Measure Ω_X))
+        (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
+        (p : RandProtocolGeneralized Ω_X Ω_Y X Y α),
+        (∀ x y, (volume {ω : Ω_X × Ω_Y | p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε) ∧
+        p.complexity ≤ n := by
+  rw [rand_cc_le_iff]
+  constructor
+  · -- Binary protocol → generalized protocol
+    rintro ⟨Ω_X, Ω_Y, hfX, hfY, msX, msY, hpX, hpY, p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ :=
+      RandProtocolGeneralized.rand_protocol_to_rand_protocol_generalized p
+    refine ⟨Ω_X, Ω_Y, hfX, hfY, msX, msY, hpX, hpY,
+      P, ?_, hP_comp ▸ hc⟩
+    intro x y; simp_rw [hP_run]; exact hp x y
+  · -- Generalized protocol → binary protocol
+    rintro ⟨Ω_X, Ω_Y, hfX, hfY, msX, msY, hpX, hpY, p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ :=
+      RandProtocolGeneralized.rand_protocol_generalized_to_rand_protocol p
+    refine ⟨Ω_X, Ω_Y, hfX, hfY, msX, msY, hpX, hpY, P, ?_, hP_comp ▸ hc⟩
+    intro x y; simp_rw [hP_run]; exact hp x y
+
+set_option linter.unusedFintypeInType false in
+/-- Helper: to show rand CC ≤ n, provide a generalized randomized protocol that ε-computes `f`
+with complexity ≤ n. Typeclass arguments are inferred automatically. -/
+theorem rand_cc_le_of_generalized_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
+    {Ω_X Ω_Y : Type} [Fintype Ω_X] [Fintype Ω_Y]
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    (p : RandProtocolGeneralized Ω_X Ω_Y X Y α)
+    (hp : ∀ x y, (volume {ω : Ω_X × Ω_Y | p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε)
+    (hc : p.complexity ≤ n) :
+    randomized_communication_complexity f ε ≤ n :=
+  (rand_cc_le_iff_generalized f ε n).mpr
+    ⟨Ω_X, Ω_Y, inferInstance, inferInstance, inferInstance, inferInstance,
+     inferInstance, inferInstance, p, hp, hc⟩
 
-def run
-    (p : RandProtocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) :
-    α :=
+/-- Convert a deterministic protocol to a randomized protocol with
+trivial (Unit) probability spaces. The randomized protocol ignores
+its randomness and behaves identically to the deterministic one. -/
+-- Unit with Dirac measure as a probability space, used for embedding det protocols into rand
+private noncomputable instance unitMeasureSpace : MeasureSpace Unit := ⟨Measure.dirac ()⟩
+private instance unitIsProbabilityMeasure : IsProbabilityMeasure (volume : Measure Unit) :=
+  ⟨by simp [unitMeasureSpace, Measure.dirac_apply_of_mem (Set.mem_univ ())]⟩
+
+/-- Convert a deterministic protocol to a randomized protocol over Unit probability spaces. -/
+private def DetProtocol.toRand {X Y α} (p : DetProtocol X Y α) : RandProtocol Unit Unit X Y α :=
   match p with
-  | RandProtocol.output a => a
-  | RandProtocol.alice f _ P0 P1 =>
-      if f x ω_x then P1.run x y ω_x ω_y else P0.run x y ω_x ω_y
-  | RandProtocol.bob f _ P0 P1 =>
-      if f y ω_y then P1.run x y ω_x ω_y else P0.run x y ω_x ω_y
+  | DetProtocol.output val => RandProtocol.output val
+  | DetProtocol.alice f P =>
+      RandProtocol.alice (fun x _ => f x)
+        (fun _ => measurable_const) (fun b => (P b).toRand)
+  | DetProtocol.bob f P =>
+      RandProtocol.bob (fun y _ => f y)
+        (fun _ => measurable_const) (fun b => (P b).toRand)
 
-theorem measurable_preimage_run
-    (p : RandProtocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (s : Set α) :
-    MeasurableSet ((fun (ω : Ω_X × Ω_Y) ↦ p.run x y ω.1 ω.2) ⁻¹' s) := by
+private theorem DetProtocol.toRand_run {X Y α}
+    (p : DetProtocol X Y α) (x : X) (y : Y)
+    (ω_x : Unit) (ω_y : Unit) :
+    p.toRand.run x y ω_x ω_y = p.run x y := by
   induction p with
-  | output a =>
-    unfold run
-    unfold Set.preimage
-    simp only [measurableSet_setOf, measurable_const]
-  | alice f hf P0 P1 ih0 ih1 =>
-    unfold run
-    unfold Set.preimage
-    have key : {ω : Ω_X × Ω_Y |
-        (if f x ω.1 = true then P1.run x y ω.1 ω.2 else P0.run x y ω.1 ω.2) ∈ s} =
-      ({ω | f x ω.1 = true} ∩ {ω | P1.run x y ω.1 ω.2 ∈ s}) ∪
-      ({ω | ¬(f x ω.1 = true)} ∩ {ω | P0.run x y ω.1 ω.2 ∈ s}) := by
-      ext ω
-      simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff]
-      by_cases h : f x ω.1 = true <;> simp [h]
-    rw [key]
-    have hcond : MeasurableSet {ω : Ω_X × Ω_Y | f x ω.1 = true} := by
-      have : {ω : Ω_X × Ω_Y | f x ω.1 = true} = (fun ω => f x ω.1) ⁻¹' {true} := by
-        ext ω; simp [Set.mem_preimage]
-      rw [this]
-      exact ((hf x).comp measurable_fst) (measurableSet_singleton true)
-    exact (hcond.inter ih1).union (hcond.compl.inter ih0)
-  | bob f hf P0 P1 ih0 ih1 =>
-    unfold run
-    unfold Set.preimage
-    have key : {ω : Ω_X × Ω_Y |
-        (if f y ω.2 = true then P1.run x y ω.1 ω.2 else P0.run x y ω.1 ω.2) ∈ s} =
-      ({ω | f y ω.2 = true} ∩ {ω | P1.run x y ω.1 ω.2 ∈ s}) ∪
-      ({ω | ¬(f y ω.2 = true)} ∩ {ω | P0.run x y ω.1 ω.2 ∈ s}) := by
-      ext ω
-      simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff]
-      by_cases h : f y ω.2 = true <;> simp [h]
-    rw [key]
-    have hcond : MeasurableSet {ω : Ω_X × Ω_Y | f y ω.2 = true} := by
-      have : {ω : Ω_X × Ω_Y | f y ω.2 = true} = (fun ω => f y ω.2) ⁻¹' {true} := by
-        ext ω; simp [Set.mem_preimage]
-      rw [this]
-      exact ((hf y).comp measurable_snd) (measurableSet_singleton true)
-    exact (hcond.inter ih1).union (hcond.compl.inter ih0)
+  | output val => simp [DetProtocol.toRand, RandProtocol.run, DetProtocol.run]
+  | alice f P ih => simp [DetProtocol.toRand, RandProtocol.run, DetProtocol.run, ih]
+  | bob f P ih => simp [DetProtocol.toRand, RandProtocol.run, DetProtocol.run, ih]
 
-def approx_computes
-    (p : RandProtocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
-  ∀ x y, (volume {ω : Ω_X × Ω_Y | p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
+private theorem DetProtocol.toRand_complexity {X Y α} (p : DetProtocol X Y α) :
+    p.toRand.complexity = p.complexity := by
+  induction p with
+  | output val => simp [DetProtocol.toRand, RandProtocol.complexity, DetProtocol.complexity]
+  | alice f P ih => simp [DetProtocol.toRand, RandProtocol.complexity, DetProtocol.complexity, ih]
+  | bob f P ih => simp [DetProtocol.toRand, RandProtocol.complexity, DetProtocol.complexity, ih]
 
-end RandProtocol
+theorem rand_cc_le_det_cc {X Y α} (f : X → Y → α) (ε : ℝ) (hε : 0 ≤ ε) :
+    randomized_communication_complexity f ε ≤ deterministic_communication_complexity f := by
+  -- Case split on whether det_cc is ⊤ (trivial) or some finite value
+  match h : deterministic_communication_complexity f with
+  | ⊤ => exact le_top
+  | (n : ℕ) =>
+    -- There exists a det protocol with complexity ≤ n
+    obtain ⟨p, hp, hc⟩ := (det_cc_le_iff f n).mp (le_of_eq h)
+    -- Convert to rand protocol and show rand_cc ≤ n
+    rw [rand_cc_le_iff]
+    refine ⟨Unit, Unit, Unit.fintype, Unit.fintype, unitMeasureSpace, unitMeasureSpace,
+      unitIsProbabilityMeasure, unitIsProbabilityMeasure, p.toRand, ?_, ?_⟩
+    · -- approx_computes: error is 0 since the protocol is deterministic
+      intro x y
+      have hrun : ∀ ω : Unit × Unit, p.toRand.run x y ω.1 ω.2 = f x y := by
+        intro ω; rw [DetProtocol.toRand_run]; exact congr_fun (congr_fun hp x) y
+      simp [hrun, hε]
+    · -- complexity: toRand preserves complexity
+      rw [DetProtocol.toRand_complexity]; exact hc
