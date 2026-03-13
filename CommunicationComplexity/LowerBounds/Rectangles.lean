@@ -2,6 +2,7 @@ import CommunicationComplexity.Det.Basic
 import Mathlib.Data.Set.Basic
 import Mathlib.Data.Set.Card
 import Mathlib.Order.Defs.PartialOrder
+import Mathlib.Tactic.Ring
 
 namespace DetProtocol
 
@@ -199,9 +200,10 @@ private lemma aux_card (p : DetProtocol X Y α) (A : Set X) (B : Set Y) :
       _ ≤ 2 ^ (P false).complexity + 2 ^ (P true).complexity := by
             exact Nat.add_le_add (ih false _ _) (ih true _ _)
       _ ≤ 2 ^ max (P false).complexity (P true).complexity +
-          2 ^ max (P false).complexity (P true).complexity := by
-            exact Nat.add_le_add (Nat.pow_le_pow_right (by norm_num) (Nat.le_max_left _ _))
-                                  (Nat.pow_le_pow_right (by norm_num) (Nat.le_max_right _ _))
+          2 ^ max (P false).complexity (P true).complexity :=
+            Nat.add_le_add
+              (Nat.pow_le_pow_right (by omega) (Nat.le_max_left _ _))
+              (Nat.pow_le_pow_right (by omega) (Nat.le_max_right _ _))
       _ = 2 ^ (1 + max (P false).complexity (P true).complexity) := by ring
   | bob f P ih =>
     simp only [leafRectanglesAux, complexity]
@@ -214,8 +216,9 @@ private lemma aux_card (p : DetProtocol X Y α) (A : Set X) (B : Set Y) :
             Nat.add_le_add (ih false _ _) (ih true _ _)
       _ ≤ 2 ^ max (P false).complexity (P true).complexity +
           2 ^ max (P false).complexity (P true).complexity :=
-            Nat.add_le_add (Nat.pow_le_pow_right (by norm_num) (Nat.le_max_left _ _))
-                            (Nat.pow_le_pow_right (by norm_num) (Nat.le_max_right _ _))
+            Nat.add_le_add
+              (Nat.pow_le_pow_right (by omega) (Nat.le_max_left _ _))
+              (Nat.pow_le_pow_right (by omega) (Nat.le_max_right _ _))
       _ = 2 ^ (1 + max (P false).complexity (P true).complexity) := by ring
 
 lemma leafRectangles_card (p : DetProtocol X Y α) :
