@@ -1,4 +1,4 @@
-import CommunicationComplexity.Det.Basic
+import CommunicationComplexity.Basic
 import Mathlib.Data.Set.Basic
 import Mathlib.Data.Set.Card
 import Mathlib.Order.Defs.PartialOrder
@@ -139,6 +139,54 @@ lemma leafRectangles_disjoint (p : DetProtocol X Y α)
 def isMono (S : Set (X × Y)) (g : X → Y → α) : Prop :=
   ∀ x x' y y', (x, y) ∈ S → (x', y') ∈ S → g x y = g x' y'
 
+/-- A set of sets is a monochromatic rectangle partition of `X × Y`
+with respect to `g` if every member is a rectangle, every member is
+monochromatic for `g`, the members cover `X × Y`, and distinct
+members are disjoint. -/
+def isMonoRectPartition
+    (Part : Set (Set (X × Y))) (g : X → Y → α) : Prop :=
+  (∀ R ∈ Part, isRectangle R) ∧
+  (∀ R ∈ Part, isMono R g) ∧
+  ⋃₀ Part = Set.univ ∧
+  (∀ R S, R ∈ Part → S ∈ Part → R ≠ S → Disjoint R S)
+
+namespace isMonoRectPartition
+
+variable {Part : Set (Set (X × Y))} {g : X → Y → α}
+
+/-- Every point is in some member of the partition. -/
+theorem exists_mem (h : isMonoRectPartition Part g)
+    (p : X × Y) : ∃ R ∈ Part, p ∈ R := by
+  have := h.2.2.1 ▸ Set.mem_univ p
+  exact Set.mem_sUnion.mp this
+
+/-- If a point is in two members, they must be equal. -/
+theorem eq_of_mem (h : isMonoRectPartition Part g)
+    {R S : Set (X × Y)} (hR : R ∈ Part) (hS : S ∈ Part)
+    {p : X × Y} (hp1 : p ∈ R) (hp2 : p ∈ S) : R = S := by
+  by_contra hne
+  exact Set.disjoint_left.mp (h.2.2.2 R S hR hS hne) hp1 hp2
+
+/-- Rectangle cross-product: if `(x,y)` and `(x',y')` are in the
+same member, then so are `(x',y)` and `(x,y')`. -/
+theorem cross_mem (h : isMonoRectPartition Part g)
+    {R : Set (X × Y)} (hR : R ∈ Part)
+    {x x' : X} {y y' : Y}
+    (hxy : (x, y) ∈ R) (hx'y' : (x', y') ∈ R) :
+    (x', y) ∈ R ∧ (x, y') ∈ R :=
+  (isRectangle_iff R).mp (h.1 R hR) x x' y y' hxy hx'y'
+
+/-- Monochromatic: any two points in the same member have equal
+function values. -/
+theorem apply_eq (h : isMonoRectPartition Part g)
+    {R : Set (X × Y)} (hR : R ∈ Part)
+    {x x' : X} {y y' : Y}
+    (hxy : (x, y) ∈ R) (hx'y' : (x', y') ∈ R) :
+    g x y = g x' y' :=
+  h.2.1 R hR x x' y y' hxy hx'y'
+
+end isMonoRectPartition
+
 private lemma aux_mono (p : DetProtocol X Y α) (A : Set X) (B : Set Y)
     (R : Set (X × Y)) (hR : R ∈ leafRectanglesAux p A B)
     (x x' : X) (y y' : Y) (hxy : (x, y) ∈ R) (hxy' : (x', y') ∈ R) :
@@ -217,11 +265,64 @@ lemma leafRectangles_card (p : DetProtocol X Y α) :
     Set.ncard (leafRectangles p) ≤ 2 ^ p.complexity :=
   aux_card p Set.univ Set.univ
 
-/-- Theorem 1.6: if π computes g, then X × Y is partitioned into at most 2^c
-monochromatic rectangles with respect to g. -/
-theorem rectangle_partition (p : DetProtocol X Y α) (g : X → Y → α) (h_comp : computes p g) :
-    (∀ R ∈ leafRectangles p, isMono R g) ∧
+/-- The leaf rectangles of a protocol computing `g` form a
+monochromatic rectangle partition. -/
+theorem leafRectangles_isMonoRectPartition
+    (p : DetProtocol X Y α) (g : X → Y → α)
+    (h_comp : computes p g) :
+    isMonoRectPartition (leafRectangles p) g :=
+  ⟨fun R hR => leafRectangles_isRectangle p R hR,
+   fun R hR => leafRectangles_mono p g h_comp R hR,
+   leafRectangles_cover p,
+   fun R S hR hS hne =>
+     leafRectangles_disjoint p R S hR hS hne⟩
+
+/-- Theorem 1.6: if π computes g, then X × Y is partitioned
+into at most 2^c monochromatic rectangles with respect to g. -/
+theorem rectangle_partition
+    (p : DetProtocol X Y α) (g : X → Y → α)
+    (h_comp : computes p g) :
+    isMonoRectPartition (leafRectangles p) g ∧
     Set.ncard (leafRectangles p) ≤ 2 ^ p.complexity :=
-  ⟨fun R hR => leafRectangles_mono p g h_comp R hR, leafRectangles_card p⟩
+  ⟨leafRectangles_isMonoRectPartition p g h_comp,
+   leafRectangles_card p⟩
+
+/-- Rephrasing of `rectangle_partition` using non-explicit partition.
+If the deterministic communication complexity of `g` is at most `n`,
+then there exists a monochromatic rectangle partition of `X × Y` with
+at most `2^n` rectangles. -/
+theorem mono_rectangle_partition_of_det_cc
+    (g : X → Y → α) (n : ℕ)
+    (h : deterministic_communication_complexity g ≤ n) :
+    ∃ Part : Set (Set (X × Y)),
+      isMonoRectPartition Part g ∧
+      Set.ncard Part ≤ 2 ^ n := by
+  obtain ⟨p, hp, hc⟩ := (det_cc_le_iff g n).mp h
+  exact ⟨leafRectangles p,
+    leafRectangles_isMonoRectPartition p g hp,
+    (leafRectangles_card p).trans
+      (Nat.pow_le_pow_right (by omega) hc)⟩
+
+/-- Lower bound method: to show `CC(g) ≥ n + 1`, it suffices to
+show every monochromatic rectangle partition of `g` has more than
+`2^n` elements. -/
+theorem det_cc_lower_bound
+    (g : X → Y → α) (n : ℕ)
+    (h : ∀ Part : Set (Set (X × Y)),
+      isMonoRectPartition Part g →
+      2 ^ n < Set.ncard Part) :
+    (n + 1 : ℕ) ≤ deterministic_communication_complexity g := by
+  rw [le_det_cc_iff]
+  intro p hp
+  have hle : deterministic_communication_complexity g ≤
+      p.complexity :=
+    (det_cc_le_iff g p.complexity).mpr ⟨p, hp, le_refl _⟩
+  obtain ⟨Part, hPart, hCard⟩ :=
+    mono_rectangle_partition_of_det_cc g p.complexity hle
+  have hsuff := h Part hPart
+  by_contra hlt; push_neg at hlt
+  have : 2 ^ p.complexity ≤ 2 ^ n :=
+    Nat.pow_le_pow_right (by omega) (by omega)
+  omega
 
 end DetProtocol
