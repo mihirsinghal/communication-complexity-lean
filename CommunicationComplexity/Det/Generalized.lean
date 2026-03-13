@@ -1,4 +1,13 @@
 import CommunicationComplexity.Det.Basic
+import Mathlib.Data.Fintype.Card
+import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Data.Fintype.Pi
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Finset.Lattice.Fold
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Linarith
+import Mathlib.Data.Fintype.Inv
+import Mathlib.Data.Nat.Bitwise
 
 /-- A generalized deterministic two-party communication protocol where at each step,
 a player sends an element of an arbitrary finite type `β` (rather than just a `Bool`).
@@ -6,8 +15,8 @@ This is equivalent to `DetProtocol` up to complexity (see `det_protocol_generali
 where sending a `β`-valued message costs `⌈log₂ |β|⌉` bits. -/
 inductive DetProtocolGeneralized (X Y α : Type*) where
   | output (val : α) : DetProtocolGeneralized X Y α
-  | alice {β : Type*} [Fintype β] [DecidableEq β] [Nonempty β] (f : X → β) (P : β → DetProtocolGeneralized X Y α) : DetProtocolGeneralized X Y α
-  | bob {β : Type*} [Fintype β] [DecidableEq β] [Nonempty β] (f : Y → β) (P : β → DetProtocolGeneralized X Y α) : DetProtocolGeneralized X Y α
+  | alice {β : Type} [Fintype β] [DecidableEq β] [Nonempty β] (f : X → β) (P : β → DetProtocolGeneralized X Y α) : DetProtocolGeneralized X Y α
+  | bob {β : Type} [Fintype β] [DecidableEq β] [Nonempty β] (f : Y → β) (P : β → DetProtocolGeneralized X Y α) : DetProtocolGeneralized X Y α
 
 namespace DetProtocolGeneralized
 
@@ -172,5 +181,43 @@ theorem det_protocol_generalized_to_det_protocol (p : DetProtocolGeneralized X Y
         simp [DetProtocolGeneralized.run, DetProtocol.swap_run, hR_run, hQ_run],
       by simp [DetProtocolGeneralized.complexity, DetProtocol.swap_complexity, hR_comp,
                DetProtocol.swap_complexity, hQ_comp]⟩
+
+/-- Embed a binary protocol into a generalized protocol (with `β = Bool` at each step). -/
+def ofDetProtocol : DetProtocol X Y α → DetProtocolGeneralized X Y α
+  | DetProtocol.output val => DetProtocolGeneralized.output val
+  | DetProtocol.alice f P => DetProtocolGeneralized.alice f (fun b => ofDetProtocol (P b))
+  | DetProtocol.bob f P => DetProtocolGeneralized.bob f (fun b => ofDetProtocol (P b))
+
+theorem ofDetProtocol_run (p : DetProtocol X Y α) (x : X) (y : Y) :
+    (ofDetProtocol p).run x y = p.run x y := by
+  induction p with
+  | output val => simp [ofDetProtocol, run, DetProtocol.run]
+  | alice f P ih => simp [ofDetProtocol, run, DetProtocol.run, ih]
+  | bob f P ih => simp [ofDetProtocol, run, DetProtocol.run, ih]
+
+theorem ofDetProtocol_complexity (p : DetProtocol X Y α) :
+    (ofDetProtocol p).complexity = p.complexity := by
+  induction p with
+  | output val => simp [ofDetProtocol, complexity, DetProtocol.complexity]
+  | alice f P ih =>
+    simp only [ofDetProtocol, complexity, DetProtocol.complexity, ih]
+    -- clog 2 |Bool| = 1, and sup over Bool = max
+    have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
+    rw [this]
+    -- Finset.univ for Bool is {false, true}, so sup = max
+    have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
+    simp [this]
+  | bob f P ih =>
+    simp only [ofDetProtocol, complexity, DetProtocol.complexity, ih]
+    have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
+    rw [this]
+    have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
+    simp [this]
+
+/-- Every binary protocol can be viewed as a generalized protocol with the same
+run behavior and complexity (using `β = Bool` at each step). -/
+theorem det_protocol_to_det_protocol_generalized (p : DetProtocol X Y α) :
+    ∃ (P : DetProtocolGeneralized X Y α), P.run = p.run ∧ P.complexity = p.complexity :=
+  ⟨ofDetProtocol p, funext fun x => funext fun y => ofDetProtocol_run p x y, ofDetProtocol_complexity p⟩
 
 end DetProtocolGeneralized

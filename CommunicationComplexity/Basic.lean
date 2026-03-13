@@ -1,7 +1,7 @@
-import Mathlib
 import CommunicationComplexity.Det.Basic
 import CommunicationComplexity.Det.Generalized
 import CommunicationComplexity.Rand.Basic
+import Mathlib.MeasureTheory.Measure.Dirac
 
 open MeasureTheory
 
@@ -34,6 +34,20 @@ theorem det_cc_le_iff {X Y α} (f : X → Y → α) (n : ℕ) :
       ∃ p : DetProtocol X Y α, p.computes f ∧ p.complexity ≤ n := by
   simp only [deterministic_communication_complexity, WithTop.iInf_le_coe_iff, Nat.cast_le,
     exists_prop]
+
+/-- The deterministic communication complexity of `f` is at most `n` iff there exists a
+generalized deterministic protocol computing `f` with complexity at most `n`. -/
+theorem det_cc_le_iff_generalized {X Y α} (f : X → Y → α) (n : ℕ) :
+    deterministic_communication_complexity f ≤ n ↔
+      ∃ p : DetProtocolGeneralized X Y α, p.run = f ∧ p.complexity ≤ n := by
+  rw [det_cc_le_iff]
+  constructor
+  · rintro ⟨p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ := DetProtocolGeneralized.det_protocol_to_det_protocol_generalized p
+    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
+  · rintro ⟨p, hp, hc⟩
+    obtain ⟨P, hP_run, hP_comp⟩ := DetProtocolGeneralized.det_protocol_generalized_to_det_protocol p
+    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
 
 /-- The deterministic communication complexity of `f` is at least `n` iff every deterministic
 protocol computing `f` has complexity at least `n`. -/
