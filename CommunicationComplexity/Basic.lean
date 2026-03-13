@@ -110,7 +110,7 @@ private theorem DetProtocol.toRand_complexity (p : DetProtocol X Y α) :
   | alice f P ih => simp [DetProtocol.toRand, RandProtocol.complexity, DetProtocol.complexity, ih]
   | bob f P ih => simp [DetProtocol.toRand, RandProtocol.complexity, DetProtocol.complexity, ih]
 
-theorem rand_cc_le_det_cc {X Y α} (f : X → Y → α) (hε : 0 ≤ ε) :
+theorem rand_cc_le_det_cc {X Y α} (f : X → Y → α) (ε : ℝ) (hε : 0 ≤ ε) :
     randomized_communication_complexity f ε ≤ deterministic_communication_complexity f := by
   -- Case split on whether det_cc is ⊤ (trivial) or some finite value
   match h : deterministic_communication_complexity f with
@@ -126,8 +126,6 @@ theorem rand_cc_le_det_cc {X Y α} (f : X → Y → α) (hε : 0 ≤ ε) :
       intro x y
       have hrun : ∀ ω : Unit × Unit, p.toRand.run x y ω.1 ω.2 = f x y := by
         intro ω; rw [DetProtocol.toRand_run]; exact congr_fun (congr_fun hp x) y
-      have hempty : {ω : Unit × Unit | p.toRand.run x y ω.1 ω.2 ≠ f x y} = ∅ := by
-        ext ω; simp [hrun ω]
-      simp [hempty, hε]
+      simp [hrun, hε]
     · -- complexity: toRand preserves complexity
       rw [DetProtocol.toRand_complexity]; exact hc
