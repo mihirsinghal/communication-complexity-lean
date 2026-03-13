@@ -1,0 +1,294 @@
+%% Blueprint content for the Communication Complexity Lean formalization.
+%% This file follows the structure of Rao--Yehudayoff Chapter 1.
+
+\chapter{Deterministic Communication Complexity}
+
+\section{Protocols}
+
+\begin{definition}[Deterministic protocol]
+  \label{def:det_protocol}
+  \lean{DetProtocol}
+  \leanok
+  A \emph{deterministic two-party communication protocol} over input sets $X$, $Y$
+  and output type $\alpha$ is an inductive tree whose internal nodes are labelled
+  by either Alice (with a function $X \to \{0,1\}$) or Bob (with a function
+  $Y \to \{0,1\}$), and whose leaves carry output values in $\alpha$.
+  At each internal node the corresponding party sends the bit determined by their
+  input, and the protocol recurses into the corresponding subtree.
+\end{definition}
+
+\begin{definition}[Protocol run and complexity]
+  \label{def:protocol_run}
+  \lean{DetProtocol.run}\leanok
+  \lean{DetProtocol.complexity}\leanok
+  \uses{def:det_protocol}
+  The \emph{run} of a protocol $p$ on inputs $(x, y)$ is the output value at the
+  leaf reached by following Alice's and Bob's bits.
+  The \emph{complexity} of $p$ is the worst-case depth, i.e.\ the maximum number
+  of bits exchanged over all inputs.
+\end{definition}
+
+\begin{definition}[Computes]
+  \label{def:computes}
+  \lean{DetProtocol.computes}
+  \leanok
+  \uses{def:protocol_run}
+  A protocol $p$ \emph{computes} $f : X \to Y \to \alpha$ if $p.\mathrm{run}(x,y)
+  = f(x,y)$ for all inputs $(x,y)$.
+\end{definition}
+
+\begin{definition}[Deterministic communication complexity]
+  \label{def:det_cc}
+  \lean{deterministic_communication_complexity}
+  \leanok
+  \uses{def:det_protocol, def:computes}
+  The \emph{deterministic communication complexity} $\Det(f)$ of a function
+  $f : X \to Y \to \alpha$ is
+  \[
+    \Det(f) \;=\; \inf \bigl\{\, p.\mathrm{complexity} \mid
+      p : \text{DetProtocol}\;X\;Y\;\alpha,\; p.\mathrm{computes}(f) \bigr\}.
+  \]
+  We use $\Det(f) = \top$ to indicate that no finite protocol computes $f$.
+\end{definition}
+
+\begin{lemma}
+  \label{lem:det_cc_le_iff}
+  \lean{det_cc_le_iff}
+  \leanok
+  \uses{def:det_cc}
+  $\Det(f) \le n$ if and only if there exists a protocol $p$ computing $f$ with
+  $p.\mathrm{complexity} \le n$.
+\end{lemma}
+
+\begin{lemma}
+  \label{lem:le_det_cc_iff}
+  \lean{le_det_cc_iff}
+  \leanok
+  \uses{def:det_cc}
+  $n \le \Det(f)$ if and only if every protocol $p$ computing $f$ satisfies
+  $n \le p.\mathrm{complexity}$.
+\end{lemma}
+
+\section{Randomized Protocols}
+
+\begin{definition}[Randomized protocol]
+  \label{def:rand_protocol}
+  \lean{RandProtocol}
+  \leanok
+  A \emph{randomized protocol} is like a deterministic protocol except that
+  Alice and Bob each have access to a private random string drawn from finite
+  probability spaces $\Omega_X$ and $\Omega_Y$ respectively.
+\end{definition}
+
+\begin{definition}[Randomized communication complexity]
+  \label{def:rand_cc}
+  \lean{randomized_communication_complexity}
+  \leanok
+  \uses{def:rand_protocol}
+  The \emph{$\varepsilon$-error randomized communication complexity} $\Rand_\varepsilon(f)$
+  is the infimum of the complexity of all randomized protocols that compute $f$
+  with error probability at most $\varepsilon$ on every input.
+\end{definition}
+
+\begin{theorem}
+  \label{thm:rand_le_det}
+  \lean{rand_cc_le_det_cc}
+  \leanok
+  \uses{def:rand_cc, def:det_cc}
+  For any $\varepsilon \ge 0$, $\Rand_\varepsilon(f) \le \Det(f)$.
+  Every deterministic protocol can be viewed as a randomized protocol that
+  ignores its random coins and achieves error $0 \le \varepsilon$.
+\end{theorem}
+
+\section{Upper Bounds}
+
+\begin{theorem}
+  \label{thm:det_cc_le_clog}
+  \lean{det_cc_le_clog_card}
+  \leanok
+  \uses{def:det_cc}
+  For finite types $X$ and $Y$,
+  \[
+    \Det(f) \;\le\; \lceil \log_2 |X| \rceil + \lceil \log_2 |Y| \rceil.
+  \]
+  Alice sends her entire input, then Bob sends his.
+\end{theorem}
+
+\begin{theorem}
+  \label{thm:det_cc_le_clog_X_alpha}
+  \lean{det_cc_le_clog_card_X_alpha}
+  \leanok
+  \uses{def:det_cc}
+  For finite $X$ and $\alpha$,
+  \[
+    \Det(f) \;\le\; \lceil \log_2 |X| \rceil + \lceil \log_2 |\alpha| \rceil.
+  \]
+  Alice sends her input; Bob computes and sends the output value.
+\end{theorem}
+
+\chapter{The Rectangle Method}
+
+\section{Rectangles and Partitions}
+
+\begin{definition}[Rectangle]
+  \label{def:rectangle}
+  \lean{DetProtocol.isRectangle}
+  \leanok
+  A set $R \subseteq X \times Y$ is a \emph{combinatorial rectangle} if
+  $R = A \times B$ for some $A \subseteq X$ and $B \subseteq Y$.
+  Equivalently, whenever $(x,y),(x',y') \in R$ we also have $(x',y),(x,y') \in R$.
+\end{definition}
+
+\begin{lemma}[Rectangle characterization]
+  \label{lem:rectangle_iff}
+  \lean{DetProtocol.isRectangle_iff}
+  \leanok
+  \uses{def:rectangle}
+  $R$ is a rectangle if and only if for all $(x,y),(x',y') \in R$,
+  the mixed pairs $(x',y)$ and $(x,y')$ also belong to $R$.
+\end{lemma}
+
+\begin{definition}[Monochromatic rectangle partition]
+  \label{def:mono_rect_partition}
+  \lean{DetProtocol.isMonoRectPartition}
+  \leanok
+  \uses{def:rectangle}
+  A collection $\mathcal{P}$ of subsets of $X \times Y$ is a
+  \emph{monochromatic rectangle partition} for $g : X \to Y \to \alpha$ if:
+  every $R \in \mathcal{P}$ is a rectangle, every $R \in \mathcal{P}$ is
+  $g$-monochromatic (all pairs in $R$ have the same $g$-value), $\mathcal{P}$
+  covers $X \times Y$, and distinct members of $\mathcal{P}$ are disjoint.
+\end{definition}
+
+\begin{definition}[Leaf rectangles]
+  \label{def:leaf_rectangles}
+  \lean{DetProtocol.leafRectangles}
+  \leanok
+  \uses{def:det_protocol, def:rectangle}
+  The \emph{leaf rectangles} of a protocol $\pi$ are the sets of inputs that
+  reach each leaf of the protocol tree.  Each leaf rectangle is a combinatorial
+  rectangle obtained by intersecting the half-spaces cut by each bit sent along
+  the path to that leaf.
+\end{definition}
+
+\begin{lemma}[Lemma 1.4: leaf rectangles partition the input space]
+  \label{lem:leaf_partition}
+  \lean{DetProtocol.leafRectangles_cover}
+  \lean{DetProtocol.leafRectangles_disjoint}
+  \lean{DetProtocol.leafRectangles_isRectangle}
+  \leanok
+  \uses{def:leaf_rectangles, def:mono_rect_partition}
+  For any protocol $\pi$, the leaf rectangles of $\pi$ form a partition of
+  $X \times Y$ into combinatorial rectangles.
+  Moreover, if $\pi$ computes $g$, each leaf rectangle is $g$-monochromatic.
+\end{lemma}
+
+\begin{lemma}
+  \label{lem:leaf_card}
+  \lean{DetProtocol.leafRectangles_card}
+  \leanok
+  \uses{def:leaf_rectangles, def:protocol_run}
+  A protocol of complexity $c$ has at most $2^c$ leaf rectangles.
+\end{lemma}
+
+\begin{theorem}[Theorem 1.6: rectangle partition bound]
+  \label{thm:rect_partition}
+  \lean{DetProtocol.rectangle_partition}
+  \lean{DetProtocol.mono_rectangle_partition_of_det_cc}
+  \leanok
+  \uses{lem:leaf_partition, lem:leaf_card, def:mono_rect_partition}
+  If $\pi$ computes $g$ and has complexity $c$, then the input space $X \times Y$
+  can be partitioned into at most $2^c$ monochromatic rectangles with respect to $g$.
+  Equivalently, if $\Det(g) \le n$ then there is a monochromatic rectangle
+  partition of size at most $2^n$.
+\end{theorem}
+
+\begin{theorem}[Rectangle lower bound method]
+  \label{thm:rect_lower_bound}
+  \lean{DetProtocol.det_cc_lower_bound}
+  \leanok
+  \uses{thm:rect_partition, def:det_cc}
+  To show $\Det(g) \ge n+1$, it suffices to show that every monochromatic
+  rectangle partition of $g$ has more than $2^n$ members.
+\end{theorem}
+
+\chapter{The Equality Function}
+
+\begin{definition}[Equality function]
+  \label{def:eq_fn}
+  \lean{EQ}
+  \leanok
+  $\EQ_n : (\bits^n) \times (\bits^n) \to \bits$ is defined by
+  $\EQ_n(x, y) = 1$ iff $x = y$.
+\end{definition}
+
+\begin{theorem}[Upper bound for EQ]
+  \label{thm:eq_upper}
+  \lean{det_cc_EQ_le}
+  \leanok
+  \uses{def:eq_fn, def:det_cc, thm:det_cc_le_clog_X_alpha}
+  $\Det(\EQ_n) \le n + 1$.  Alice sends her $n$-bit input; Bob sends a single
+  bit indicating equality.
+\end{theorem}
+
+\begin{theorem}[Lower bound for EQ]
+  \label{thm:eq_lower}
+  \lean{le_det_cc_EQ}
+  \leanok
+  \uses{def:eq_fn, thm:rect_lower_bound}
+  For $n \ge 1$, $\Det(\EQ_n) \ge n + 1$.
+  Any monochromatic rectangle containing a diagonal pair $(x,x)$ can contain no
+  off-diagonal pair $(x',x'')$ with $x' \ne x''$, so every partition has at least
+  $2^n + 1$ members, forcing $n + 1$ bits.
+\end{theorem}
+
+\begin{theorem}[Exact complexity of EQ]
+  \label{thm:eq_exact}
+  \lean{det_cc_EQ}
+  \leanok
+  \uses{thm:eq_upper, thm:eq_lower}
+  \[
+    \Det(\EQ_n) = \begin{cases} 0 & n = 0, \\ n + 1 & n \ge 1. \end{cases}
+  \]
+\end{theorem}
+
+\chapter{Protocol Trees and Balanced Subtrees}
+
+\section{Binary Trees}
+
+\begin{lemma}[Lemma 1.8: balanced subtree]
+  \label{lem:balanced_subtree}
+  \lean{Tree.balanced_subtree}
+  \leanok
+  Every binary tree $T$ with $\ell > 1$ leaves has a subtree $S$ satisfying
+  \[
+    \frac{\ell}{3} \;\le\; |S| \;<\; \frac{2\ell}{3},
+  \]
+  where $|S|$ denotes the number of leaves of $S$.
+\end{lemma}
+
+\section{Protocol Shape}
+
+\begin{definition}[Protocol shape and leaf count]
+  \label{def:protocol_shape}
+  \lean{DetProtocol.shape}
+  \lean{DetProtocol.numLeaves}
+  \leanok
+  \uses{def:det_protocol}
+  The \emph{shape} of a protocol $\pi$ is the underlying binary tree (ignoring
+  Alice/Bob labels and functions).  The \emph{leaf count} $\mathrm{numLeaves}(\pi)$
+  is the number of leaves of this tree.
+\end{definition}
+
+\begin{theorem}[Theorem 1.7: complexity vs.\ leaf count]
+  \label{thm:complexity_log_leaves}
+  \lean{complexity_le_two_log_numLeaves}
+  \uses{lem:balanced_subtree, def:protocol_shape, thm:rect_partition}
+  For any protocol $\pi$ there exists a protocol $\pi'$ computing the same
+  function with
+  \[
+    3^{c'} \;\le\; 2^{c'} \cdot \mathrm{numLeaves}(\pi)^2,
+  \]
+  where $c' = \pi'.\mathrm{complexity}$.
+  Equivalently, $c' \le 2\log_{3/2}(\mathrm{numLeaves}(\pi))$.
+\end{theorem}

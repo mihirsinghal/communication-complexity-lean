@@ -1,0 +1,65 @@
+name: Build and Deploy Blueprint
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Allow deploying to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-blueprint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install blueprint dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz libgraphviz-dev
+          pip install leanblueprint
+
+      - name: Build blueprint
+        run: |
+          cd blueprint
+          leanblueprint web
+
+      - name: Upload blueprint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueprint
+          path: blueprint/web
+
+  deploy:
+    needs: build-blueprint
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download blueprint artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blueprint
+          path: blueprint/web
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blueprint/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
