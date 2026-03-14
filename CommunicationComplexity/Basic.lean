@@ -83,7 +83,6 @@ theorem rand_cc_le_iff {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
   simp only [randomized_communication_complexity, WithTop.iInf_le_coe_iff, Nat.cast_le, exists_prop,
     exists_const_iff, exists_and_left]
 
-set_option linter.unusedFintypeInType false in
 /-- Helper: to show rand CC ≤ n, provide a randomized protocol that ε-computes `f`
 with complexity ≤ n. Typeclass arguments are inferred automatically. -/
 theorem rand_cc_le_of_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
@@ -140,7 +139,6 @@ theorem rand_cc_le_iff_generalized {X Y α} (f : X → Y → α) (ε : ℝ) (n :
     refine ⟨Ω_X, Ω_Y, hfX, hfY, msX, msY, hpX, hpY, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
 
-set_option linter.unusedFintypeInType false in
 /-- Helper: to show rand CC ≤ n, provide a generalized randomized protocol that ε-computes `f`
 with complexity ≤ n. Typeclass arguments are inferred automatically. -/
 theorem rand_cc_le_of_generalized_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
