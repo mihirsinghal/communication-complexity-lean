@@ -21,3 +21,4 @@ rev = "b13a672"
 
 [[lean_lib]]
 name = "CommunicationComplexity"
+globs = ["CommunicationComplexity.+"]

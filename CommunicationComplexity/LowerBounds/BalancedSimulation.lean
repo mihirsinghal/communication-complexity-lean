@@ -1,4 +1,5 @@
 import CommunicationComplexity.Det.Subprotocol
+import Mathlib.Tactic.Ring
 
 namespace DetProtocol
 
@@ -129,11 +130,11 @@ theorem theorem_1_7_experiment (p : DetProtocol X Y α) :
           omega
         have hmSq : 9 * m ^ 2 ≤ 4 * n ^ 2 := by
           have hpow : (3 * m) * (3 * m) ≤ (2 * n) * (2 * n) := Nat.mul_le_mul hm2 hm2
-          simpa [pow_two, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hpow
+          simpa [sq, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hpow
         have houtSq : 9 * (n - m) ^ 2 ≤ 4 * n ^ 2 := by
           have hpow : (3 * (n - m)) * (3 * (n - m)) ≤ (2 * n) * (2 * n) :=
             Nat.mul_le_mul hout2 hout2
-          simpa [pow_two, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hpow
+          simpa [sq, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hpow
         have hmaxSq : 9 * max (m ^ 2) ((n - m) ^ 2) ≤ 4 * n ^ 2 := by
           by_cases hcase : m ^ 2 ≤ (n - m) ^ 2
           · rw [max_eq_right hcase]

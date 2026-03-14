@@ -62,7 +62,7 @@ the minimum worst-case number of bits exchanged over all randomized protocols th
 with error probability at most `ε` on every input. The randomness spaces are required to be finite.
 Returns `⊤` if no finite protocol `ε`-computes `f`. -/
 noncomputable def randomized_communication_complexity {X Y α} (f : X → Y → α) (ε : ℝ) : WithTop ℕ :=
-  ⨅ (Ω_X : Type) (Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+  ⨅ (Ω_X : Type) (Ω_Y : Type) (_ : Finite Ω_X) (_ : Finite Ω_Y)
     (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
     (_ : IsProbabilityMeasure (volume : Measure Ω_X))
     (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
@@ -74,19 +74,19 @@ finite probability spaces and a randomized protocol that `ε`-computes `f` with 
 most `n`. -/
 theorem rand_cc_le_iff {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     randomized_communication_complexity f ε ≤ n ↔
-      ∃ (Ω_X Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+      ∃ (Ω_X Ω_Y : Type) (_ : Finite Ω_X) (_ : Finite Ω_Y)
         (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
         (_ : IsProbabilityMeasure (volume : Measure Ω_X))
         (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
         (p : RandProtocol Ω_X Ω_Y X Y α),
         p.approx_computes f ε ∧ p.complexity ≤ n := by
   simp only [randomized_communication_complexity, WithTop.iInf_le_coe_iff, Nat.cast_le, exists_prop,
-    exists_const_iff, exists_and_left]
+    exists_and_left]
 
 /-- Helper: to show rand CC ≤ n, provide a randomized protocol that ε-computes `f`
 with complexity ≤ n. Typeclass arguments are inferred automatically. -/
 theorem rand_cc_le_of_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
-    {Ω_X Ω_Y : Type} [Fintype Ω_X] [Fintype Ω_Y]
+    {Ω_X Ω_Y : Type} [Finite Ω_X] [Finite Ω_Y]
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
@@ -102,7 +102,7 @@ randomized protocol that `ε`-computes `f` (over any finite probability spaces) 
 at least `n`. -/
 theorem le_rand_cc_iff {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     (n : WithTop ℕ) ≤ randomized_communication_complexity f ε ↔
-      ∀ (Ω_X Ω_Y : Type) [Fintype Ω_X] [Fintype Ω_Y]
+      ∀ (Ω_X Ω_Y : Type) [Finite Ω_X] [Finite Ω_Y]
         [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
         [IsProbabilityMeasure (volume : Measure Ω_X)]
         [IsProbabilityMeasure (volume : Measure Ω_Y)]
@@ -116,7 +116,7 @@ finite probability spaces and a generalized randomized protocol that `ε`-comput
 complexity at most `n`. -/
 theorem rand_cc_le_iff_generalized {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     randomized_communication_complexity f ε ≤ n ↔
-      ∃ (Ω_X Ω_Y : Type) (_ : Fintype Ω_X) (_ : Fintype Ω_Y)
+      ∃ (Ω_X Ω_Y : Type) (_ : Finite Ω_X) (_ : Finite Ω_Y)
         (_ : MeasureSpace Ω_X) (_ : MeasureSpace Ω_Y)
         (_ : IsProbabilityMeasure (volume : Measure Ω_X))
         (_ : IsProbabilityMeasure (volume : Measure Ω_Y))
@@ -142,7 +142,7 @@ theorem rand_cc_le_iff_generalized {X Y α} (f : X → Y → α) (ε : ℝ) (n :
 /-- Helper: to show rand CC ≤ n, provide a generalized randomized protocol that ε-computes `f`
 with complexity ≤ n. Typeclass arguments are inferred automatically. -/
 theorem rand_cc_le_of_generalized_protocol {X Y α} {f : X → Y → α} {ε : ℝ} {n : ℕ}
-    {Ω_X Ω_Y : Type} [Fintype Ω_X] [Fintype Ω_Y]
+    {Ω_X Ω_Y : Type} [Finite Ω_X] [Finite Ω_Y]
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
@@ -199,7 +199,7 @@ theorem rand_cc_le_det_cc {X Y α} (f : X → Y → α) (ε : ℝ) (hε : 0 ≤ 
     obtain ⟨p, hp, hc⟩ := (det_cc_le_iff f n).mp (le_of_eq h)
     -- Convert to rand protocol and show rand_cc ≤ n
     rw [rand_cc_le_iff]
-    refine ⟨Unit, Unit, Unit.fintype, Unit.fintype, unitMeasureSpace, unitMeasureSpace,
+    refine ⟨Unit, Unit, inferInstance, inferInstance, unitMeasureSpace, unitMeasureSpace,
       unitIsProbabilityMeasure, unitIsProbabilityMeasure, p.toRand, ?_, ?_⟩
     · -- approx_computes: error is 0 since the protocol is deterministic
       intro x y

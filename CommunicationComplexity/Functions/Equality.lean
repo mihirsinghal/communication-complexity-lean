@@ -11,12 +11,13 @@ Alice sends her n-bit input, Bob computes equality and sends one bit. -/
 theorem det_cc_EQ_le (n : ℕ) :
     deterministic_communication_complexity (EQ n) ≤ n + 1 := by
   calc deterministic_communication_complexity (EQ n)
-      ≤ Nat.clog 2 (Fintype.card (Fin n → Bool)) + Nat.clog 2 (Fintype.card Bool) :=
+      ≤ Nat.clog 2 (Nat.card (Fin n → Bool)) + Nat.clog 2 (Nat.card Bool) :=
         det_cc_le_clog_card_X_alpha (EQ n)
     _ = n + 1 := by
-        simp only [Fintype.card_pi, Fintype.card_bool, Finset.prod_const, Finset.card_univ,
-          Fintype.card_fin, Nat.one_lt_ofNat, Nat.clog_pow, ne_eq, WithTop.natCast_ne_top,
-          not_false_eq_true, add_right_inj_of_ne_top, Nat.cast_eq_one]
+        simp only [Nat.card_eq_fintype_card, Fintype.card_pi, Fintype.card_bool,
+          Finset.prod_const, Finset.card_univ, Fintype.card_fin, Nat.one_lt_ofNat,
+          Nat.clog_pow, ne_eq, WithTop.natCast_ne_top, not_false_eq_true,
+          add_right_inj_of_ne_top, Nat.cast_eq_one]
         decide
 
 /-- When n = 0, EQ has communication complexity 0: both inputs are

@@ -10,6 +10,9 @@ def shape : DetProtocol X Y α → Tree Unit
 | alice _ P => .node () (shape (P false)) (shape (P true))
 | bob   _ P => .node () (shape (P false)) (shape (P true))
 
+/-- The number of leaves (output nodes) in a protocol, defined via its tree shape. -/
+def numLeaves (p : DetProtocol X Y α) : ℕ := p.shape.numLeaves
+
 end DetProtocol
 
 namespace Tree
