@@ -1,4 +1,4 @@
-import CommunicationComplexity.Rand.Basic
+import CommunicationComplexity.PrivateCoin.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.EquivFin
 import Mathlib.Data.Fintype.Pi
@@ -11,30 +11,32 @@ import Mathlib.Data.Nat.Bitwise
 
 open MeasureTheory
 
+namespace CommunicationComplexity
+
 /-- A generalized randomized two-party communication protocol where at each step,
 a player sends an element of an arbitrary finite type `β` (rather than just a `Bool`).
 This is equivalent to `RandProtocol` up to complexity, where sending a `β`-valued
 message costs `⌈log₂ |β|⌉` bits. -/
-inductive RandProtocolGeneralized
+inductive PrivateCoin.FiniteMessage.Protocol
     (Ω_X Ω_Y : Type*)
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
     (X Y α : Type*) where
   | output (a : α) :
-      RandProtocolGeneralized Ω_X Ω_Y X Y α
+      PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α
   | alice {β : Type} [Fintype β] [Nonempty β] [MeasurableSpace β] [DiscreteMeasurableSpace β]
       (f : X → Ω_X → β)
       (hf : ∀ x, Measurable (f x))
-      (P : β → RandProtocolGeneralized Ω_X Ω_Y X Y α) :
-      RandProtocolGeneralized Ω_X Ω_Y X Y α
+      (P : β → PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α) :
+      PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α
   | bob {β : Type} [Fintype β] [Nonempty β] [MeasurableSpace β] [DiscreteMeasurableSpace β]
       (f : Y → Ω_Y → β)
       (hf : ∀ y, Measurable (f y))
-      (P : β → RandProtocolGeneralized Ω_X Ω_Y X Y α) :
-      RandProtocolGeneralized Ω_X Ω_Y X Y α
+      (P : β → PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α) :
+      PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α
 
-namespace RandProtocolGeneralized
+namespace PrivateCoin.FiniteMessage.Protocol
 
 variable {Ω_X Ω_Y X Y α : Type*}
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
@@ -43,7 +45,7 @@ variable {Ω_X Ω_Y X Y α : Type*}
 
 /-- Executes the generalized randomized protocol on inputs `x`, `y`
 with random coins `ω_x`, `ω_y`. -/
-def run (p : RandProtocolGeneralized Ω_X Ω_Y X Y α)
+def run (p : Protocol Ω_X Ω_Y X Y α)
     (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) : α :=
   match p with
   | output a => a
@@ -52,7 +54,7 @@ def run (p : RandProtocolGeneralized Ω_X Ω_Y X Y α)
 
 /-- The communication complexity of a generalized randomized protocol. Sending a `β`-valued
 message costs `⌈log₂ |β|⌉` bits. -/
-def complexity : RandProtocolGeneralized Ω_X Ω_Y X Y α → ℕ
+def complexity : Protocol Ω_X Ω_Y X Y α → ℕ
   | output _ => 0
   | alice (β := β) _ _ P =>
       Nat.clog 2 (Fintype.card β) +
@@ -63,32 +65,32 @@ def complexity : RandProtocolGeneralized Ω_X Ω_Y X Y α → ℕ
 
 /-- Embed a binary randomized protocol into a generalized randomized protocol
 (with `β = Bool` at each step). -/
-def ofRandProtocol : RandProtocol Ω_X Ω_Y X Y α → RandProtocolGeneralized Ω_X Ω_Y X Y α
-  | RandProtocol.output a => output a
-  | RandProtocol.alice f hf P => alice f hf (fun b => ofRandProtocol (P b))
-  | RandProtocol.bob f hf P => bob f hf (fun b => ofRandProtocol (P b))
+def ofProtocol : PrivateCoin.Protocol Ω_X Ω_Y X Y α → PrivateCoin.FiniteMessage.Protocol Ω_X Ω_Y X Y α
+  | PrivateCoin.Protocol.output a => output a
+  | PrivateCoin.Protocol.alice f hf P => alice f hf (fun b => ofProtocol (P b))
+  | PrivateCoin.Protocol.bob f hf P => bob f hf (fun b => ofProtocol (P b))
 
-theorem ofRandProtocol_run (p : RandProtocol Ω_X Ω_Y X Y α)
+theorem ofProtocol_run (p : PrivateCoin.Protocol Ω_X Ω_Y X Y α)
     (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) :
-    (ofRandProtocol p).run x y ω_x ω_y = p.run x y ω_x ω_y := by
+    (ofProtocol p).run x y ω_x ω_y = p.run x y ω_x ω_y := by
   induction p with
-  | output a => simp [ofRandProtocol, run, RandProtocol.run]
-  | alice f hf P ih => simp [ofRandProtocol, run, RandProtocol.run, ih]
-  | bob f hf P ih => simp [ofRandProtocol, run, RandProtocol.run, ih]
+  | output a => simp [ofProtocol, run, PrivateCoin.Protocol.run]
+  | alice f hf P ih => simp [ofProtocol, run, PrivateCoin.Protocol.run, ih]
+  | bob f hf P ih => simp [ofProtocol, run, PrivateCoin.Protocol.run, ih]
 
-theorem ofRandProtocol_complexity (p : RandProtocol Ω_X Ω_Y X Y α) :
-    (ofRandProtocol p).complexity = p.complexity := by
+theorem ofProtocol_complexity (p : PrivateCoin.Protocol Ω_X Ω_Y X Y α) :
+    (ofProtocol p).complexity = p.complexity := by
   induction p with
-  | output a => simp [ofRandProtocol, complexity, RandProtocol.complexity]
+  | output a => simp [ofProtocol, complexity, PrivateCoin.Protocol.complexity]
   | alice f hf P ih =>
-    simp only [ofRandProtocol, complexity, RandProtocol.complexity, ih]
+    simp only [ofProtocol, complexity, PrivateCoin.Protocol.complexity, ih]
     -- clog 2 |Bool| = 1, and sup over Bool = max
     have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
     rw [this]
     have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
     simp [this]
   | bob f hf P ih =>
-    simp only [ofRandProtocol, complexity, RandProtocol.complexity, ih]
+    simp only [ofProtocol, complexity, PrivateCoin.Protocol.complexity, ih]
     have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
     rw [this]
     have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
@@ -98,16 +100,16 @@ theorem ofRandProtocol_complexity (p : RandProtocol Ω_X Ω_Y X Y α) :
 -- Each query depends on input x and randomness ω_x.
 private def completeTreeAlice (d : ℕ) (query : Fin d → X → Ω_X → Bool)
     (hquery : ∀ i x, Measurable (query i x))
-    (Q : (Fin d → Bool) → RandProtocol Ω_X Ω_Y X Y α) : RandProtocol Ω_X Ω_Y X Y α :=
+    (Q : (Fin d → Bool) → PrivateCoin.Protocol Ω_X Ω_Y X Y α) : PrivateCoin.Protocol Ω_X Ω_Y X Y α :=
   match d with
   | 0 => Q Fin.elim0
-  | d + 1 => RandProtocol.alice (query 0) (hquery 0) fun b =>
+  | d + 1 => PrivateCoin.Protocol.alice (query 0) (hquery 0) fun b =>
       completeTreeAlice d (query ∘ Fin.succ)
         (fun i => hquery i.succ) (fun bits => Q (Fin.cons b bits))
 
 private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Ω_X → Bool)
     (hquery : ∀ i x, Measurable (query i x))
-    (Q : (Fin d → Bool) → RandProtocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) :
+    (Q : (Fin d → Bool) → PrivateCoin.Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) :
     (completeTreeAlice d query hquery Q).run x y ω_x ω_y =
       (Q (fun i => query i x ω_x)).run x y ω_x ω_y := by
   induction d with
@@ -115,7 +117,7 @@ private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Ω_X �
     simp only [completeTreeAlice]
     congr; ext i; exact i.elim0
   | succ d ih =>
-    simp only [completeTreeAlice, RandProtocol.run]
+    simp only [completeTreeAlice, PrivateCoin.Protocol.run]
     rw [ih]
     have : Fin.cons (query 0 x ω_x)
         (fun i => (query ∘ Fin.succ) i x ω_x) =
@@ -127,7 +129,7 @@ private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Ω_X �
 
 private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → Ω_X → Bool)
     (hquery : ∀ i x, Measurable (query i x))
-    (Q : (Fin d → Bool) → RandProtocol Ω_X Ω_Y X Y α) :
+    (Q : (Fin d → Bool) → PrivateCoin.Protocol Ω_X Ω_Y X Y α) :
     (completeTreeAlice d query hquery Q).complexity =
       d + Finset.univ.sup (fun bits => (Q bits).complexity) := by
   induction d with
@@ -141,7 +143,7 @@ private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → 
       · intro _; exact Finset.mem_univ x
     rw [this, Finset.sup_singleton]
   | succ d ih =>
-    simp only [completeTreeAlice, RandProtocol.complexity]
+    simp only [completeTreeAlice, PrivateCoin.Protocol.complexity]
     rw [ih, ih, Nat.succ_add, Nat.add_max_add_left]
     have hsplit : Finset.univ.sup (fun bits : Fin (d + 1) → Bool => (Q bits).complexity) =
         max (Finset.univ.sup (fun bits : Fin d → Bool => (Q (Fin.cons false bits)).complexity))
@@ -167,8 +169,8 @@ alice bits via a complete binary tree encoding. -/
 private theorem encode_alice [Fintype β] [Nonempty β]
     [MeasurableSpace β] [DiscreteMeasurableSpace β]
     (f : X → Ω_X → β) (hf : ∀ x, Measurable (f x))
-    (Q : β → RandProtocol Ω_X Ω_Y X Y α) :
-    ∃ R : RandProtocol Ω_X Ω_Y X Y α,
+    (Q : β → PrivateCoin.Protocol Ω_X Ω_Y X Y α) :
+    ∃ R : PrivateCoin.Protocol Ω_X Ω_Y X Y α,
       (∀ x y ω_x ω_y, R.run x y ω_x ω_y = (Q (f x ω_x)).run x y ω_x ω_y) ∧
       R.complexity = Nat.clog 2 (Fintype.card β) +
         Finset.univ.sup (fun b => (Q b).complexity) := by
@@ -197,7 +199,7 @@ private theorem encode_alice [Fintype β] [Nonempty β]
     intro i x
     have : Measurable (fun b : β => encode b i) := Measurable.of_discrete
     exact this.comp (hf x)
-  let leafQ : (Fin d → Bool) → RandProtocol Ω_X Ω_Y X Y α :=
+  let leafQ : (Fin d → Bool) → PrivateCoin.Protocol Ω_X Ω_Y X Y α :=
     fun bits => if h : ∃ b, encode b = bits then
       Q (Fintype.choose (fun b => encode b = bits) (hencode_unique bits h))
     else Q b₀
@@ -236,19 +238,19 @@ private theorem encode_alice [Fintype β] [Nonempty β]
 
 /-- Every generalized randomized protocol can be simulated by a binary randomized protocol
 with the same complexity. -/
-theorem rand_protocol_generalized_to_rand_protocol (p : RandProtocolGeneralized Ω_X Ω_Y X Y α) :
-    ∃ (P : RandProtocol Ω_X Ω_Y X Y α),
+theorem toProtocol (p : Protocol Ω_X Ω_Y X Y α) :
+    ∃ (P : PrivateCoin.Protocol Ω_X Ω_Y X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
-  | output a => exact ⟨RandProtocol.output a, rfl, rfl⟩
+  | output a => exact ⟨PrivateCoin.Protocol.output a, rfl, rfl⟩
   | @alice β _ _ _ _ f hf P ih =>
     -- Use encode_alice with the IH-provided binary protocols
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f hf Q
     exact ⟨R,
       funext₂ fun x y => funext₂ fun ω_x ω_y => by
-        rw [hR_run, hQ_run, RandProtocolGeneralized.run],
-      by rw [hR_comp]; simp [RandProtocolGeneralized.complexity, hQ_comp]⟩
+        rw [hR_run, hQ_run, PrivateCoin.FiniteMessage.Protocol.run],
+      by rw [hR_comp]; simp [PrivateCoin.FiniteMessage.Protocol.complexity, hQ_comp]⟩
   | @bob β _ _ _ _ f hf P ih =>
     -- Reduce to the alice case: swap the IH protocols, apply encode_alice on Y Ω_Y,
     -- then swap the result back.
@@ -256,17 +258,19 @@ theorem rand_protocol_generalized_to_rand_protocol (p : RandProtocolGeneralized 
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f hf (fun b => (Q b).swap)
     exact ⟨R.swap,
       funext₂ fun x y => funext₂ fun ω_x ω_y => by
-        simp [RandProtocolGeneralized.run, RandProtocol.swap_run, hR_run, hQ_run],
-      by simp [RandProtocolGeneralized.complexity, RandProtocol.swap_complexity, hR_comp,
-               RandProtocol.swap_complexity, hQ_comp]⟩
+        simp [PrivateCoin.FiniteMessage.Protocol.run, PrivateCoin.Protocol.swap_run, hR_run, hQ_run],
+      by simp [PrivateCoin.FiniteMessage.Protocol.complexity, PrivateCoin.Protocol.swap_complexity, hR_comp,
+               PrivateCoin.Protocol.swap_complexity, hQ_comp]⟩
 
 /-- Every binary randomized protocol can be viewed as a generalized randomized protocol
 with the same run behavior and complexity (using `β = Bool` at each step). -/
-theorem rand_protocol_to_rand_protocol_generalized (p : RandProtocol Ω_X Ω_Y X Y α) :
-    ∃ (P : RandProtocolGeneralized Ω_X Ω_Y X Y α),
+theorem ofProtocol_equiv (p : PrivateCoin.Protocol Ω_X Ω_Y X Y α) :
+    ∃ (P : Protocol Ω_X Ω_Y X Y α),
       P.run = p.run ∧ P.complexity = p.complexity :=
-  ⟨ofRandProtocol p,
-   funext₂ fun x y => funext₂ fun ω_x ω_y => ofRandProtocol_run p x y ω_x ω_y,
-   ofRandProtocol_complexity p⟩
+  ⟨ofProtocol p,
+   funext₂ fun x y => funext₂ fun ω_x ω_y => ofProtocol_run p x y ω_x ω_y,
+   ofProtocol_complexity p⟩
 
-end RandProtocolGeneralized
+end PrivateCoin.FiniteMessage.Protocol
+
+end CommunicationComplexity

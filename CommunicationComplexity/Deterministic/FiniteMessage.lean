@@ -1,4 +1,4 @@
-import CommunicationComplexity.Det.Basic
+import CommunicationComplexity.Deterministic.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.EquivFin
 import Mathlib.Data.Fintype.Pi
@@ -9,58 +9,60 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Data.Fintype.Inv
 import Mathlib.Data.Nat.Bitwise
 
+namespace CommunicationComplexity
+
 /-- A generalized deterministic two-party communication protocol where at each step,
 a player sends an element of an arbitrary finite type `β` (rather than just a `Bool`).
-Equivalent to `DetProtocol` up to complexity (see `det_protocol_generalized_to_det_protocol`)
+Equivalent to `DetProtocol` up to complexity (see `toProtocol`)
 where sending a `β`-valued message costs `⌈log₂ |β|⌉` bits. -/
-inductive DetProtocolGeneralized (X Y α : Type*) where
-  | output (val : α) : DetProtocolGeneralized X Y α
+inductive Deterministic.FiniteMessage.Protocol (X Y α : Type*) where
+  | output (val : α) : Protocol X Y α
   | alice {β : Type} [Fintype β] [Nonempty β]
-      (f : X → β) (P : β → DetProtocolGeneralized X Y α) :
-      DetProtocolGeneralized X Y α
+      (f : X → β) (P : β → Protocol X Y α) :
+      Protocol X Y α
   | bob {β : Type} [Fintype β] [Nonempty β]
-      (f : Y → β) (P : β → DetProtocolGeneralized X Y α) :
-      DetProtocolGeneralized X Y α
+      (f : Y → β) (P : β → Protocol X Y α) :
+      Protocol X Y α
 
-namespace DetProtocolGeneralized
+namespace Deterministic.FiniteMessage.Protocol
 
 variable {X Y α : Type*}
 
 /-- Executes the generalized protocol on inputs `x` and `y`. -/
-def run (p : DetProtocolGeneralized X Y α) (x : X) (y : Y) : α :=
+def run (p : Protocol X Y α) (x : X) (y : Y) : α :=
   match p with
-  | DetProtocolGeneralized.output val => val
-  | DetProtocolGeneralized.alice f P => (P (f x)).run x y
-  | DetProtocolGeneralized.bob f P => (P (f y)).run x y
+  | Deterministic.FiniteMessage.Protocol.output val => val
+  | Deterministic.FiniteMessage.Protocol.alice f P => (P (f x)).run x y
+  | Deterministic.FiniteMessage.Protocol.bob f P => (P (f y)).run x y
 
 /-- The communication complexity of a generalized protocol. Sending a `β`-valued message
 costs `⌈log₂ |β|⌉` bits, reflecting the number of bits needed to encode an element of `β`. -/
-def complexity : DetProtocolGeneralized X Y α → ℕ
-  | DetProtocolGeneralized.output _ => 0
-  | DetProtocolGeneralized.alice (β := β) _ P =>
+def complexity : Protocol X Y α → ℕ
+  | Deterministic.FiniteMessage.Protocol.output _ => 0
+  | Deterministic.FiniteMessage.Protocol.alice (β := β) _ P =>
       Nat.clog 2 (Fintype.card β) +
         Finset.univ.sup (fun i => (P i).complexity)
-  | DetProtocolGeneralized.bob (β := β) _ P =>
+  | Deterministic.FiniteMessage.Protocol.bob (β := β) _ P =>
       Nat.clog 2 (Fintype.card β) +
         Finset.univ.sup (fun i => (P i).complexity)
 
 
 private def completeTreeAlice (d : ℕ) (query : Fin d → X → Bool)
-    (Q : (Fin d → Bool) → DetProtocol X Y α) : DetProtocol X Y α :=
+    (Q : (Fin d → Bool) → Deterministic.Protocol X Y α) : Deterministic.Protocol X Y α :=
   match d with
   | 0 => Q Fin.elim0
-  | d + 1 => DetProtocol.alice (query 0) (fun b =>
+  | d + 1 => Deterministic.Protocol.alice (query 0) (fun b =>
       completeTreeAlice d (query ∘ Fin.succ) (fun bits => Q (Fin.cons b bits)))
 
 private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Bool)
-    (Q : (Fin d → Bool) → DetProtocol X Y α) (x : X) (y : Y) :
+    (Q : (Fin d → Bool) → Deterministic.Protocol X Y α) (x : X) (y : Y) :
     (completeTreeAlice d query Q).run x y = (Q (fun i => query i x)).run x y := by
   induction d with
   | zero =>
     simp only [completeTreeAlice]
     congr; ext i; exact i.elim0
   | succ d ih =>
-    simp only [completeTreeAlice, DetProtocol.run]
+    simp only [completeTreeAlice, Deterministic.Protocol.run]
     rw [ih]
     -- Goal: (Q (Fin.cons (query 0 x) ...)).run x y = (Q (fun i => query i x)).run x y
     -- Suffices to show the arguments to Q are equal
@@ -71,7 +73,7 @@ private theorem completeTreeAlice_run (d : ℕ) (query : Fin d → X → Bool)
     rw [this]
 
 private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → Bool)
-    (Q : (Fin d → Bool) → DetProtocol X Y α) :
+    (Q : (Fin d → Bool) → Deterministic.Protocol X Y α) :
     (completeTreeAlice d query Q).complexity =
       d + Finset.univ.sup (fun bits => (Q bits).complexity) := by
   induction d with
@@ -86,7 +88,7 @@ private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → 
     rw [this, Finset.sup_singleton]
   | succ d ih =>
     -- Unfold to 1 + max (rec false).complexity (rec true).complexity
-    simp only [completeTreeAlice, DetProtocol.complexity]
+    simp only [completeTreeAlice, Deterministic.Protocol.complexity]
     rw [ih, ih, Nat.succ_add, Nat.add_max_add_left]
     -- Need: max(sup over false-cons, sup over true-cons) = sup over all Fin (d+1) → Bool
     have hsplit : Finset.univ.sup (fun bits : Fin (d + 1) → Bool => (Q bits).complexity) =
@@ -111,8 +113,8 @@ private theorem completeTreeAlice_complexity (d : ℕ) (query : Fin d → X → 
 a single binary protocol that simulates choosing `Q (f x)` using `⌈log₂ |β|⌉` alice bits
 via a complete binary tree encoding. -/
 private theorem encode_alice [Fintype β] [Nonempty β] (f : X → β)
-    (Q : β → DetProtocol X Y α) :
-    ∃ R : DetProtocol X Y α,
+    (Q : β → Deterministic.Protocol X Y α) :
+    ∃ R : Deterministic.Protocol X Y α,
       (∀ x y, R.run x y = (Q (f x)).run x y) ∧
       R.complexity = Nat.clog 2 (Fintype.card β) +
         Finset.univ.sup (fun b => (Q b).complexity) := by
@@ -141,7 +143,7 @@ private theorem encode_alice [Fintype β] [Nonempty β] (f : X → β)
   -- Build a complete binary tree of alice queries
   let query : Fin d → X → Bool := fun i x => encode (f x) i
   -- For each bit pattern, use Fintype.choose to find the unique β value (if any)
-  let leafQ : (Fin d → Bool) → DetProtocol X Y α :=
+  let leafQ : (Fin d → Bool) → Deterministic.Protocol X Y α :=
     fun bits => if h : ∃ b, encode b = bits then
       Q (Fintype.choose (fun b => encode b = bits) (hencode_unique bits h))
     else Q b₀
@@ -181,19 +183,19 @@ private theorem encode_alice [Fintype β] [Nonempty β] (f : X → β)
 /-- Every generalized protocol can be simulated by a binary protocol with the same
 complexity. The key idea is to encode each `β`-valued message as `⌈log₂ |β|⌉` bits
 using a complete binary tree of depth `⌈log₂ |β|⌉`. -/
-theorem det_protocol_generalized_to_det_protocol
-    (p : DetProtocolGeneralized X Y α) :
-    ∃ (P : DetProtocol X Y α),
+theorem toProtocol
+    (p : Protocol X Y α) :
+    ∃ (P : Deterministic.Protocol X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
-  | output val => exact ⟨DetProtocol.output val, rfl, rfl⟩
+  | output val => exact ⟨Deterministic.Protocol.output val, rfl, rfl⟩
   | @alice β _ _ f P ih =>
     -- Use encode_alice with the IH-provided binary protocols
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f Q
     exact ⟨R,
-      funext₂ fun x y => by rw [hR_run, hQ_run, DetProtocolGeneralized.run],
-      by rw [hR_comp]; simp [DetProtocolGeneralized.complexity, hQ_comp]⟩
+      funext₂ fun x y => by rw [hR_run, hQ_run, Deterministic.FiniteMessage.Protocol.run],
+      by rw [hR_comp]; simp [Deterministic.FiniteMessage.Protocol.complexity, hQ_comp]⟩
   | @bob β _ _ f P ih =>
     -- Reduce to the alice case: swap the IH protocols, apply encode_alice on Y X α,
     -- then swap the result back.
@@ -201,29 +203,29 @@ theorem det_protocol_generalized_to_det_protocol
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f (fun b => (Q b).swap)
     exact ⟨R.swap,
       funext₂ fun x y => by
-        simp [DetProtocolGeneralized.run, DetProtocol.swap_run, hR_run, hQ_run],
-      by simp [DetProtocolGeneralized.complexity, DetProtocol.swap_complexity, hR_comp,
-               DetProtocol.swap_complexity, hQ_comp]⟩
+        simp [Deterministic.FiniteMessage.Protocol.run, Deterministic.Protocol.swap_run, hR_run, hQ_run],
+      by simp [Deterministic.FiniteMessage.Protocol.complexity, Deterministic.Protocol.swap_complexity, hR_comp,
+               Deterministic.Protocol.swap_complexity, hQ_comp]⟩
 
 /-- Embed a binary protocol into a generalized protocol (with `β = Bool` at each step). -/
-def ofDetProtocol : DetProtocol X Y α → DetProtocolGeneralized X Y α
-  | DetProtocol.output val => DetProtocolGeneralized.output val
-  | DetProtocol.alice f P => DetProtocolGeneralized.alice f (fun b => ofDetProtocol (P b))
-  | DetProtocol.bob f P => DetProtocolGeneralized.bob f (fun b => ofDetProtocol (P b))
+def ofProtocol : Deterministic.Protocol X Y α → Protocol X Y α
+  | Deterministic.Protocol.output val => Deterministic.FiniteMessage.Protocol.output val
+  | Deterministic.Protocol.alice f P => Deterministic.FiniteMessage.Protocol.alice f (fun b => ofProtocol (P b))
+  | Deterministic.Protocol.bob f P => Deterministic.FiniteMessage.Protocol.bob f (fun b => ofProtocol (P b))
 
-theorem ofDetProtocol_run (p : DetProtocol X Y α) (x : X) (y : Y) :
-    (ofDetProtocol p).run x y = p.run x y := by
+theorem ofProtocol_run (p : Deterministic.Protocol X Y α) (x : X) (y : Y) :
+    (ofProtocol p).run x y = p.run x y := by
   induction p with
-  | output val => simp [ofDetProtocol, run, DetProtocol.run]
-  | alice f P ih => simp [ofDetProtocol, run, DetProtocol.run, ih]
-  | bob f P ih => simp [ofDetProtocol, run, DetProtocol.run, ih]
+  | output val => simp [ofProtocol, run, Deterministic.Protocol.run]
+  | alice f P ih => simp [ofProtocol, run, Deterministic.Protocol.run, ih]
+  | bob f P ih => simp [ofProtocol, run, Deterministic.Protocol.run, ih]
 
-theorem ofDetProtocol_complexity (p : DetProtocol X Y α) :
-    (ofDetProtocol p).complexity = p.complexity := by
+theorem ofProtocol_complexity (p : Deterministic.Protocol X Y α) :
+    (ofProtocol p).complexity = p.complexity := by
   induction p with
-  | output val => simp [ofDetProtocol, complexity, DetProtocol.complexity]
+  | output val => simp [ofProtocol, complexity, Deterministic.Protocol.complexity]
   | alice f P ih =>
-    simp only [ofDetProtocol, complexity, DetProtocol.complexity, ih]
+    simp only [ofProtocol, complexity, Deterministic.Protocol.complexity, ih]
     -- clog 2 |Bool| = 1, and sup over Bool = max
     have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
     rw [this]
@@ -231,7 +233,7 @@ theorem ofDetProtocol_complexity (p : DetProtocol X Y α) :
     have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
     simp [this]
   | bob f P ih =>
-    simp only [ofDetProtocol, complexity, DetProtocol.complexity, ih]
+    simp only [ofProtocol, complexity, Deterministic.Protocol.complexity, ih]
     have : Nat.clog 2 (Fintype.card Bool) = 1 := by decide
     rw [this]
     have : (Finset.univ : Finset Bool) = {false, true} := by ext b; simp
@@ -239,8 +241,10 @@ theorem ofDetProtocol_complexity (p : DetProtocol X Y α) :
 
 /-- Every binary protocol can be viewed as a generalized protocol with the same
 run behavior and complexity (using `β = Bool` at each step). -/
-theorem det_protocol_to_det_protocol_generalized (p : DetProtocol X Y α) :
-    ∃ (P : DetProtocolGeneralized X Y α), P.run = p.run ∧ P.complexity = p.complexity :=
-  ⟨ofDetProtocol p, funext₂ (ofDetProtocol_run p), ofDetProtocol_complexity p⟩
+theorem ofProtocol_equiv (p : Deterministic.Protocol X Y α) :
+    ∃ (P : Protocol X Y α), P.run = p.run ∧ P.complexity = p.complexity :=
+  ⟨ofProtocol p, funext₂ (ofProtocol_run p), ofProtocol_complexity p⟩
 
-end DetProtocolGeneralized
+end Deterministic.FiniteMessage.Protocol
+
+end CommunicationComplexity
