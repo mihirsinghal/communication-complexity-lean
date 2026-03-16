@@ -203,15 +203,19 @@ theorem toProtocol
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f (fun b => (Q b).swap)
     exact ⟨R.swap,
       funext₂ fun x y => by
-        simp [Deterministic.FiniteMessage.Protocol.run, Deterministic.Protocol.swap_run, hR_run, hQ_run],
-      by simp [Deterministic.FiniteMessage.Protocol.complexity, Deterministic.Protocol.swap_complexity, hR_comp,
-               Deterministic.Protocol.swap_complexity, hQ_comp]⟩
+        simp [Deterministic.FiniteMessage.Protocol.run,
+          Deterministic.Protocol.swap_run, hR_run, hQ_run],
+      by simp [Deterministic.FiniteMessage.Protocol.complexity,
+          Deterministic.Protocol.swap_complexity, hR_comp,
+          Deterministic.Protocol.swap_complexity, hQ_comp]⟩
 
 /-- Embed a binary protocol into a generalized protocol (with `β = Bool` at each step). -/
 def ofProtocol : Deterministic.Protocol X Y α → Protocol X Y α
   | Deterministic.Protocol.output val => Deterministic.FiniteMessage.Protocol.output val
-  | Deterministic.Protocol.alice f P => Deterministic.FiniteMessage.Protocol.alice f (fun b => ofProtocol (P b))
-  | Deterministic.Protocol.bob f P => Deterministic.FiniteMessage.Protocol.bob f (fun b => ofProtocol (P b))
+  | Deterministic.Protocol.alice f P =>
+      Deterministic.FiniteMessage.Protocol.alice f (fun b => ofProtocol (P b))
+  | Deterministic.Protocol.bob f P =>
+      Deterministic.FiniteMessage.Protocol.bob f (fun b => ofProtocol (P b))
 
 theorem ofProtocol_run (p : Deterministic.Protocol X Y α) (x : X) (y : Y) :
     (ofProtocol p).run x y = p.run x y := by

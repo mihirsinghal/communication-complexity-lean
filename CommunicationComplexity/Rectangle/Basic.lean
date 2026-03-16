@@ -44,42 +44,39 @@ def IsMonoPartition
   ⋃₀ Part = Set.univ ∧
   (∀ R S, R ∈ Part → S ∈ Part → R ≠ S → Disjoint R S)
 
-namespace IsMonoPartition
-
 variable {Part : Set (Set (X × Y))} {g : X → Y → α}
 
-/-- Every point is in some member of the partition. -/
-theorem exists_mem (h : IsMonoPartition Part g)
+/-- Every point is in some member of a monochromatic rectangle partition. -/
+theorem monoPartition_point_mem (h : IsMonoPartition Part g)
     (p : X × Y) : ∃ R ∈ Part, p ∈ R := by
   have := h.2.2.1 ▸ Set.mem_univ p
   exact Set.mem_sUnion.mp this
 
-/-- If a point is in two members, they must be equal. -/
-theorem eq_of_mem (h : IsMonoPartition Part g)
+/-- If a point is in two parts of a monochromatic rectangle partition,
+the parts must be equal. -/
+theorem monoPartition_part_unique (h : IsMonoPartition Part g)
     {R S : Set (X × Y)} (hR : R ∈ Part) (hS : S ∈ Part)
     {p : X × Y} (hp1 : p ∈ R) (hp2 : p ∈ S) : R = S := by
   by_contra hne
   exact Set.disjoint_left.mp (h.2.2.2 R S hR hS hne) hp1 hp2
 
-/-- Rectangle cross-product: if `(x,y)` and `(x',y')` are in the
-same member, then so are `(x',y)` and `(x,y')`. -/
-theorem cross_mem (h : IsMonoPartition Part g)
+/-- In a monochromatic rectangle partition, if `(x,y)` and `(x',y')`
+are in the same part, then so are `(x',y)` and `(x,y')`. -/
+theorem monoPartition_cross_mem (h : IsMonoPartition Part g)
     {R : Set (X × Y)} (hR : R ∈ Part)
     {x x' : X} {y y' : Y}
     (hxy : (x, y) ∈ R) (hx'y' : (x', y') ∈ R) :
     (x', y) ∈ R ∧ (x, y') ∈ R :=
   (IsRectangle_iff R).mp (h.1 R hR) x x' y y' hxy hx'y'
 
-/-- Monochromatic: any two points in the same member have equal
-function values. -/
-theorem apply_eq (h : IsMonoPartition Part g)
+/-- In a monochromatic rectangle partition, any two points in the
+same part have equal function values. -/
+theorem monoPartition_values_eq (h : IsMonoPartition Part g)
     {R : Set (X × Y)} (hR : R ∈ Part)
     {x x' : X} {y y' : Y}
     (hxy : (x, y) ∈ R) (hx'y' : (x', y') ∈ R) :
     g x y = g x' y' :=
   h.2.1 R hR x x' y y' hxy hx'y'
-
-end IsMonoPartition
 
 end Rectangle
 

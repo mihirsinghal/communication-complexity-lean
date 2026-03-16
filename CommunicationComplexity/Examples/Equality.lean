@@ -47,16 +47,16 @@ theorem le_communicationComplexity (n : ℕ) (hn : 1 ≤ n) :
   intro Part hPart
   -- Each (x,x) is in some rectangle in Part
   choose rect hrect_mem hrect_in using fun x =>
-    hPart.exists_mem (x, x)
+    monoPartition_point_mem hPart (x, x)
   -- rect is injective: if rect x = rect y, then (x,x) and (y,y)
   -- are in the same rectangle, so (x,y) is too (cross_mem),
   -- and mono gives eq x x = eq x y, forcing x = y.
   have hrect_inj : Function.Injective rect := by
     intro x y hxy
     by_contra hne
-    have hxy_mem := (hPart.cross_mem (hrect_mem x)
+    have hxy_mem := (monoPartition_cross_mem hPart (hrect_mem x)
       (hrect_in x) (hxy ▸ hrect_in y)).2
-    have := hPart.apply_eq (hrect_mem x) (hrect_in x) hxy_mem
+    have := monoPartition_values_eq hPart (hrect_mem x) (hrect_in x) hxy_mem
     simp [eq, hne] at this
   -- The image of rect has size 2^n
   have himage_card :
@@ -68,12 +68,12 @@ theorem le_communicationComplexity (n : ℕ) (hn : 1 ≤ n) :
     intro h; have := congr_fun h ⟨0, hn⟩; simp at this
   set x0 : Fin n → Bool := fun _ => true
   set y0 : Fin n → Bool := fun _ => false
-  obtain ⟨R0, hR0_mem, hR0_in⟩ := hPart.exists_mem (x0, y0)
+  obtain ⟨R0, hR0_mem, hR0_in⟩ := monoPartition_point_mem hPart (x0, y0)
   -- R0 is not in the image of rect: any rect z is "true"-mono,
   -- but R0 contains (x0, y0) with eq x0 y0 = false.
   have hR0_not_diag : R0 ∉ Set.range rect := by
     rintro ⟨z, rfl⟩
-    have := hPart.apply_eq (hrect_mem z) (hrect_in z) hR0_in
+    have := monoPartition_values_eq hPart (hrect_mem z) (hrect_in z) hR0_in
     simp [eq, hx] at this
   -- range rect ∪ {R0} ⊆ Part, giving 2^n < |Part|
   have hinsert : Set.range rect ∪ {R0} ⊆ Part :=

@@ -87,15 +87,16 @@ theorem boolFunctionRank_le_ncard
   have hsum : boolFunctionMatrix f = ∑ R ∈ trueRects, rectMatrix R := by
     ext x y
     simp only [boolFunctionMatrix, rectMatrix, Matrix.of_apply, Matrix.sum_apply]
-    obtain ⟨R₀, hR₀_mem, hR₀_in⟩ := hPart.exists_mem (x, y)
+    obtain ⟨R₀, hR₀_mem, hR₀_in⟩ := monoPartition_point_mem hPart (x, y)
     have hother : ∀ R ∈ PF, R ≠ R₀ → (x, y) ∉ R := fun R hR hne hmem =>
-      hne (hPart.eq_of_mem ((Set.toFinite Part).mem_toFinset.mp hR) hR₀_mem hmem hR₀_in)
+      hne (monoPartition_part_unique hPart
+        ((Set.toFinite Part).mem_toFinset.mp hR) hR₀_mem hmem hR₀_in)
     cases hf : f x y <;> simp only [Bool.false_eq_true, ite_true, ite_false]
     · -- f x y = false: every term is 0
       symm; apply Finset.sum_eq_zero; intro R hR
       by_cases hne : R = R₀
       · subst hne; obtain ⟨⟨x', y'⟩, hpin, hftrue⟩ := (Finset.mem_filter.mp hR).2
-        have hmono := hPart.apply_eq hR₀_mem hR₀_in hpin
+        have hmono := monoPartition_values_eq hPart hR₀_mem hR₀_in hpin
         rw [hf] at hmono; simp [← hmono] at hftrue
       · simp [hother R (Finset.mem_filter.mp hR).1 hne]
     · -- f x y = true: only R₀ contributes 1

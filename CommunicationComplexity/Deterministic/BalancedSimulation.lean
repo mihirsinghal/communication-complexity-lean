@@ -151,11 +151,11 @@ theorem theorem_1_7_experiment (p : Protocol X Y α) :
         have hstep1 :
             3 ^ (2 + max qIn.complexity qOut.complexity) =
               9 * 3 ^ max qIn.complexity qOut.complexity := by
-          simp [pow_add, Nat.mul_comm]
+          simp [pow_add]
         have hstep2 :
             2 ^ (2 + max qIn.complexity qOut.complexity) =
               4 * 2 ^ max qIn.complexity qOut.complexity := by
-          simp [pow_add, Nat.mul_comm]
+          simp [pow_add]
         rw [hstep1, hstep2]
         calc
           9 * 3 ^ max qIn.complexity qOut.complexity

@@ -7,7 +7,8 @@ namespace Deterministic
 /-- For finite input types, the deterministic communication complexity of any function
 is at most `⌈log₂ |X|⌉ + ⌈log₂ |Y|⌉`, achieved by Alice sending her entire input
 followed by Bob sending his. -/
-theorem communicationComplexity_le_clog_card {X Y α : Type} [Finite X] [Finite Y] [Nonempty X] [Nonempty Y]
+theorem communicationComplexity_le_clog_card
+    {X Y α : Type} [Finite X] [Finite Y] [Nonempty X] [Nonempty Y]
     (f : X → Y → α) :
     communicationComplexity f ≤
       Nat.clog 2 (Nat.card X) + Nat.clog 2 (Nat.card Y) := by
@@ -21,7 +22,8 @@ theorem communicationComplexity_le_clog_card {X Y α : Type} [Finite X] [Finite 
 
 /-- The deterministic communication complexity of `f` is at most `⌈log₂ |X|⌉ + ⌈log₂ |α|⌉`,
 achieved by Alice sending her input, then Bob computing and sending the output. -/
-theorem communicationComplexity_le_clog_card_X_alpha {X Y α : Type} [Finite X] [Finite α] [Nonempty X] [Nonempty α]
+theorem communicationComplexity_le_clog_card_X_alpha
+    {X Y α : Type} [Finite X] [Finite α] [Nonempty X] [Nonempty α]
     (f : X → Y → α) :
     communicationComplexity f ≤
       Nat.clog 2 (Nat.card X) + Nat.clog 2 (Nat.card α) := by
@@ -35,7 +37,8 @@ theorem communicationComplexity_le_clog_card_X_alpha {X Y α : Type} [Finite X] 
 
 /-- The deterministic communication complexity of `f` is at most `⌈log₂ |Y|⌉ + ⌈log₂ |α|⌉`,
 achieved by Bob sending his input, then Alice computing and sending the output. -/
-theorem communicationComplexity_le_clog_card_Y_alpha {X Y α : Type} [Finite Y] [Finite α] [Nonempty Y] [Nonempty α]
+theorem communicationComplexity_le_clog_card_Y_alpha
+    {X Y α : Type} [Finite Y] [Finite α] [Nonempty Y] [Nonempty α]
     (f : X → Y → α) :
     communicationComplexity f ≤
       Nat.clog 2 (Nat.card Y) + Nat.clog 2 (Nat.card α) := by
