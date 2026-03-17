@@ -1,4 +1,6 @@
 import CommunicationComplexity.PublicCoin.Basic
+import CommunicationComplexity.PublicCoin.FiniteMessage
+import CommunicationComplexity.PrivateCoin.GeneralFiniteMessage
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Nat.Log
@@ -80,15 +82,6 @@ theorem swap_complexity (p : Protocol Ω X Y α) :
   | alice f P ih => simp only [swap, complexity, ih]
   | bob f P ih => simp only [swap, complexity, ih]
 
-/-- The preimage of any set under the protocol's output is measurable.
-Since `Ω` is finite, it has discrete measurable space, so every
-set is measurable. -/
-theorem measurable_preimage_run
-    [MeasurableSpace Ω] [DiscreteMeasurableSpace Ω]
-    (p : Protocol Ω X Y α) (x : X) (y : Y) (s : Set α) :
-    MeasurableSet ((fun ω ↦ p.run x y ω) ⁻¹' s) :=
-  MeasurableSet.of_discrete
-
 /-- Embed a coin-flip public-coin protocol into a generalized
 public-coin protocol over `CoinTape` (with `β = Bool`
 at each step). -/
@@ -148,6 +141,127 @@ theorem ofProtocol_equiv {n : ℕ}
    funext₂ fun x y => funext fun ω =>
      ofProtocol_run p x y ω,
    ofProtocol_complexity p⟩
+
+/-- A general public-coin finite-message protocol `ε`-satisfies a
+predicate `Q` if for every input `(x, y)`, the probability that
+`Q x y (p.run ...)` fails is at most `ε`. -/
+def approx_satisfies
+    [MeasureSpace Ω]
+    (p : Protocol Ω X Y α) (Q : X → Y → α → Prop)
+    (ε : ℝ) : Prop :=
+  ∀ x y,
+    (volume {ω : Ω | ¬Q x y (p.run x y ω)}).toReal ≤ ε
+
+open Classical in
+/-- A general public-coin finite-message protocol `ε`-computes a
+function `f` if for every input `(x, y)`, the probability of
+producing an incorrect answer is at most `ε`. -/
+def approx_computes
+    [MeasureSpace Ω]
+    (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
+  ∀ x y,
+    (volume {ω : Ω | p.run x y ω ≠ f x y}).toReal ≤ ε
+
+open Classical in
+theorem approx_computes_eq_approx_satisfies
+    [MeasureSpace Ω]
+    (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) :
+    p.approx_computes f ε =
+      p.approx_satisfies (fun x y a => a = f x y) ε := by
+  simp only [approx_computes, approx_satisfies, ne_eq]
+
+
+/-- Pull back the randomness of a general public-coin finite-message
+protocol through a map `φ`, producing a finite-message protocol
+over coin tapes. -/
+def toFiniteMessage {n : ℕ}
+    (φ : CoinTape n → Ω) :
+    Protocol Ω X Y α →
+      PublicCoin.FiniteMessage.Protocol n X Y α
+  | .output a => .output a
+  | alice f P =>
+      PublicCoin.FiniteMessage.Protocol.alice
+        (fun x ω => f x (φ ω))
+        (fun b => (P b).toFiniteMessage φ)
+  | bob f P =>
+      PublicCoin.FiniteMessage.Protocol.bob
+        (fun y ω => f y (φ ω))
+        (fun b => (P b).toFiniteMessage φ)
+
+theorem toFiniteMessage_run {n : ℕ}
+    (φ : CoinTape n → Ω)
+    (p : Protocol Ω X Y α)
+    (x : X) (y : Y) (ω : CoinTape n) :
+    (p.toFiniteMessage φ).run x y ω =
+      p.run x y (φ ω) := by
+  induction p with
+  | output a =>
+    simp [toFiniteMessage, run,
+      PublicCoin.FiniteMessage.Protocol.run]
+  | alice f P ih =>
+    simp only [toFiniteMessage,
+      PublicCoin.FiniteMessage.Protocol.run, run]
+    exact ih _
+  | bob f P ih =>
+    simp only [toFiniteMessage,
+      PublicCoin.FiniteMessage.Protocol.run, run]
+    exact ih _
+
+theorem toFiniteMessage_complexity {n : ℕ}
+    (φ : CoinTape n → Ω)
+    (p : Protocol Ω X Y α) :
+    (p.toFiniteMessage φ).complexity = p.complexity := by
+  induction p with
+  | output a =>
+    simp [toFiniteMessage, complexity,
+      PublicCoin.FiniteMessage.Protocol.complexity]
+  | alice f P ih =>
+    simp only [toFiniteMessage,
+      PublicCoin.FiniteMessage.Protocol.complexity,
+      complexity, ih]
+  | bob f P ih =>
+    simp only [toFiniteMessage,
+      PublicCoin.FiniteMessage.Protocol.complexity,
+      complexity, ih]
+
+/-- If a general public-coin finite-message protocol `ε`-satisfies
+`Q` under the measure on `Ω`, then for any `ε' > ε` there exists a
+coin-flip finite-message protocol that `ε'`-satisfies `Q` with the
+same complexity. -/
+theorem approx_satisfies_finiteMessage
+    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
+    [IsProbabilityMeasure (volume : Measure Ω)]
+    (p : Protocol Ω X Y α) (Q : X → Y → α → Prop)
+    (ε ε' : ℝ) (hε : ε < ε')
+    (hp : p.approx_satisfies Q ε) :
+    ∃ (n : ℕ)
+      (q : PublicCoin.FiniteMessage.Protocol n X Y α),
+      q.approx_satisfies Q ε' ∧
+      q.complexity = p.complexity := by
+  -- Pick δ = ε' - ε and get coin approximation φ
+  have hδ : 0 < ε' - ε := sub_pos.mpr hε
+  obtain ⟨n, φ, happrox⟩ :=
+    Internal.single_coin_approx (Ω := Ω) (ε' - ε) hδ
+  -- Construct the finite-message protocol by pulling back randomness
+  refine ⟨n, p.toFiniteMessage φ, ?_, ?_⟩
+  · -- approx_satisfies: error ≤ ε + δ = ε'
+    intro x y
+    -- The error set under the new protocol is the preimage of the
+    -- original error set under φ
+    let S := {ω : Ω | ¬Q x y (p.run x y ω)}
+    -- Rewrite error set using toFiniteMessage_run
+    have hset : {ω : CoinTape n |
+        ¬Q x y ((p.toFiniteMessage φ).run x y ω)} =
+        φ ⁻¹' S := by
+      ext ω; simp only [Set.mem_setOf_eq, Set.mem_preimage,
+        S, toFiniteMessage_run]
+    rw [hset]
+    -- Apply the approximation bound and the original error bound
+    calc (volume (φ ⁻¹' S : Set (CoinTape n))).toReal
+        ≤ (volume S).toReal + (ε' - ε) := happrox S
+      _ ≤ ε + (ε' - ε) := by linarith [hp x y]
+      _ = ε' := by ring
+  · exact toFiniteMessage_complexity φ p
 
 end PublicCoin.GeneralFiniteMessage.Protocol
 

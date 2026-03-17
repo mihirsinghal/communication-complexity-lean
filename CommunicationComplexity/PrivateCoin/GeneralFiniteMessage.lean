@@ -91,33 +91,24 @@ def approx_satisfies
     (volume {ω : Ω_X × Ω_Y |
       ¬Q x y (p.run x y ω.1 ω.2)}).toReal ≤ ε
 
+open Classical in
 /-- A general finite-message protocol `ε`-computes a function `f`
 if for every input `(x, y)`, the probability of producing an
 incorrect answer is at most `ε`. -/
-def approx_computes [DecidableEq α]
+def approx_computes
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : Ω_X × Ω_Y |
       p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
-theorem approx_computes_eq_approx_satisfies [DecidableEq α]
+open Classical in
+theorem approx_computes_eq_approx_satisfies
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) :
     p.approx_computes f ε =
       p.approx_satisfies (fun x y a => a = f x y) ε := by
   simp only [approx_computes, approx_satisfies, ne_eq]
-
-/-- The preimage of any set under the protocol's output is measurable
-in the product probability space. Since `Ω_X` and `Ω_Y` are finite,
-the product `Ω_X × Ω_Y` has discrete measurable space, so every
-set is measurable. -/
-theorem measurable_preimage_run
-    [MeasurableSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasurableSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    (p : Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (s : Set α) :
-    MeasurableSet ((fun (ω : Ω_X × Ω_Y) ↦ p.run x y ω.1 ω.2) ⁻¹' s) :=
-  MeasurableSet.of_discrete
 
 /-- Embed a coin-flip randomized protocol into a generalized randomized
 protocol over `CoinTape` probability spaces (with `β = Bool` at each step). -/
@@ -187,14 +178,12 @@ def toFiniteMessage {nX nY : ℕ}
     Protocol Ω_X Ω_Y X Y α →
       PrivateCoin.FiniteMessage.Protocol nX nY X Y α
   | .output a => .output a
-  | @alice _ _ _ _ _ _ _ β fi ne f P =>
-      @PrivateCoin.FiniteMessage.Protocol.alice
-        _ _ _ _ _ β fi ne
+  | alice f P =>
+      PrivateCoin.FiniteMessage.Protocol.alice
         (fun x ω => f x (φ_X ω))
         (fun b => (P b).toFiniteMessage φ_X φ_Y)
-  | @bob _ _ _ _ _ _ _ β fi ne f P =>
-      @PrivateCoin.FiniteMessage.Protocol.bob
-        _ _ _ _ _ β fi ne
+  | bob f P =>
+      PrivateCoin.FiniteMessage.Protocol.bob
         (fun y ω => f y (φ_Y ω))
         (fun b => (P b).toFiniteMessage φ_X φ_Y)
 
@@ -232,10 +221,14 @@ theorem toFiniteMessage_complexity {nX nY : ℕ}
       PrivateCoin.FiniteMessage.Protocol.complexity,
       complexity, ih]
 
+end PrivateCoin.GeneralFiniteMessage.Protocol
+
+namespace Internal
+
 /-- For any finite type `Ω` with a probability measure and any `δ > 0`,
 there exist `n` and `φ : CoinTape n → Ω` such that for any set `S`,
 the pushforward measure exceeds the true measure by at most `δ`. -/
-private theorem single_coin_approx
+theorem single_coin_approx
     {Ω : Type*} [Finite Ω]
     [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
     [IsProbabilityMeasure (volume : Measure Ω)]
@@ -732,6 +725,12 @@ private theorem product_coin_approx
     _ = (∑ a : Ω_X, qX a * (volume (S_a a)).toReal) + δ := by ring
     _ = (volume S).toReal + δ := by linarith [hRHS]
 
+end Internal
+
+namespace PrivateCoin.GeneralFiniteMessage.Protocol
+
+variable {Ω_X Ω_Y X Y α : Type*} [Fintype Ω_X] [Fintype Ω_Y]
+
 /-- If a general finite-message protocol `ε`-satisfies `Q` under
 the uniform measure, then for any `ε' > ε` there exists a
 coin-flip finite-message protocol that `ε'`-satisfies `Q` with
@@ -751,7 +750,7 @@ theorem approx_satisfies_finiteMessage
   -- Pick δ = ε' - ε and get coin approximations φ_X, φ_Y
   have hδ : 0 < ε' - ε := sub_pos.mpr hε
   obtain ⟨nX, nY, φ_X, φ_Y, happrox⟩ :=
-    product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) (ε' - ε) hδ
+    Internal.product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) (ε' - ε) hδ
   -- Construct the finite-message protocol by pulling back randomness
   refine ⟨nX, nY, p.toFiniteMessage φ_X φ_Y, ?_, ?_⟩
   · -- approx_satisfies: error ≤ ε + δ = ε'

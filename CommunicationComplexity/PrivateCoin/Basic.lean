@@ -90,16 +90,18 @@ def approx_satisfies
     (volume {ω : CoinTape nX × CoinTape nY |
       ¬Q x y (p.run x y ω.1 ω.2)}).toReal ≤ ε
 
+open Classical in
 /-- A randomized protocol `ε`-computes a function `f` if for every
 input `(x, y)`, the probability (under the uniform coin-flip measure)
 of producing an incorrect answer is at most `ε`. -/
-def approx_computes [DecidableEq α]
+def approx_computes
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape nX × CoinTape nY |
       p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
-theorem approx_computes_eq_approx_satisfies [DecidableEq α]
+open Classical in
+theorem approx_computes_eq_approx_satisfies
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) :
     p.approx_computes f ε =
       p.approx_satisfies (fun x y a => a = f x y) ε := by

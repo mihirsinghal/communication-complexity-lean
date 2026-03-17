@@ -63,10 +63,11 @@ theorem swap_complexity (p : Protocol n X Y α) :
   | alice f P ih => simp [swap, complexity, ih]
   | bob f P ih => simp [swap, complexity, ih]
 
+open Classical in
 /-- A public-coin protocol `ε`-computes a function `f` if for every
 input `(x, y)`, the probability (under the uniform coin-flip measure)
 of producing an incorrect answer is at most `ε`. -/
-def approx_computes [DecidableEq α]
+def approx_computes
     (p : Protocol n X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape n |

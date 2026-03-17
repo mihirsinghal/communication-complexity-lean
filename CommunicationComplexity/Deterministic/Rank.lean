@@ -132,7 +132,7 @@ complexity of a Boolean function `f` is at least `⌈log₂(rank f)⌉`. -/
 theorem log_rank_lower_bound
     {X Y : Type*} [Finite X] [Fintype Y]
     (f : X → Y → Bool) :
-    (Nat.clog 2 (boolFunctionRank f) : WithTop ℕ) ≤
+    (Nat.clog 2 (boolFunctionRank f) : ENat) ≤
       Deterministic.communicationComplexity f := by
   match h : Deterministic.communicationComplexity f with
   | ⊤ => exact le_top
