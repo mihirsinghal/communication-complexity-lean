@@ -338,7 +338,7 @@ theorem toProtocol (p : Protocol nX nY X Y α) :
   induction p with
   | output a =>
     exact ⟨PrivateCoin.Protocol.output a, rfl, rfl⟩
-  | @alice β _ _ f P ih =>
+  | alice f P ih =>
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f Q
     exact ⟨R,
@@ -346,7 +346,7 @@ theorem toProtocol (p : Protocol nX nY X Y α) :
         rw [hR_run, hQ_run]; rfl,
       by rw [hR_comp]
          simp [complexity, hQ_comp]⟩
-  | @bob β _ _ f P ih =>
+  | bob f P ih =>
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ :=
       encode_alice f (fun b => (Q b).swap)

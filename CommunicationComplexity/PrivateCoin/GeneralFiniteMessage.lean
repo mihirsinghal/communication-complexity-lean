@@ -110,17 +110,6 @@ theorem approx_computes_eq_approx_satisfies
       p.approx_satisfies (fun x y a => a = f x y) ε := by
   simp only [approx_computes, approx_satisfies, ne_eq]
 
-/-- The preimage of any set under the protocol's output is measurable
-in the product probability space. Since `Ω_X` and `Ω_Y` are finite,
-the product `Ω_X × Ω_Y` has discrete measurable space, so every
-set is measurable. -/
-theorem measurable_preimage_run
-    [MeasurableSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasurableSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    (p : Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y) (s : Set α) :
-    MeasurableSet ((fun (ω : Ω_X × Ω_Y) ↦ p.run x y ω.1 ω.2) ⁻¹' s) :=
-  MeasurableSet.of_discrete
-
 /-- Embed a coin-flip randomized protocol into a generalized randomized
 protocol over `CoinTape` probability spaces (with `β = Bool` at each step). -/
 def ofProtocol {nX nY : ℕ} :

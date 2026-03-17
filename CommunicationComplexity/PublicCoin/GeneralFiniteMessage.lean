@@ -82,15 +82,6 @@ theorem swap_complexity (p : Protocol Ω X Y α) :
   | alice f P ih => simp only [swap, complexity, ih]
   | bob f P ih => simp only [swap, complexity, ih]
 
-/-- The preimage of any set under the protocol's output is measurable.
-Since `Ω` is finite, it has discrete measurable space, so every
-set is measurable. -/
-theorem measurable_preimage_run
-    [MeasurableSpace Ω] [DiscreteMeasurableSpace Ω]
-    (p : Protocol Ω X Y α) (x : X) (y : Y) (s : Set α) :
-    MeasurableSet ((fun ω ↦ p.run x y ω) ⁻¹' s) :=
-  MeasurableSet.of_discrete
-
 /-- Embed a coin-flip public-coin protocol into a generalized
 public-coin protocol over `CoinTape` (with `β = Bool`
 at each step). -/
