@@ -83,7 +83,7 @@ theorem swap_complexity (p : Protocol Ω_X Ω_Y X Y α) :
 /-- A general finite-message protocol `ε`-satisfies a predicate `Q`
 if for every input `(x, y)`, the probability that
 `Q x y (p.run ...)` fails is at most `ε`. -/
-def approx_satisfies
+def ApproxSatisfies
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     (p : Protocol Ω_X Ω_Y X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
@@ -95,7 +95,7 @@ open Classical in
 /-- A general finite-message protocol `ε`-computes a function `f`
 if for every input `(x, y)`, the probability of producing an
 incorrect answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
@@ -103,12 +103,12 @@ def approx_computes
       p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
 open Classical in
-theorem approx_computes_eq_approx_satisfies
+theorem ApproxComputes_eq_ApproxSatisfies
     [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
     (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) :
-    p.approx_computes f ε =
-      p.approx_satisfies (fun x y a => a = f x y) ε := by
-  simp only [approx_computes, approx_satisfies, ne_eq]
+    p.ApproxComputes f ε =
+      p.ApproxSatisfies (fun x y a => a = f x y) ε := by
+  simp only [ApproxComputes, ApproxSatisfies, ne_eq]
 
 /-- Embed a coin-flip randomized protocol into a generalized randomized
 protocol over `CoinTape` probability spaces (with `β = Bool` at each step). -/
@@ -735,17 +735,17 @@ variable {Ω_X Ω_Y X Y α : Type*} [Fintype Ω_X] [Fintype Ω_Y]
 the uniform measure, then for any `ε' > ε` there exists a
 coin-flip finite-message protocol that `ε'`-satisfies `Q` with
 the same complexity. -/
-theorem approx_satisfies_finiteMessage
+theorem ApproxSatisfies_finiteMessage
     [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
     [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
     (p : Protocol Ω_X Ω_Y X Y α) (Q : X → Y → α → Prop)
     (ε ε' : ℝ) (hε : ε < ε')
-    (hp : p.approx_satisfies Q ε) :
+    (hp : p.ApproxSatisfies Q ε) :
     ∃ (nX nY : ℕ)
       (q : PrivateCoin.FiniteMessage.Protocol nX nY X Y α),
-      q.approx_satisfies Q ε' ∧
+      q.ApproxSatisfies Q ε' ∧
       q.complexity = p.complexity := by
   -- Pick δ = ε' - ε and get coin approximations φ_X, φ_Y
   have hδ : 0 < ε' - ε := sub_pos.mpr hε
@@ -753,7 +753,7 @@ theorem approx_satisfies_finiteMessage
     Internal.product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) (ε' - ε) hδ
   -- Construct the finite-message protocol by pulling back randomness
   refine ⟨nX, nY, p.toFiniteMessage φ_X φ_Y, ?_, ?_⟩
-  · -- approx_satisfies: error ≤ ε + δ = ε'
+  · -- ApproxSatisfies: error ≤ ε + δ = ε'
     intro x y
     -- Rewrite the run using toFiniteMessage_run
     -- The error set under the new protocol is the preimage of the

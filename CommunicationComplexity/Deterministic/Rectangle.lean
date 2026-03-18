@@ -153,11 +153,11 @@ private lemma aux_mono (p : Protocol X Y α) (A : Set X) (B : Set Y)
       exact ih true _ _ hR
 
 lemma leafRectangles_mono (p : Protocol X Y α)
-    (g : X → Y → α) (h_comp : computes p g)
+    (g : X → Y → α) (h_comp : Computes p g)
     (R : Set (X × Y)) (hR : R ∈ leafRectangles p) : Rectangle.IsMonochromatic R g := by
   intro x x' y y' hxy hxy'
   have := aux_mono p Set.univ Set.univ R hR x x' y y' hxy hxy'
-  simp only [computes, funext_iff] at h_comp
+  simp only [Computes, funext_iff] at h_comp
   rw [← h_comp x y, ← h_comp x' y']; exact this
 
 private lemma aux_card (p : Protocol X Y α) (A : Set X) (B : Set Y) :
@@ -204,7 +204,7 @@ lemma leafRectangles_card (p : Protocol X Y α) :
 monochromatic rectangle partition. -/
 theorem leafRectangles_isMonoPartition
     (p : Protocol X Y α) (g : X → Y → α)
-    (h_comp : computes p g) :
+    (h_comp : Computes p g) :
     Rectangle.IsMonoPartition (leafRectangles p) g :=
   ⟨fun R hR => leafRectangles_isRectangle p R hR,
    fun R hR => leafRectangles_mono p g h_comp R hR,
@@ -216,7 +216,7 @@ theorem leafRectangles_isMonoPartition
 into at most 2^c monochromatic rectangles with respect to g. -/
 theorem rectangle_partition
     (p : Protocol X Y α) (g : X → Y → α)
-    (h_comp : computes p g) :
+    (h_comp : Computes p g) :
     Rectangle.IsMonoPartition (leafRectangles p) g ∧
     Set.ncard (leafRectangles p) ≤ 2 ^ p.complexity :=
   ⟨leafRectangles_isMonoPartition p g h_comp,

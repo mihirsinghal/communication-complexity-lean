@@ -310,9 +310,7 @@ private theorem encode_alice [Fintype β] [Nonempty β]
                 (leafQ bits).complexity)
               (Finset.mem_univ _)
 
-/-- Every public-coin finite-message protocol can be simulated by a
-binary public-coin protocol with the same complexity. -/
-theorem toProtocol (p : Protocol n X Y α) :
+private theorem toProtocol_exists (p : Protocol n X Y α) :
     ∃ (P : PublicCoin.Protocol n X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
@@ -338,12 +336,28 @@ theorem toProtocol (p : Protocol n X Y α) :
            PublicCoin.Protocol.swap_complexity,
            hR_comp, hQ_comp]⟩
 
+/-- Convert a finite-message protocol to a binary protocol with the same
+run behavior and complexity. -/
+noncomputable def toProtocol (p : Protocol n X Y α) :
+    PublicCoin.Protocol n X Y α :=
+  (toProtocol_exists p).choose
+
+@[simp]
+theorem toProtocol_run (p : Protocol n X Y α) :
+    (toProtocol p).run = p.run :=
+  (toProtocol_exists p).choose_spec.1
+
+@[simp]
+theorem toProtocol_complexity (p : Protocol n X Y α) :
+    (toProtocol p).complexity = p.complexity :=
+  (toProtocol_exists p).choose_spec.2
+
 open MeasureTheory
 
 /-- A public-coin finite-message protocol `ε`-satisfies a predicate `Q`
 if for every input `(x, y)`, the probability that
 `Q x y (p.run ...)` fails is at most `ε`. -/
-def approx_satisfies
+def ApproxSatisfies
     (p : Protocol n X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
   ∀ x y,
@@ -354,7 +368,7 @@ open Classical in
 /-- A public-coin finite-message protocol `ε`-computes a function `f`
 if for every input `(x, y)`, the probability of producing an
 incorrect answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     (p : Protocol n X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape n |

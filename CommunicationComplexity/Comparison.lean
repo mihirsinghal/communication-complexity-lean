@@ -67,7 +67,7 @@ theorem PrivateCoin.communicationComplexity_le_deterministic
         (le_of_eq h)
     rw [PrivateCoin.communicationComplexity_le_iff]
     refine ⟨0, 0, p.toPrivateCoin, ?_, ?_⟩
-    · -- approx_computes: error is 0 since protocol is deterministic
+    · -- ApproxComputes: error is 0 since protocol is deterministic
       intro x y
       have hrun : ∀ ω : CoinTape 0 × CoinTape 0,
           p.toPrivateCoin.run x y ω.1 ω.2 = f x y := by

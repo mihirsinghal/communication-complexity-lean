@@ -4,7 +4,7 @@ import CommunicationComplexity.Deterministic.Rectangle
 
 namespace CommunicationComplexity
 
-namespace Examples.Equality
+namespace Functions.Equality
 
 /-- The equality function on `n`-bit strings. Returns `true` iff the two inputs are equal. -/
 def equality (n : ℕ) (x y : Fin n → Bool) : Bool :=
@@ -97,6 +97,6 @@ theorem communicationComplexity_eq (n : ℕ) :
     apply le_antisymm (communicationComplexity_le n)
     exact le_communicationComplexity n (by omega)
 
-end Examples.Equality
+end Functions.Equality
 
 end CommunicationComplexity

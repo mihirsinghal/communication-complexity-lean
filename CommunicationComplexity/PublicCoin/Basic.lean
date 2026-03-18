@@ -1,4 +1,4 @@
-import CommunicationComplexity.PrivateCoin.Basic
+import CommunicationComplexity.CoinTape
 import Mathlib.Data.Real.Basic
 
 namespace CommunicationComplexity
@@ -67,7 +67,7 @@ open Classical in
 /-- A public-coin protocol `ε`-computes a function `f` if for every
 input `(x, y)`, the probability (under the uniform coin-flip measure)
 of producing an incorrect answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     (p : Protocol n X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape n |

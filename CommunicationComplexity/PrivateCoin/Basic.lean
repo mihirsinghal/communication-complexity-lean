@@ -1,25 +1,9 @@
+import CommunicationComplexity.CoinTape
 import Mathlib.Data.Real.Basic
-import Mathlib.Data.Fintype.Card
-import Mathlib.Data.Fintype.Pi
-import Mathlib.Data.Fintype.Prod
-import Mathlib.Probability.UniformOn
-import Mathlib.MeasureTheory.Measure.Prod
 
 namespace CommunicationComplexity
 
-abbrev CoinTape (n : ℕ) := Fin n → Bool
-
 open MeasureTheory ProbabilityTheory
-
-/-- The uniform probability measure on `CoinTape n`. Every outcome
-of `n` independent fair coin flips is equally likely. -/
-noncomputable instance coinTapeMeasure (n : ℕ) : MeasureSpace (CoinTape n) where
-  volume := uniformOn Set.univ
-
-instance coinTapeIsProbabilityMeasure (n : ℕ) :
-    IsProbabilityMeasure (volume : Measure (CoinTape n)) := by
-  change IsProbabilityMeasure (uniformOn Set.univ)
-  infer_instance
 
 namespace PrivateCoin
 
@@ -83,7 +67,7 @@ theorem swap_complexity (p : Protocol nX nY X Y α) :
 /-- A randomized protocol `ε`-satisfies a predicate `Q` if for every
 input `(x, y)`, the probability that `Q x y (p.run ...)` fails
 is at most `ε`. -/
-def approx_satisfies
+def ApproxSatisfies
     (p : Protocol nX nY X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
   ∀ x y,
@@ -94,18 +78,18 @@ open Classical in
 /-- A randomized protocol `ε`-computes a function `f` if for every
 input `(x, y)`, the probability (under the uniform coin-flip measure)
 of producing an incorrect answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape nX × CoinTape nY |
       p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
 open Classical in
-theorem approx_computes_eq_approx_satisfies
+theorem ApproxComputes_eq_ApproxSatisfies
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) :
-    p.approx_computes f ε =
-      p.approx_satisfies (fun x y a => a = f x y) ε := by
-  simp only [approx_computes, approx_satisfies, ne_eq]
+    p.ApproxComputes f ε =
+      p.ApproxSatisfies (fun x y a => a = f x y) ε := by
+  simp only [ApproxComputes, ApproxSatisfies, ne_eq]
 
 end Protocol
 

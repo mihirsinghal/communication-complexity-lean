@@ -145,7 +145,7 @@ theorem ofProtocol_equiv {n : ℕ}
 /-- A general public-coin finite-message protocol `ε`-satisfies a
 predicate `Q` if for every input `(x, y)`, the probability that
 `Q x y (p.run ...)` fails is at most `ε`. -/
-def approx_satisfies
+def ApproxSatisfies
     [MeasureSpace Ω]
     (p : Protocol Ω X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
@@ -156,19 +156,19 @@ open Classical in
 /-- A general public-coin finite-message protocol `ε`-computes a
 function `f` if for every input `(x, y)`, the probability of
 producing an incorrect answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     [MeasureSpace Ω]
     (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : Ω | p.run x y ω ≠ f x y}).toReal ≤ ε
 
 open Classical in
-theorem approx_computes_eq_approx_satisfies
+theorem ApproxComputes_eq_ApproxSatisfies
     [MeasureSpace Ω]
     (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) :
-    p.approx_computes f ε =
-      p.approx_satisfies (fun x y a => a = f x y) ε := by
-  simp only [approx_computes, approx_satisfies, ne_eq]
+    p.ApproxComputes f ε =
+      p.ApproxSatisfies (fun x y a => a = f x y) ε := by
+  simp only [ApproxComputes, ApproxSatisfies, ne_eq]
 
 
 /-- Pull back the randomness of a general public-coin finite-message
@@ -228,15 +228,15 @@ theorem toFiniteMessage_complexity {n : ℕ}
 `Q` under the measure on `Ω`, then for any `ε' > ε` there exists a
 coin-flip finite-message protocol that `ε'`-satisfies `Q` with the
 same complexity. -/
-theorem approx_satisfies_finiteMessage
+theorem ApproxSatisfies_finiteMessage
     [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
     [IsProbabilityMeasure (volume : Measure Ω)]
     (p : Protocol Ω X Y α) (Q : X → Y → α → Prop)
     (ε ε' : ℝ) (hε : ε < ε')
-    (hp : p.approx_satisfies Q ε) :
+    (hp : p.ApproxSatisfies Q ε) :
     ∃ (n : ℕ)
       (q : PublicCoin.FiniteMessage.Protocol n X Y α),
-      q.approx_satisfies Q ε' ∧
+      q.ApproxSatisfies Q ε' ∧
       q.complexity = p.complexity := by
   -- Pick δ = ε' - ε and get coin approximation φ
   have hδ : 0 < ε' - ε := sub_pos.mpr hε
@@ -244,7 +244,7 @@ theorem approx_satisfies_finiteMessage
     Internal.single_coin_approx (Ω := Ω) (ε' - ε) hδ
   -- Construct the finite-message protocol by pulling back randomness
   refine ⟨n, p.toFiniteMessage φ, ?_, ?_⟩
-  · -- approx_satisfies: error ≤ ε + δ = ε'
+  · -- ApproxSatisfies: error ≤ ε + δ = ε'
     intro x y
     -- The error set under the new protocol is the preimage of the
     -- original error set under φ

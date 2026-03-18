@@ -31,11 +31,11 @@ def complexity : Protocol X Y α → ℕ
   | .bob _ P => 1 + max (P false).complexity (P true).complexity
 
 /-- Two protocols are equivalent if they produce the same output on all inputs. -/
-def equiv (p q : Protocol X Y α) : Prop :=
+def Equiv (p q : Protocol X Y α) : Prop :=
   p.run = q.run
 
 /-- A protocol computes a function `f` if it produces `f x y` on all inputs `(x, y)`. -/
-def computes (p : Protocol X Y α) (f : X → Y → α) : Prop :=
+def Computes (p : Protocol X Y α) (f : X → Y → α) : Prop :=
   p.run = f
 
 /-- Swaps the roles of Alice and Bob, producing a protocol on `Y × X` from one on `X × Y`.

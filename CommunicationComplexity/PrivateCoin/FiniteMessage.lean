@@ -83,7 +83,7 @@ theorem swap_complexity (p : Protocol nX nY X Y α) :
 /-- A finite-message protocol `ε`-satisfies a predicate `Q` if for
 every input `(x, y)`, the probability that `Q x y (p.run ...)`
 fails is at most `ε`. -/
-def approx_satisfies
+def ApproxSatisfies
     (p : Protocol nX nY X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
   ∀ x y,
@@ -94,18 +94,18 @@ open Classical in
 /-- A finite-message protocol `ε`-computes a function `f` if for
 every input `(x, y)`, the probability of producing an incorrect
 answer is at most `ε`. -/
-def approx_computes
+def ApproxComputes
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
     (volume {ω : CoinTape nX × CoinTape nY |
       p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
 open Classical in
-theorem approx_computes_eq_approx_satisfies
+theorem ApproxComputes_eq_ApproxSatisfies
     (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) :
-    p.approx_computes f ε =
-      p.approx_satisfies (fun x y a => a = f x y) ε := by
-  simp only [approx_computes, approx_satisfies, ne_eq]
+    p.ApproxComputes f ε =
+      p.ApproxSatisfies (fun x y a => a = f x y) ε := by
+  simp only [ApproxComputes, ApproxSatisfies, ne_eq]
 
 /-- Embed a binary randomized protocol into a generalized randomized
 protocol (with `β = Bool` at each step). -/
@@ -330,9 +330,7 @@ private theorem encode_alice [Fintype β] [Nonempty β]
                 (leafQ bits).complexity)
               (Finset.mem_univ _)
 
-/-- Every generalized randomized protocol can be simulated by a
-binary randomized protocol with the same complexity. -/
-theorem toProtocol (p : Protocol nX nY X Y α) :
+private theorem toProtocol_exists (p : Protocol nX nY X Y α) :
     ∃ (P : PrivateCoin.Protocol nX nY X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
@@ -357,6 +355,22 @@ theorem toProtocol (p : Protocol nX nY X Y α) :
       by simp [complexity,
            PrivateCoin.Protocol.swap_complexity,
            hR_comp, hQ_comp]⟩
+
+/-- Convert a finite-message protocol to a binary protocol with the same
+run behavior and complexity. -/
+noncomputable def toProtocol (p : Protocol nX nY X Y α) :
+    PrivateCoin.Protocol nX nY X Y α :=
+  (toProtocol_exists p).choose
+
+@[simp]
+theorem toProtocol_run (p : Protocol nX nY X Y α) :
+    (toProtocol p).run = p.run :=
+  (toProtocol_exists p).choose_spec.1
+
+@[simp]
+theorem toProtocol_complexity (p : Protocol nX nY X Y α) :
+    (toProtocol p).complexity = p.complexity :=
+  (toProtocol_exists p).choose_spec.2
 
 /-- Every binary randomized protocol can be viewed as a generalized
 randomized protocol with the same run behavior and complexity. -/

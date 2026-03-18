@@ -32,14 +32,14 @@ namespace Deterministic
 
 noncomputable def communicationComplexity
     {X Y α} (f : X → Y → α) : ENat :=
-  ⨅ (p : Protocol X Y α) (_ : p.computes f),
+  ⨅ (p : Protocol X Y α) (_ : p.Computes f),
     (p.complexity : ENat)
 
 theorem communicationComplexity_le_iff
     {X Y α} (f : X → Y → α) (n : ℕ) :
     communicationComplexity f ≤ n ↔
       ∃ p : Protocol X Y α,
-        p.computes f ∧ p.complexity ≤ n := by
+        p.Computes f ∧ p.complexity ≤ n := by
   simp only [communicationComplexity,
     Internal.enat_iInf_le_coe_iff, Nat.cast_le, exists_prop]
 
@@ -55,15 +55,15 @@ theorem communicationComplexity_le_iff_finiteMessage
       FiniteMessage.Protocol.ofProtocol_equiv p
     exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
   · rintro ⟨p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.toProtocol p
-    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
+    exact ⟨p.toProtocol,
+      (FiniteMessage.Protocol.toProtocol_run p).trans hp,
+      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
 
 theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (n : ℕ) :
     (n : ENat) ≤ communicationComplexity f ↔
       ∀ p : Protocol X Y α,
-        p.computes f → n ≤ p.complexity := by
+        p.Computes f → n ≤ p.complexity := by
   simp only [communicationComplexity,
     le_iInf_iff, Nat.cast_le]
 

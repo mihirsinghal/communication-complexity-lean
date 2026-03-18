@@ -18,14 +18,14 @@ noncomputable def communicationComplexity
     {X Y α} (f : X → Y → α) (ε : ℝ) : ENat :=
   ⨅ (n : ℕ)
     (p : Protocol n X Y α)
-    (_ : p.approx_computes f ε),
+    (_ : p.ApproxComputes f ε),
     (p.complexity : ENat)
 
 theorem communicationComplexity_le_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (m : ℕ) :
     communicationComplexity f ε ≤ m ↔
       ∃ (n : ℕ) (p : Protocol n X Y α),
-        p.approx_computes f ε ∧
+        p.ApproxComputes f ε ∧
         p.complexity ≤ m := by
   unfold communicationComplexity
   simp only [Internal.enat_iInf_le_coe_iff, Nat.cast_le, exists_prop]
@@ -34,7 +34,7 @@ theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (m : ℕ) :
     (m : ENat) ≤ communicationComplexity f ε ↔
       ∀ (n : ℕ) (p : Protocol n X Y α),
-        p.approx_computes f ε →
+        p.ApproxComputes f ε →
         m ≤ p.complexity := by
   unfold communicationComplexity
   simp only [le_iInf_iff, Nat.cast_le]
@@ -69,10 +69,9 @@ theorem communicationComplexity_le_iff_finiteMessage
     refine ⟨n, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
   · rintro ⟨n, p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.toProtocol p
-    refine ⟨n, P, ?_, hP_comp ▸ hc⟩
-    intro x y; simp_rw [hP_run]; exact hp x y
+    refine ⟨n, p.toProtocol, ?_,
+      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
+    intro x y; simp_rw [FiniteMessage.Protocol.toProtocol_run]; exact hp x y
 
 /-- If a general public-coin finite-message protocol ε'-computes f
 with ε' < ε, then the public-coin communication complexity at error ε
@@ -83,12 +82,12 @@ theorem communicationComplexity_le_of_generalFiniteMessage
     [IsProbabilityMeasure (volume : Measure Ω)]
     (f : X → Y → α) (ε ε' : ℝ) (hε : ε' < ε)
     (p : PublicCoin.GeneralFiniteMessage.Protocol Ω X Y α)
-    (hp : p.approx_computes f ε') :
+    (hp : p.ApproxComputes f ε') :
     PublicCoin.communicationComplexity f ε ≤ p.complexity := by
   rw [PublicCoin.communicationComplexity_le_iff_finiteMessage]
-  rw [PublicCoin.GeneralFiniteMessage.Protocol.approx_computes_eq_approx_satisfies] at hp
+  rw [PublicCoin.GeneralFiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies] at hp
   obtain ⟨n, q, hq, hc⟩ :=
-    PublicCoin.GeneralFiniteMessage.Protocol.approx_satisfies_finiteMessage
+    PublicCoin.GeneralFiniteMessage.Protocol.ApproxSatisfies_finiteMessage
       p _ ε' ε hε hp
   exact ⟨n, q, fun x y => hq x y, le_of_eq hc⟩
 
