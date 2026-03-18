@@ -1,6 +1,6 @@
 # CS 294-268 Final Project Proposal
 
-**Title:** Formalizing Communication Complexity: Foundations, Protocols, and Tight Bounds
+**Title:** Communication Complexity
 
 **Group Members:** Lucy Horowitz, Timothe Kasriel, Mihir Singhal
 
