@@ -55,9 +55,9 @@ theorem communicationComplexity_le_iff_finiteMessage
       FiniteMessage.Protocol.ofProtocol_equiv p
     exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
   · rintro ⟨p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.toProtocol p
-    exact ⟨P, hP_run.trans hp, hP_comp ▸ hc⟩
+    exact ⟨p.toProtocol,
+      (FiniteMessage.Protocol.toProtocol_run p).trans hp,
+      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
 
 theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (n : ℕ) :

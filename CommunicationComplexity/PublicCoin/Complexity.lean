@@ -69,10 +69,9 @@ theorem communicationComplexity_le_iff_finiteMessage
     refine ⟨n, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
   · rintro ⟨n, p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.toProtocol p
-    refine ⟨n, P, ?_, hP_comp ▸ hc⟩
-    intro x y; simp_rw [hP_run]; exact hp x y
+    refine ⟨n, p.toProtocol, ?_,
+      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
+    intro x y; simp_rw [FiniteMessage.Protocol.toProtocol_run]; exact hp x y
 
 /-- If a general public-coin finite-message protocol ε'-computes f
 with ε' < ε, then the public-coin communication complexity at error ε

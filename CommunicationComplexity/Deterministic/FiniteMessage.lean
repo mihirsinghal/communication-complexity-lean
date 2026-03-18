@@ -180,25 +180,19 @@ private theorem encode_alice [Fintype β] [Nonempty β] (f : X → β)
         _ ≤ Finset.univ.sup (fun bits => (leafQ bits).complexity) :=
             Finset.le_sup (f := fun bits => (leafQ bits).complexity) (Finset.mem_univ _)
 
-/-- Every generalized protocol can be simulated by a binary protocol with the same
-complexity. The key idea is to encode each `β`-valued message as `⌈log₂ |β|⌉` bits
-using a complete binary tree of depth `⌈log₂ |β|⌉`. -/
-theorem toProtocol
+private theorem toProtocol_exists
     (p : Protocol X Y α) :
     ∃ (P : Deterministic.Protocol X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
   | output val => exact ⟨Deterministic.Protocol.output val, rfl, rfl⟩
   | @alice β _ _ f P ih =>
-    -- Use encode_alice with the IH-provided binary protocols
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f Q
     exact ⟨R,
       funext₂ fun x y => by rw [hR_run, hQ_run, Deterministic.FiniteMessage.Protocol.run],
       by rw [hR_comp]; simp [Deterministic.FiniteMessage.Protocol.complexity, hQ_comp]⟩
   | @bob β _ _ f P ih =>
-    -- Reduce to the alice case: swap the IH protocols, apply encode_alice on Y X α,
-    -- then swap the result back.
     choose Q hQ_run hQ_comp using ih
     obtain ⟨R, hR_run, hR_comp⟩ := encode_alice f (fun b => (Q b).swap)
     exact ⟨R.swap,
@@ -208,6 +202,22 @@ theorem toProtocol
       by simp [Deterministic.FiniteMessage.Protocol.complexity,
           Deterministic.Protocol.swap_complexity, hR_comp,
           Deterministic.Protocol.swap_complexity, hQ_comp]⟩
+
+/-- Convert a finite-message protocol to a binary protocol with the same
+run behavior and complexity, encoding each `β`-valued message as
+`⌈log₂ |β|⌉` bits. -/
+noncomputable def toProtocol (p : Protocol X Y α) : Deterministic.Protocol X Y α :=
+  (toProtocol_exists p).choose
+
+@[simp]
+theorem toProtocol_run (p : Protocol X Y α) :
+    (toProtocol p).run = p.run :=
+  (toProtocol_exists p).choose_spec.1
+
+@[simp]
+theorem toProtocol_complexity (p : Protocol X Y α) :
+    (toProtocol p).complexity = p.complexity :=
+  (toProtocol_exists p).choose_spec.2
 
 /-- Embed a binary protocol into a generalized protocol (with `β = Bool` at each step). -/
 def ofProtocol : Deterministic.Protocol X Y α → Protocol X Y α

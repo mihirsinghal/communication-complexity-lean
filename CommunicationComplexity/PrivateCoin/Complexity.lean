@@ -56,10 +56,9 @@ theorem communicationComplexity_le_iff_finiteMessage
     refine ⟨nX, nY, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
   · rintro ⟨nX, nY, p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.toProtocol p
-    refine ⟨nX, nY, P, ?_, hP_comp ▸ hc⟩
-    intro x y; simp_rw [hP_run]; exact hp x y
+    refine ⟨nX, nY, p.toProtocol, ?_,
+      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
+    intro x y; simp_rw [FiniteMessage.Protocol.toProtocol_run]; exact hp x y
 
 /-- Communication complexity is monotone in ε: allowing more error can
 only make computation easier. -/

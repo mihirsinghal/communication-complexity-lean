@@ -330,9 +330,7 @@ private theorem encode_alice [Fintype β] [Nonempty β]
                 (leafQ bits).complexity)
               (Finset.mem_univ _)
 
-/-- Every generalized randomized protocol can be simulated by a
-binary randomized protocol with the same complexity. -/
-theorem toProtocol (p : Protocol nX nY X Y α) :
+private theorem toProtocol_exists (p : Protocol nX nY X Y α) :
     ∃ (P : PrivateCoin.Protocol nX nY X Y α),
       P.run = p.run ∧ P.complexity = p.complexity := by
   induction p with
@@ -357,6 +355,22 @@ theorem toProtocol (p : Protocol nX nY X Y α) :
       by simp [complexity,
            PrivateCoin.Protocol.swap_complexity,
            hR_comp, hQ_comp]⟩
+
+/-- Convert a finite-message protocol to a binary protocol with the same
+run behavior and complexity. -/
+noncomputable def toProtocol (p : Protocol nX nY X Y α) :
+    PrivateCoin.Protocol nX nY X Y α :=
+  (toProtocol_exists p).choose
+
+@[simp]
+theorem toProtocol_run (p : Protocol nX nY X Y α) :
+    (toProtocol p).run = p.run :=
+  (toProtocol_exists p).choose_spec.1
+
+@[simp]
+theorem toProtocol_complexity (p : Protocol nX nY X Y α) :
+    (toProtocol p).complexity = p.complexity :=
+  (toProtocol_exists p).choose_spec.2
 
 /-- Every binary randomized protocol can be viewed as a generalized
 randomized protocol with the same run behavior and complexity. -/
