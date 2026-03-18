@@ -21,7 +21,6 @@ noncomputable def communicationComplexity
     (_ : p.approx_computes f ε),
     (p.complexity : ENat)
 
-open Classical in
 theorem communicationComplexity_le_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (m : ℕ) :
     communicationComplexity f ε ≤ m ↔
@@ -31,7 +30,6 @@ theorem communicationComplexity_le_iff
   unfold communicationComplexity
   simp only [Internal.enat_iInf_le_coe_iff, Nat.cast_le, exists_prop]
 
-open Classical in
 theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (m : ℕ) :
     (m : ENat) ≤ communicationComplexity f ε ↔
@@ -41,7 +39,18 @@ theorem le_communicationComplexity_iff
   unfold communicationComplexity
   simp only [le_iInf_iff, Nat.cast_le]
 
-open Classical in
+/-- Communication complexity is monotone in ε: allowing more error can
+only make computation easier. -/
+theorem communicationComplexity_mono
+    {X Y α} (f : X → Y → α) {ε ε' : ℝ} (h : ε' ≤ ε) :
+    communicationComplexity f ε ≤ communicationComplexity f ε' := by
+  match hm : communicationComplexity f ε' with
+  | ⊤ => exact le_top
+  | (m : ℕ) =>
+    obtain ⟨n, p, hp, hc⟩ := (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
+    exact (communicationComplexity_le_iff f ε m).mpr
+      ⟨n, p, fun x y => le_trans (hp x y) h, hc⟩
+
 theorem communicationComplexity_le_iff_finiteMessage
     {X Y α} (f : X → Y → α) (ε : ℝ) (m : ℕ) :
     communicationComplexity f ε ≤ m ↔
@@ -65,7 +74,6 @@ theorem communicationComplexity_le_iff_finiteMessage
     refine ⟨n, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
 
-open Classical in
 /-- If a general public-coin finite-message protocol ε'-computes f
 with ε' < ε, then the public-coin communication complexity at error ε
 is at most the protocol's complexity. -/

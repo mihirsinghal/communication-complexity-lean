@@ -9,7 +9,6 @@ open MeasureTheory ProbabilityTheory
 
 namespace PrivateCoin
 
-open Classical in
 /-- The `ε`-error randomized communication complexity of `f`,
 defined as the minimum worst-case number of bits exchanged over all
 coin-flip randomized protocols that compute `f` with error at most
@@ -21,7 +20,6 @@ noncomputable def communicationComplexity
     (_ : p.approx_computes f ε),
     (p.complexity : ENat)
 
-open Classical in
 theorem communicationComplexity_le_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     communicationComplexity f ε ≤ n ↔
@@ -31,7 +29,6 @@ theorem communicationComplexity_le_iff
   unfold communicationComplexity
   simp only [Internal.enat_iInf_le_coe_iff, Nat.cast_le, exists_prop]
 
-open Classical in
 theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     (n : ENat) ≤ communicationComplexity f ε ↔
@@ -41,7 +38,6 @@ theorem le_communicationComplexity_iff
   unfold communicationComplexity
   simp only [le_iInf_iff, Nat.cast_le]
 
-open Classical in
 theorem communicationComplexity_le_iff_finiteMessage
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     communicationComplexity f ε ≤ n ↔
@@ -65,7 +61,19 @@ theorem communicationComplexity_le_iff_finiteMessage
     refine ⟨nX, nY, P, ?_, hP_comp ▸ hc⟩
     intro x y; simp_rw [hP_run]; exact hp x y
 
-open Classical in
+/-- Communication complexity is monotone in ε: allowing more error can
+only make computation easier. -/
+theorem communicationComplexity_mono
+    {X Y α} (f : X → Y → α) {ε ε' : ℝ} (h : ε' ≤ ε) :
+    communicationComplexity f ε ≤ communicationComplexity f ε' := by
+  -- Larger ε means more protocols qualify, so the infimum is ≤
+  match hm : communicationComplexity f ε' with
+  | ⊤ => exact le_top
+  | (m : ℕ) =>
+    obtain ⟨nX, nY, p, hp, hc⟩ := (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
+    exact (communicationComplexity_le_iff f ε m).mpr
+      ⟨nX, nY, p, fun x y => le_trans (hp x y) h, hc⟩
+
 /-- If a general finite-message protocol ε'-computes f with ε' < ε,
 then the private-coin communication complexity at error ε is at most
 the protocol's complexity. -/
