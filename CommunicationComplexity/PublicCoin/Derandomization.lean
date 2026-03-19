@@ -105,10 +105,10 @@ theorem exists_good_randomness
     (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) (c : ℝ)
     (hε : 0 < ε) (hε1 : ε < 1) (hc : 1 < c)
     (hp : p.ApproxComputes f ε) :
-    ∃ (t : ℕ) (ωs : Fin t → Ω),
-      t ≤ derandomizationSamples X Y ε c ∧
+    ∃ (ωs : Fin (derandomizationSamples X Y ε c) → Ω),
       ∀ (x : X) (y : Y),
-        ((Finset.univ.filter (fun i => p.run x y (ωs i) ≠ f x y)).card : ℝ) / t
+        ((Finset.univ.filter (fun i => p.run x y (ωs i) ≠ f x y)).card : ℝ) /
+          (derandomizationSamples X Y ε c)
           ≤ c * ε := by
   -- Choose t
   set t := derandomizationSamples X Y ε c with ht_def
@@ -244,7 +244,7 @@ theorem exists_good_randomness
     rw [div_le_iff₀ (by exact_mod_cast ht_pos : (0 : ℝ) < ↑t)]
     linarith
   obtain ⟨ωs, hωs⟩ := this
-  exact ⟨t, ωs, le_refl _, hωs⟩
+  exact ⟨ωs, hωs⟩
 
 end PublicCoin.GeneralFiniteMessage.Protocol
 

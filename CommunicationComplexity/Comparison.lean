@@ -1,6 +1,9 @@
 import CommunicationComplexity.Deterministic.Complexity
+import CommunicationComplexity.Deterministic.FiniteMessage
 import CommunicationComplexity.PrivateCoin.Complexity
+import CommunicationComplexity.PrivateCoin.GeneralFiniteMessage
 import CommunicationComplexity.PublicCoin.Basic
+import CommunicationComplexity.PublicCoin.GeneralFiniteMessage
 
 namespace CommunicationComplexity
 
@@ -77,5 +80,81 @@ def PublicCoin.Protocol.toDeterministic {n : ℕ} {X Y α : Type*}
     (p.toDeterministic ω).complexity = p.complexity := by
   induction p <;> simp [PublicCoin.Protocol.toDeterministic,
     Deterministic.Protocol.complexity, PublicCoin.Protocol.complexity, *]
+
+/-- Convert a deterministic finite-message protocol to a private-coin
+general finite-message protocol by ignoring both coin spaces. -/
+def Deterministic.FiniteMessage.Protocol.toPrivateCoinOver
+    {X Y α : Type*} {Ω_X Ω_Y : Type*} [Fintype Ω_X] [Fintype Ω_Y] :
+    Deterministic.FiniteMessage.Protocol X Y α →
+      PrivateCoin.GeneralFiniteMessage.Protocol Ω_X Ω_Y X Y α
+  | .output a => .output a
+  | @Deterministic.FiniteMessage.Protocol.alice _ _ _ β fi ne f P =>
+      @PrivateCoin.GeneralFiniteMessage.Protocol.alice
+        Ω_X Ω_Y _ _ X Y α β fi ne
+        (fun x _ => f x) (fun b => (P b).toPrivateCoinOver)
+  | @Deterministic.FiniteMessage.Protocol.bob _ _ _ β fi ne f P =>
+      @PrivateCoin.GeneralFiniteMessage.Protocol.bob
+        Ω_X Ω_Y _ _ X Y α β fi ne
+        (fun y _ => f y) (fun b => (P b).toPrivateCoinOver)
+
+@[simp]
+theorem Deterministic.FiniteMessage.Protocol.toPrivateCoinOver_run
+    {X Y α Ω_X Ω_Y : Type*} [Fintype Ω_X] [Fintype Ω_Y]
+    (p : Deterministic.FiniteMessage.Protocol X Y α)
+    (x : X) (y : Y) (ω_x : Ω_X) (ω_y : Ω_Y) :
+    (p.toPrivateCoinOver (Ω_X := Ω_X) (Ω_Y := Ω_Y)).run x y ω_x ω_y =
+      p.run x y := by
+  induction p <;> simp [
+    Deterministic.FiniteMessage.Protocol.toPrivateCoinOver,
+    PrivateCoin.GeneralFiniteMessage.Protocol.run,
+    Deterministic.FiniteMessage.Protocol.run, *]
+
+@[simp]
+theorem Deterministic.FiniteMessage.Protocol.toPrivateCoinOver_complexity
+    {X Y α Ω_X Ω_Y : Type*} [Fintype Ω_X] [Fintype Ω_Y]
+    (p : Deterministic.FiniteMessage.Protocol X Y α) :
+    (p.toPrivateCoinOver (Ω_X := Ω_X) (Ω_Y := Ω_Y)).complexity =
+      p.complexity := by
+  induction p <;> simp [
+    Deterministic.FiniteMessage.Protocol.toPrivateCoinOver,
+    PrivateCoin.GeneralFiniteMessage.Protocol.complexity,
+    Deterministic.FiniteMessage.Protocol.complexity, *]
+
+/-- Fix the randomness of a public-coin general finite-message protocol,
+producing a deterministic finite-message protocol with the same
+complexity. -/
+def PublicCoin.GeneralFiniteMessage.Protocol.toDeterministic
+    {Ω X Y α : Type*} [Fintype Ω]
+    (p : PublicCoin.GeneralFiniteMessage.Protocol Ω X Y α) (ω : Ω) :
+    Deterministic.FiniteMessage.Protocol X Y α :=
+  match p with
+  | .output a => .output a
+  | @PublicCoin.GeneralFiniteMessage.Protocol.alice _ _ _ _ _ β fi ne f P =>
+      @Deterministic.FiniteMessage.Protocol.alice _ _ _ β fi ne
+        (fun x => f x ω) (fun b => (P b).toDeterministic ω)
+  | @PublicCoin.GeneralFiniteMessage.Protocol.bob _ _ _ _ _ β fi ne f P =>
+      @Deterministic.FiniteMessage.Protocol.bob _ _ _ β fi ne
+        (fun y => f y ω) (fun b => (P b).toDeterministic ω)
+
+@[simp]
+theorem PublicCoin.GeneralFiniteMessage.Protocol.toDeterministic_run
+    {Ω X Y α : Type*} [Fintype Ω]
+    (p : PublicCoin.GeneralFiniteMessage.Protocol Ω X Y α) (ω : Ω)
+    (x : X) (y : Y) :
+    (p.toDeterministic ω).run x y = p.run x y ω := by
+  induction p <;> simp [
+    PublicCoin.GeneralFiniteMessage.Protocol.toDeterministic,
+    Deterministic.FiniteMessage.Protocol.run,
+    PublicCoin.GeneralFiniteMessage.Protocol.run, *]
+
+@[simp]
+theorem PublicCoin.GeneralFiniteMessage.Protocol.toDeterministic_complexity
+    {Ω X Y α : Type*} [Fintype Ω]
+    (p : PublicCoin.GeneralFiniteMessage.Protocol Ω X Y α) (ω : Ω) :
+    (p.toDeterministic ω).complexity = p.complexity := by
+  induction p <;> simp [
+    PublicCoin.GeneralFiniteMessage.Protocol.toDeterministic,
+    Deterministic.FiniteMessage.Protocol.complexity,
+    PublicCoin.GeneralFiniteMessage.Protocol.complexity, *]
 
 end CommunicationComplexity
