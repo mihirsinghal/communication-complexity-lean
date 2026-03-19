@@ -84,7 +84,7 @@ private theorem prob_many_events_le
         field_simp
         ring
 
-variable {Ω X Y α : Type*} [Fintype Ω] [DecidableEq α]
+variable {Ω X Y α : Type*} [Fintype Ω]
   [Fintype X] [Fintype Y]
 
 /-- The number of random samples needed for derandomization via
@@ -95,6 +95,7 @@ noncomputable def derandomizationSamples
   ⌈Real.log (Fintype.card X * Fintype.card Y) /
     (2 * (c - 1) ^ 2 * ε ^ 2)⌉₊ + 1
 
+open Classical in
 /-- Chernoff + union bound derandomization: given a protocol that
 ε-computes f with c > 1, there exist t = O(log(|X|·|Y|)/((c-1)²ε²))
 randomness values such that for every input (x, y), at most a c·ε
