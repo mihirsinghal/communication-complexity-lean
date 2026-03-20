@@ -86,10 +86,8 @@ noncomputable def FiniteMessage.Protocol.newmanProtocol
     p f ε c hε hε1 hc hp).choose
   -- Alice sends her random index i ∈ newmanIndexSpace to Bob,
   -- then both simulate with ωs(i)
-  @Deterministic.FiniteMessage.Protocol.alice
-    (newmanIndexSpace X Y ε c × X) (Unit × Y) α
-    (newmanIndexSpace X Y ε c) inferInstance inferInstance
-    Prod.fst
+  PrivateCoin.FiniteMessage.Protocol.alice
+    (fun _ ω_x => ω_x)
     (fun i => (p.toDeterministic (ωs i)).toPrivateCoin)
 
 theorem FiniteMessage.Protocol.newmanProtocol_ApproxComputes
@@ -106,7 +104,7 @@ theorem FiniteMessage.Protocol.newmanProtocol_ApproxComputes
   -- on the product space newmanIndexSpace × Unit
   intro x y
   -- Unfold the protocol definition to get at the run behavior
-  unfold newmanProtocol
+  unfold newmanProtocol PrivateCoin.FiniteMessage.Protocol.alice
   simp only [PrivateCoin.FiniteMessage.Protocol.rrun,
     Deterministic.FiniteMessage.Protocol.run,
     Deterministic.FiniteMessage.Protocol.comap_run]
@@ -146,8 +144,8 @@ theorem FiniteMessage.Protocol.newmanProtocol_complexity
     (p.newmanProtocol f ε c hε hε1 hc hp).complexity =
       Nat.clog 2 (FiniteMessage.Protocol.derandomizationSamples
         X Y ε c) + p.complexity := by
-  simp only [newmanProtocol,
-    Deterministic.FiniteMessage.Protocol.complexity,
+  unfold newmanProtocol PrivateCoin.FiniteMessage.Protocol.alice
+  simp only [Deterministic.FiniteMessage.Protocol.complexity,
     Deterministic.FiniteMessage.Protocol.toPrivateCoin_complexity,
     PublicCoin.FiniteMessage.Protocol.toDeterministic_complexity]
   -- sup of constant function = constant (since newmanIndexSpace is nonempty)
