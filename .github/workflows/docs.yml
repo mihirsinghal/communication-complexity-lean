@@ -32,11 +32,7 @@ jobs:
           build-args: "--wfail --iofail"
 
       - name: Build project documentation
-        id: build-docgen
-        uses: leanprover-community/docgen-action@main
-        with:
-          build-page: true
-          deploy: false
+        run: lake build CommunicationComplexity:docs
 
       - name: Verify generated documentation
         run: |
