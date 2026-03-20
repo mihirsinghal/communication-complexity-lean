@@ -36,7 +36,7 @@ jobs:
         uses: leanprover-community/docgen-action@main
         with:
           build-page: true
-          deploy: false
+          deploy: true
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
