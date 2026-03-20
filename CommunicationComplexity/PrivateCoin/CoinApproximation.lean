@@ -443,11 +443,45 @@ end Internal
 
 namespace PrivateCoin
 
-/-- If a private-coin finite-message protocol over arbitrary finite
-probability spaces `Ω_X`, `Ω_Y` approximately satisfies `Q` with
-error `ε`, then for any `ε' > ε` there exists a CoinTape-based
-protocol that `ε'`-satisfies `Q` with the same complexity. -/
-theorem FiniteMessage.Protocol.ApproxSatisfies_coinTape
+/-- Approximate a finite-message protocol over arbitrary finite
+probability spaces by one over CoinTape. Given `δ > 0`, produces
+`nX`, `nY`, and a CoinTape-based protocol with the same complexity
+whose run approximates the original (via inverse CDF construction).
+This does not depend on any predicate Q. -/
+noncomputable def FiniteMessage.Protocol.toCoinTape
+    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
+    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
+    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
+    [IsProbabilityMeasure (volume : Measure Ω_X)]
+    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {X Y α : Type*}
+    (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
+    (δ : ℝ) (hδ : 0 < δ) :
+    Σ (nX : ℕ) (nY : ℕ),
+      FiniteMessage.Protocol (CoinTape nX) (CoinTape nY) X Y α :=
+  let data := Internal.product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) δ hδ
+  let nX := data.choose
+  let nY := data.choose_spec.choose
+  let φ_X := data.choose_spec.choose_spec.choose
+  let φ_Y := data.choose_spec.choose_spec.choose_spec.choose
+  ⟨nX, nY, p.comap (Prod.map φ_X id) (Prod.map φ_Y id)⟩
+
+@[simp]
+theorem FiniteMessage.Protocol.toCoinTape_complexity
+    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
+    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
+    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
+    [IsProbabilityMeasure (volume : Measure Ω_X)]
+    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {X Y α : Type*}
+    (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
+    (δ : ℝ) (hδ : 0 < δ) :
+    (p.toCoinTape δ hδ).2.2.complexity = p.complexity := by
+  simp [FiniteMessage.Protocol.toCoinTape]
+
+/-- The CoinTape approximation of a protocol preserves ApproxSatisfies
+up to the given slack δ. -/
+theorem FiniteMessage.Protocol.toCoinTape_approxSatisfies
     {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
     [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
     [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
@@ -456,45 +490,30 @@ theorem FiniteMessage.Protocol.ApproxSatisfies_coinTape
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (Q : X → Y → α → Prop)
-    (ε ε' : ℝ) (hε : ε < ε')
+    (ε δ : ℝ) (hδ : 0 < δ)
     (hp : p.ApproxSatisfies Q ε) :
-    ∃ (nX nY : ℕ)
-      (q : FiniteMessage.Protocol (CoinTape nX) (CoinTape nY) X Y α),
-      q.ApproxSatisfies Q ε' ∧
-      q.complexity = p.complexity := by
-  haveI : Fintype Ω_X := Fintype.ofFinite Ω_X
-  haveI : Fintype Ω_Y := Fintype.ofFinite Ω_Y
-  -- Pick δ = ε' - ε and get coin approximations φ_X, φ_Y
-  have hδ : 0 < ε' - ε := sub_pos.mpr hε
-  obtain ⟨nX, nY, φ_X, φ_Y, happrox⟩ :=
-    Internal.product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) (ε' - ε) hδ
-  -- Pull back randomness using comap
-  let fX : CoinTape nX × X → Ω_X × X := Prod.map φ_X id
-  let fY : CoinTape nY × Y → Ω_Y × Y := Prod.map φ_Y id
-  refine ⟨nX, nY, Deterministic.FiniteMessage.Protocol.comap p fX fY, ?_, ?_⟩
-  · -- ApproxSatisfies: error ≤ ε + δ = ε'
-    intro x y
-    -- The error set under the new protocol is the preimage of the
-    -- original error set under (φ_X, φ_Y)
-    let S := {ω : Ω_X × Ω_Y | ¬Q x y (p.rrun x y ω.1 ω.2)}
-    -- The comap protocol's rrun = p.run composed with φ_X, φ_Y
-    let q : FiniteMessage.Protocol (CoinTape nX) (CoinTape nY) X Y α := p.comap fX fY
-    -- Rewrite error set using comap_run
-    have hset : {ω : CoinTape nX × CoinTape nY |
-        ¬Q x y (q.rrun x y ω.1 ω.2)} =
-        Prod.map φ_X φ_Y ⁻¹' S := by
-      ext ω; simp only [Set.mem_setOf_eq, Set.mem_preimage, Prod.map, S, q, fX, fY,
-        FiniteMessage.Protocol.rrun,
-        Deterministic.FiniteMessage.Protocol.comap_run, Function.id_def]
-    rw [hset]
-    -- Apply the approximation bound and the original error bound
-    calc (volume (Prod.map φ_X φ_Y ⁻¹' S :
-            Set (CoinTape nX × CoinTape nY))).toReal
-        ≤ (volume S).toReal + (ε' - ε) := happrox S
-      _ ≤ ε + (ε' - ε) := by linarith [hp x y]
-      _ = ε' := by ring
-  · -- Complexity is preserved by comap
-    exact Deterministic.FiniteMessage.Protocol.comap_complexity p fX fY
+    (p.toCoinTape δ hδ).2.2.ApproxSatisfies Q (ε + δ) := by
+  intro x y
+  simp only [FiniteMessage.Protocol.toCoinTape]
+  -- Extract the approximation data
+  set data := Internal.product_coin_approx (Ω_X := Ω_X) (Ω_Y := Ω_Y) δ hδ
+  set φ_X := data.choose_spec.choose_spec.choose
+  set φ_Y := data.choose_spec.choose_spec.choose_spec.choose
+  have happrox := data.choose_spec.choose_spec.choose_spec.choose_spec
+  -- The error set under the new protocol is the preimage under (φ_X, φ_Y)
+  let S := {ω : Ω_X × Ω_Y | ¬Q x y (p.rrun x y ω.1 ω.2)}
+  have hset : {ω : CoinTape data.choose × CoinTape data.choose_spec.choose |
+      ¬Q x y (FiniteMessage.Protocol.rrun
+        (p.comap (Prod.map φ_X id) (Prod.map φ_Y id)) x y ω.1 ω.2)} =
+      Prod.map φ_X φ_Y ⁻¹' S := by
+    ext ω; simp only [Set.mem_setOf_eq, Set.mem_preimage, Prod.map, S,
+      FiniteMessage.Protocol.rrun,
+      Deterministic.FiniteMessage.Protocol.comap_run, Function.id_def]
+  rw [hset]
+  calc (volume (Prod.map φ_X φ_Y ⁻¹' S :
+          Set (CoinTape data.choose × CoinTape data.choose_spec.choose))).toReal
+      ≤ (volume S).toReal + δ := happrox S
+    _ ≤ ε + δ := by linarith [hp x y]
 
 end PrivateCoin
 

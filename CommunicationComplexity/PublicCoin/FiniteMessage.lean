@@ -17,6 +17,24 @@ namespace FiniteMessage.Protocol
 
 variable {Ω : Type*} {X Y α : Type*}
 
+/-- Output node for a public-coin finite-message protocol. -/
+def output (a : α) : Protocol Ω X Y α :=
+  Deterministic.FiniteMessage.Protocol.output a
+
+/-- Alice sends a `β`-valued message depending on her input `x` and
+shared randomness `ω`. -/
+def alice {β : Type} [Fintype β] [Nonempty β]
+    (f : X → Ω → β) (P : β → Protocol Ω X Y α) :
+    Protocol Ω X Y α :=
+  Deterministic.FiniteMessage.Protocol.alice (fun ⟨ω, x⟩ => f x ω) P
+
+/-- Bob sends a `β`-valued message depending on his input `y` and
+shared randomness `ω`. -/
+def bob {β : Type} [Fintype β] [Nonempty β]
+    (f : Y → Ω → β) (P : β → Protocol Ω X Y α) :
+    Protocol Ω X Y α :=
+  Deterministic.FiniteMessage.Protocol.bob (fun ⟨ω, y⟩ => f y ω) P
+
 /-- Execute a public-coin finite-message protocol on inputs `x`, `y`
 with shared randomness `ω`. -/
 def rrun (p : Protocol Ω X Y α) (x : X) (y : Y) (ω : Ω) : α :=

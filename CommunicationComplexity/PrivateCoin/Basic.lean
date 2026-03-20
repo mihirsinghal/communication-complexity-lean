@@ -18,6 +18,24 @@ namespace Protocol
 
 variable {Ω_X Ω_Y : Type*} {X Y α : Type*}
 
+/-- Output node for a private-coin protocol. -/
+def output (a : α) : Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.output a
+
+/-- Alice sends a bit depending on her input `x` and private
+randomness `ω_x`. -/
+def alice (f : X → Ω_X → Bool)
+    (P : Bool → Protocol Ω_X Ω_Y X Y α) :
+    Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.alice (fun ⟨ω, x⟩ => f x ω) P
+
+/-- Bob sends a bit depending on his input `y` and private
+randomness `ω_y`. -/
+def bob (f : Y → Ω_Y → Bool)
+    (P : Bool → Protocol Ω_X Ω_Y X Y α) :
+    Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.bob (fun ⟨ω, y⟩ => f y ω) P
+
 /-- Execute a private-coin protocol on inputs `x`, `y` with
 private randomness `ω_x` for Alice and `ω_y` for Bob. -/
 def rrun (p : Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y)

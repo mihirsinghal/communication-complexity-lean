@@ -1,8 +1,8 @@
-import CommunicationComplexity.PublicCoin.GeneralFiniteMessage
 import Mathlib.Probability.Moments.SubGaussian
 import Mathlib.Probability.Independence.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Data.NNReal.Basic
+import CommunicationComplexity.PublicCoin.FiniteMessage
 
 /-!
 # Derandomization via Chernoff + Union Bound
@@ -10,20 +10,13 @@ import Mathlib.Data.NNReal.Basic
 Given a public-coin protocol that ε-computes a function f, we show there
 exist finitely many randomness values ω₁, ..., ωₜ such that for every
 input (x, y), at most a c·ε fraction of the ωᵢ produce incorrect outputs.
-
-The proof strategy:
-1. Pick ωᵢ independently at random from Ω.
-2. For each fixed (x, y), use a Chernoff/Hoeffding bound to show the
-   probability that more than c·ε fraction fail is exponentially small.
-3. Union bound over all |X|·|Y| input pairs to show the total failure
-   probability is < 1, hence a good choice exists.
 -/
 
 open MeasureTheory ProbabilityTheory
 
 namespace CommunicationComplexity
 
-namespace PublicCoin.GeneralFiniteMessage.Protocol
+namespace PublicCoin.FiniteMessage.Protocol
 
 -- Hoeffding-based bound: if Y_i are iid [0,1]-valued with E[Y_i] ≤ ε,
 -- then P[∑ Y_i ≥ c*ε*t] ≤ exp(-2*(c-1)²*ε²*t) for c > 1.
@@ -84,7 +77,7 @@ private theorem prob_many_events_le
         field_simp
         ring
 
-variable {Ω X Y α : Type*} [Fintype Ω]
+variable {Ω X Y α : Type*}
   [Fintype X] [Fintype Y]
 
 /-- The number of random samples needed for derandomization via
@@ -108,16 +101,14 @@ theorem exists_good_randomness
     (hp : p.ApproxComputes f ε) :
     ∃ (ωs : Fin (derandomizationSamples X Y ε c) → Ω),
       ∀ (x : X) (y : Y),
-        ((Finset.univ.filter (fun i => p.run x y (ωs i) ≠ f x y)).card : ℝ) /
+        ((Finset.univ.filter (fun i => p.rrun x y (ωs i) ≠ f x y)).card : ℝ) /
           (derandomizationSamples X Y ε c)
           ≤ c * ε := by
-  -- Choose t
   set t := derandomizationSamples X Y ε c with ht_def
   have ht_pos : 0 < t := by simp [ht_def, derandomizationSamples]
   -- The key bound: exp(-2*(c-1)²*ε²*t) * |X| * |Y| < 1
   have ht_bound : Real.exp (-2 * (c - 1) ^ 2 * ε ^ 2 * ↑t) *
       (Fintype.card X * Fintype.card Y) < 1 := by
-    -- We write N = |X|*|Y| as a real
     set N : ℝ := ↑(Fintype.card X) * ↑(Fintype.card Y) with hN_def
     set D : ℝ := 2 * (c - 1) ^ 2 * ε ^ 2 with hD_def
     have hD_pos : 0 < D := by
@@ -144,15 +135,15 @@ theorem exists_good_randomness
             rw [Real.exp_neg, Real.exp_log hN, inv_mul_cancel₀ (ne_of_gt hN)]
   -- Probabilistic existence on the product space Fin t → Ω
   have : ∃ (ωs : Fin t → Ω), ∀ (x : X) (y : Y),
-      ((Finset.univ.filter (fun i => p.run x y (ωs i) ≠ f x y)).card : ℝ) / t
+      ((Finset.univ.filter (fun i => p.rrun x y (ωs i) ≠ f x y)).card : ℝ) / t
         ≤ c * ε := by
-    -- For each (x,y), define indicator Y_i(ωs) = 1 if p.run x y (ωs i) ≠ f x y
+    -- For each (x,y), define indicator Y_i(ωs) = 1 if p.rrun x y (ωs i) ≠ f x y
     -- On product space (Fin t → Ω), these are independent across i
     -- Apply prob_many_events_le, then union bound
     -- Define the "bad" event for each (x,y)
     set bad : X → Y → Set (Fin t → Ω) :=
       fun x y => {ωs | c * ε * ↑t ≤
-        ∑ i : Fin t, if p.run x y (ωs i) ≠ f x y then (1 : ℝ) else 0}
+        ∑ i : Fin t, if p.rrun x y (ωs i) ≠ f x y then (1 : ℝ) else 0}
     -- Each bad event has small measure by prob_many_events_le
     set μ : Measure (Fin t → Ω) := volume with hμ_def
     have hbad_measure : ∀ x y,
@@ -161,31 +152,30 @@ theorem exists_good_randomness
       intro x y
       apply prob_many_events_le
         (Y := fun i (ωs : Fin t → Ω) =>
-          if p.run x y (ωs i) ≠ f x y then (1 : ℝ) else 0)
-      · -- Independence: Y_i depends only on coordinate i, which are
-        -- independent under the product measure
+          if p.rrun x y (ωs i) ≠ f x y then (1 : ℝ) else 0)
+      · -- Independence
         have hcoord : iIndepFun (fun i (ωs : Fin t → Ω) => ωs i)
             (volume : Measure (Fin t → Ω)) :=
           iIndepFun_pi (fun i => aemeasurable_id)
         exact hcoord.comp
-          (fun i (ω : Ω) => if p.run x y ω ≠ f x y then (1 : ℝ) else 0)
+          (fun i (ω : Ω) => if p.rrun x y ω ≠ f x y then (1 : ℝ) else 0)
           (fun i => Measurable.of_discrete)
-      · -- Measurability: composition of discrete-measurable function with projection
+      · -- Measurability
         intro i
         have : (fun ωs : Fin t → Ω =>
-          if p.run x y (ωs i) ≠ f x y then (1 : ℝ) else 0) =
-          (fun ω : Ω => if p.run x y ω ≠ f x y then (1 : ℝ) else 0) ∘
+          if p.rrun x y (ωs i) ≠ f x y then (1 : ℝ) else 0) =
+          (fun ω : Ω => if p.rrun x y ω ≠ f x y then (1 : ℝ) else 0) ∘
           (fun ωs => ωs i) := rfl
         rw [this]
         exact Measurable.of_discrete.aemeasurable.comp_measurable (measurable_pi_apply i)
       · -- [0,1]-valued
         intro i; exact Filter.Eventually.of_forall
           (fun ωs => by simp [Set.mem_Icc]; split <;> norm_num)
-      · -- Mean bound: E[Y_i] = P[p.run x y ω ≠ f x y] ≤ ε
+      · -- Mean bound: E[Y_i] = P[p.rrun x y ω ≠ f x y] ≤ ε
         intro i
         -- The integral over the product space equals the integral over Ω
         -- via measurePreserving_eval (marginal of product = volume)
-        set g : Ω → ℝ := fun ω => if p.run x y ω ≠ f x y then 1 else 0
+        set g : Ω → ℝ := fun ω => if p.rrun x y ω ≠ f x y then 1 else 0
         have hmp := measurePreserving_eval
           (μ := fun (_ : Fin t) => (volume : Measure Ω)) i
         have : ∫ ωs, g (ωs i) ∂μ = ∫ ω, g ω ∂(volume : Measure Ω) := by
@@ -197,8 +187,7 @@ theorem exists_good_randomness
               Measurable.of_discrete.aestronglyMeasurable).symm
           simp only [hμ_def, hmp.map_eq] at h1 ⊢; exact h1
         rw [this]
-        -- Now bound ∫ g dvolume ≤ ε using hp
-        have hg_eq : g = Set.indicator {ω | p.run x y ω ≠ f x y} 1 := by
+        have hg_eq : g = Set.indicator {ω | p.rrun x y ω ≠ f x y} 1 := by
           ext ω; simp [g, Set.indicator_apply]
         rw [hg_eq, integral_indicator MeasurableSet.of_discrete, Pi.one_def,
           integral_const, smul_eq_mul, mul_one,
@@ -207,7 +196,7 @@ theorem exists_good_randomness
       · linarith
       · exact hc
       · exact ht_pos
-    -- Union bound: bad event for some (x,y) has measure < 1
+    -- Union bound
     have hunion : μ.real (⋃ x : X, ⋃ y : Y, bad x y) < 1 := by
       calc μ.real (⋃ x : X, ⋃ y : Y, bad x y)
           ≤ ∑ x : X, μ.real (⋃ y : Y, bad x y) :=
@@ -227,7 +216,6 @@ theorem exists_good_randomness
     have hgood : ∃ ωs : Fin t → Ω, ωs ∉ ⋃ x : X, ⋃ y : Y, bad x y := by
       by_contra h
       push_neg at h
-      -- Every element is in the union, so μ(union) = μ(univ) = 1
       have : ⋃ x : X, ⋃ y : Y, bad x y = Set.univ := Set.eq_univ_of_forall h
       rw [this, probReal_univ] at hunion
       linarith
@@ -236,10 +224,9 @@ theorem exists_good_randomness
     -- ωs is not bad for any (x,y), so #{bad i}/t ≤ c*ε
     simp only [Set.mem_iUnion, not_exists, bad, Set.mem_setOf_eq, not_le] at hωs
     have hlt := hωs x y
-    -- ∑ indicators = #{bad i}
     have hsum_eq : ∑ i : Fin t,
-        (if p.run x y (ωs i) ≠ f x y then (1 : ℝ) else 0) =
-        (Finset.univ.filter (fun i => p.run x y (ωs i) ≠ f x y)).card := by
+        (if p.rrun x y (ωs i) ≠ f x y then (1 : ℝ) else 0) =
+        (Finset.univ.filter (fun i => p.rrun x y (ωs i) ≠ f x y)).card := by
       simp [Finset.card_filter]
     rw [hsum_eq] at hlt
     rw [div_le_iff₀ (by exact_mod_cast ht_pos : (0 : ℝ) < ↑t)]
@@ -247,6 +234,6 @@ theorem exists_good_randomness
   obtain ⟨ωs, hωs⟩ := this
   exact ⟨ωs, hωs⟩
 
-end PublicCoin.GeneralFiniteMessage.Protocol
+end PublicCoin.FiniteMessage.Protocol
 
 end CommunicationComplexity

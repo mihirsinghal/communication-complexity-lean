@@ -1,6 +1,7 @@
 import CommunicationComplexity.Deterministic.Complexity
 import CommunicationComplexity.PrivateCoin.Basic
 import CommunicationComplexity.PrivateCoin.FiniteMessage
+import CommunicationComplexity.PrivateCoin.CoinApproximation
 
 namespace CommunicationComplexity
 
@@ -79,6 +80,33 @@ theorem communicationComplexity_mono
       (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
     exact (communicationComplexity_le_iff f ε m).mpr
       ⟨nX, nY, p, fun x y => le_trans (hp x y) h, hc⟩
+
+/-- If a finite-message protocol over arbitrary finite probability
+spaces ε'-computes f with ε' < ε, then the private-coin communication
+complexity at error ε is at most the protocol's complexity. -/
+theorem communicationComplexity_le_of_finiteMessage
+    {X Y α} {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
+    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
+    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
+    [IsProbabilityMeasure (volume : Measure Ω_X)]
+    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    (f : X → Y → α) (ε ε' : ℝ) (hε : ε' < ε)
+    (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
+    (hp : p.ApproxComputes f ε') :
+    PrivateCoin.communicationComplexity f ε ≤ p.complexity := by
+  rw [communicationComplexity_le_iff_finiteMessage]
+  -- Convert ApproxComputes to ApproxSatisfies
+  rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies] at hp
+  -- Use toCoinTape to get a CoinTape-based protocol
+  have hδ : 0 < ε - ε' := sub_pos.mpr hε
+  let tc := p.toCoinTape (ε - ε') hδ
+  refine ⟨tc.1, tc.2.1, tc.2.2, ?_, le_of_eq ?_⟩
+  · -- ApproxComputes at error ε
+    rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies]
+    -- toCoinTape_approxSatisfies gives error ε' + (ε - ε') = ε
+    have h := p.toCoinTape_approxSatisfies _ ε' (ε - ε') hδ hp
+    convert h using 1; ring
+  · exact p.toCoinTape_complexity (ε - ε') hδ
 
 end PrivateCoin
 

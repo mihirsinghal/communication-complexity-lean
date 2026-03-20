@@ -1,6 +1,7 @@
 import CommunicationComplexity.Deterministic.Complexity
 import CommunicationComplexity.PublicCoin.Basic
 import CommunicationComplexity.PublicCoin.FiniteMessage
+import CommunicationComplexity.PublicCoin.CoinApproximation
 
 namespace CommunicationComplexity
 
@@ -77,6 +78,27 @@ theorem communicationComplexity_mono
       (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
     exact (communicationComplexity_le_iff f ε m).mpr
       ⟨n, p, fun x y => le_trans (hp x y) h, hc⟩
+
+/-- If a public-coin finite-message protocol over an arbitrary finite
+probability space ε'-computes f with ε' < ε, then the public-coin
+communication complexity at error ε is at most the protocol's complexity. -/
+theorem communicationComplexity_le_of_finiteMessage
+    {X Y α} {Ω : Type*} [Finite Ω]
+    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
+    [IsProbabilityMeasure (volume : Measure Ω)]
+    (f : X → Y → α) (ε ε' : ℝ) (hε : ε' < ε)
+    (p : FiniteMessage.Protocol Ω X Y α)
+    (hp : p.ApproxComputes f ε') :
+    PublicCoin.communicationComplexity f ε ≤ p.complexity := by
+  rw [communicationComplexity_le_iff_finiteMessage]
+  rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies] at hp
+  have hδ : 0 < ε - ε' := sub_pos.mpr hε
+  let tc := p.toCoinTape (ε - ε') hδ
+  refine ⟨tc.1, tc.2, ?_, le_of_eq ?_⟩
+  · rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies]
+    have h := p.toCoinTape_approxSatisfies _ ε' (ε - ε') hδ hp
+    convert h using 1; ring
+  · exact p.toCoinTape_complexity (ε - ε') hδ
 
 end PublicCoin
 

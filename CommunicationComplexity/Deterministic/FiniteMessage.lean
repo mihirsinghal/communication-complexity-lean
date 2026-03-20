@@ -246,10 +246,10 @@ def comap (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
     Protocol X' Y' α :=
   match p with
   | .output a => .output a
-  | @Protocol.alice _ _ _ β fi ne f P =>
-      @Protocol.alice _ _ _ β fi ne (f ∘ fX) (fun b => (P b).comap fX fY)
-  | @Protocol.bob _ _ _ β fi ne f P =>
-      @Protocol.bob _ _ _ β fi ne (f ∘ fY) (fun b => (P b).comap fX fY)
+  | Protocol.alice f P =>
+      Protocol.alice (f ∘ fX) (fun b => (P b).comap fX fY)
+  | Protocol.bob f P =>
+      Protocol.bob (f ∘ fY) (fun b => (P b).comap fX fY)
 
 @[simp]
 theorem comap_run (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
