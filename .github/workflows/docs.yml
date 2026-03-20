@@ -6,6 +6,10 @@ on:
       - main  # Build docs on merges to main
   workflow_dispatch:
 
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
 permissions:
   contents: read
   id-token: write
@@ -32,3 +36,23 @@ jobs:
         uses: leanprover-community/docgen-action@main
         with:
           build-page: true
+          deploy: false
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload documentation artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .lake/build/doc
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
