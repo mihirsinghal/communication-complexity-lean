@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository == 'Communication-Complexity-Group-Project/communication-complexity-lean'
+    # if: github.repository == 'Communication-Complexity-Group-Project/communication-complexity-lean'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout project
