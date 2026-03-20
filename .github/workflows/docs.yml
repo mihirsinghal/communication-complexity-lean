@@ -46,7 +46,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .lake/build/doc
+          path: docbuild/.lake/build/doc
 
   deploy:
     if: github.event_name != 'pull_request'
