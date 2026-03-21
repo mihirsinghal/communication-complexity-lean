@@ -3,6 +3,7 @@ import Mathlib.Probability.Independence.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Data.NNReal.Basic
 import CommunicationComplexity.PublicCoin.FiniteMessage
+import CommunicationComplexity.FiniteProbabilitySpace
 
 /-!
 # Derandomization via Chernoff + Union Bound
@@ -94,16 +95,75 @@ open Classical in
 randomness values such that for every input (x, y), at most a c·ε
 fraction of them produce incorrect outputs. -/
 theorem exists_good_randomness
-    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
-    [IsProbabilityMeasure (volume : Measure Ω)]
+    [FiniteProbabilitySpace Ω]
     (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) (c : ℝ)
-    (hε : 0 < ε) (hε1 : ε < 1) (hc : 1 < c)
+    (hc : 1 < c)
     (hp : p.ApproxComputes f ε) :
     ∃ (ωs : Fin (derandomizationSamples X Y ε c) → Ω),
       ∀ (x : X) (y : Y),
         ((Finset.univ.filter (fun i => p.rrun x y (ωs i) ≠ f x y)).card : ℝ) /
           (derandomizationSamples X Y ε c)
           ≤ c * ε := by
+  haveI : Nonempty Ω := nonempty_of_isProbabilityMeasure volume
+  -- Handle X or Y empty (conclusion is vacuously true)
+  by_cases hX : IsEmpty X
+  · exact ⟨fun _ => Classical.arbitrary Ω, fun x => hX.elim x⟩
+  by_cases hY : IsEmpty Y
+  · exact ⟨fun _ => Classical.arbitrary Ω, fun _ y => hY.elim y⟩
+  rw [not_isEmpty_iff] at hX hY
+  -- Handle ε ≥ 1: any choice works since c * ε ≥ c > 1 ≥ #{bad}/t
+  by_cases hε1 : 1 ≤ ε
+  · refine ⟨fun _ => Classical.arbitrary Ω, fun x y => ?_⟩
+    have ht_pos : (0 : ℝ) < derandomizationSamples X Y ε c :=
+      Nat.cast_pos.mpr (by simp [derandomizationSamples])
+    have : (((Finset.univ (α := Fin (derandomizationSamples X Y ε c))).filter (fun i =>
+        p.rrun x y ((fun _ => Classical.arbitrary Ω) i) ≠ f x y)).card : ℝ) /
+        derandomizationSamples X Y ε c ≤ 1 := by
+      rw [div_le_one ht_pos]
+      simp only [rrun_eq, ne_eq, Finset.filter_const, ite_not]
+      split <;> simp [Fintype.card_fin]
+    linarith [show (1 : ℝ) ≤ c * ε from by nlinarith]
+  push_neg at hε1 -- hε1 : ε < 1
+  -- Handle ε < 0: contradiction with ApproxComputes (measure ≥ 0 > ε)
+  by_cases hε_neg : ε < 0
+  · exfalso
+    obtain ⟨x₀⟩ := hX; obtain ⟨y₀⟩ := hY
+    linarith [hp x₀ y₀,
+      ENNReal.toReal_nonneg (a := volume {ω | p.rrun x₀ y₀ ω ≠ f x₀ y₀})]
+  push_neg at hε_neg -- hε_neg : 0 ≤ ε
+  -- Handle ε = 0: protocol computes f exactly, pick any good ω
+  by_cases hε_zero : ε = 0
+  · subst hε_zero
+    -- Each bad set has measure 0 (measure ≥ 0 and ≤ 0)
+    have h_bad_zero : ∀ x y, volume {ω : Ω | p.rrun x y ω ≠ f x y} = 0 := by
+      intro x y
+      apply le_antisymm _ (zero_le _)
+      by_contra h; push_neg at h
+      linarith [hp x y, ENNReal.toReal_pos h.ne' (measure_ne_top _ _)]
+    -- Unfold rrun so we can use h_bad_zero in measure goals
+    simp only [PublicCoin.FiniteMessage.Protocol.rrun] at h_bad_zero
+    -- Union of bad sets has measure 0, so some ω₀ is good for all (x,y)
+    have h_union : volume (⋃ x : X, ⋃ y : Y,
+        {ω : Ω | p.run (ω, x) (ω, y) ≠ f x y}) = 0 := by
+      apply le_antisymm _ (zero_le _)
+      calc volume (⋃ x : X, ⋃ y : Y, {ω | p.run (ω, x) (ω, y) ≠ f x y})
+          ≤ ∑' x : X, volume (⋃ y : Y, {ω | p.run (ω, x) (ω, y) ≠ f x y}) :=
+            measure_iUnion_le _
+        _ ≤ ∑' x : X, ∑' y : Y, volume {ω | p.run (ω, x) (ω, y) ≠ f x y} :=
+            ENNReal.tsum_le_tsum (fun x => measure_iUnion_le _)
+        _ = 0 := by simp_rw [h_bad_zero, tsum_zero]
+    have ⟨ω₀, hω₀⟩ : ∃ ω₀ : Ω, ∀ x y, p.run (ω₀, x) (ω₀, y) = f x y := by
+      by_contra h; push_neg at h
+      have : ⋃ x : X, ⋃ y : Y, {ω : Ω | p.run (ω, x) (ω, y) ≠ f x y} = Set.univ :=
+        Set.eq_univ_of_forall (fun ω => by simp only [Set.mem_iUnion, Set.mem_setOf]; exact h ω)
+      rw [this, measure_univ] at h_union; exact one_ne_zero h_union
+    refine ⟨fun _ => ω₀, fun x y => ?_⟩
+    -- All outputs correct, so filter is empty and 0/t ≤ 0
+    simp only [mul_zero, PublicCoin.FiniteMessage.Protocol.rrun, hω₀ x y,
+      ne_eq, not_true_eq_false, Finset.filter_false, Finset.card_empty,
+      Nat.cast_zero, zero_div, le_refl]
+  -- Main case: 0 < ε
+  have hε : 0 < ε := lt_of_le_of_ne hε_neg (Ne.symm hε_zero)
   set t := derandomizationSamples X Y ε c with ht_def
   have ht_pos : 0 < t := by simp [ht_def, derandomizationSamples]
   -- The key bound: exp(-2*(c-1)²*ε²*t) * |X| * |Y| < 1

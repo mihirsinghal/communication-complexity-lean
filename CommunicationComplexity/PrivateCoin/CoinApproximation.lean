@@ -1,4 +1,5 @@
 import CommunicationComplexity.PrivateCoin.Basic
+import CommunicationComplexity.FiniteProbabilitySpace
 import CommunicationComplexity.PrivateCoin.FiniteMessage
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.Pi
@@ -24,16 +25,13 @@ namespace Internal
 there exist `n` and `φ : CoinTape n → Ω` such that for any set `S`,
 the pushforward measure exceeds the true measure by at most `δ`. -/
 theorem single_coin_approx
-    {Ω : Type*} [Finite Ω]
-    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
-    [IsProbabilityMeasure (volume : Measure Ω)]
+    {Ω : Type*} [FiniteProbabilitySpace Ω]
     (δ : ℝ) (hδ : 0 < δ) :
     ∃ (n : ℕ) (φ : CoinTape n → Ω),
       ∀ (S : Set Ω),
         (volume (φ ⁻¹' S : Set (CoinTape n))).toReal ≤
         (volume S).toReal + δ := by
   haveI : Nonempty Ω := nonempty_of_isProbabilityMeasure volume
-  haveI : Fintype Ω := Fintype.ofFinite Ω
   classical
   -- Strategy: inverse CDF construction.
   set k := Fintype.card Ω with hk_def
@@ -266,11 +264,8 @@ by coin flips: for any `δ > 0`, there exist `nX`, `nY` and maps
 pushforward measure of `S` under `(φ_X, φ_Y)` exceeds the true
 measure by at most `δ`. -/
 private theorem product_coin_approx
-    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
-    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    [IsProbabilityMeasure (volume : Measure Ω_X)]
-    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {Ω_X Ω_Y : Type*}
+    [FiniteProbabilitySpace Ω_X] [FiniteProbabilitySpace Ω_Y]
     (δ : ℝ) (hδ : 0 < δ) :
     ∃ (nX nY : ℕ) (φ_X : CoinTape nX → Ω_X)
       (φ_Y : CoinTape nY → Ω_Y),
@@ -278,11 +273,9 @@ private theorem product_coin_approx
         (volume (Prod.map φ_X φ_Y ⁻¹' S :
           Set (CoinTape nX × CoinTape nY))).toReal ≤
         (volume S).toReal + δ := by
-  haveI : Fintype Ω_X := Fintype.ofFinite Ω_X
-  haveI : Fintype Ω_Y := Fintype.ofFinite Ω_Y
   have hδ2 : (0 : ℝ) < δ / 2 := by linarith
-  obtain ⟨nX, φ_X, hX⟩ := @single_coin_approx Ω_X _ _ _ _ (δ / 2) hδ2
-  obtain ⟨nY, φ_Y, hY⟩ := @single_coin_approx Ω_Y _ _ _ _ (δ / 2) hδ2
+  obtain ⟨nX, φ_X, hX⟩ := @single_coin_approx Ω_X _ (δ / 2) hδ2
+  obtain ⟨nY, φ_Y, hY⟩ := @single_coin_approx Ω_Y _ (δ / 2) hδ2
   refine ⟨nX, nY, φ_X, φ_Y, fun S => ?_⟩
   set S_a : Ω_X → Set Ω_Y := fun a => Prod.mk a ⁻¹' S with hS_a_def
   set pX : Ω_X → ℝ := fun a =>
@@ -449,11 +442,8 @@ probability spaces by one over CoinTape. Given `δ > 0`, produces
 whose run approximates the original (via inverse CDF construction).
 This does not depend on any predicate Q. -/
 noncomputable def FiniteMessage.Protocol.toCoinTape
-    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
-    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    [IsProbabilityMeasure (volume : Measure Ω_X)]
-    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {Ω_X Ω_Y : Type*}
+    [FiniteProbabilitySpace Ω_X] [FiniteProbabilitySpace Ω_Y]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (δ : ℝ) (hδ : 0 < δ) :
@@ -468,11 +458,8 @@ noncomputable def FiniteMessage.Protocol.toCoinTape
 
 @[simp]
 theorem FiniteMessage.Protocol.toCoinTape_complexity
-    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
-    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    [IsProbabilityMeasure (volume : Measure Ω_X)]
-    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {Ω_X Ω_Y : Type*}
+    [FiniteProbabilitySpace Ω_X] [FiniteProbabilitySpace Ω_Y]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (δ : ℝ) (hδ : 0 < δ) :
@@ -482,11 +469,8 @@ theorem FiniteMessage.Protocol.toCoinTape_complexity
 /-- The CoinTape approximation of a protocol preserves ApproxSatisfies
 up to the given slack δ. -/
 theorem FiniteMessage.Protocol.toCoinTape_approxSatisfies
-    {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
-    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    [IsProbabilityMeasure (volume : Measure Ω_X)]
-    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {Ω_X Ω_Y : Type*}
+    [FiniteProbabilitySpace Ω_X] [FiniteProbabilitySpace Ω_Y]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (Q : X → Y → α → Prop)
