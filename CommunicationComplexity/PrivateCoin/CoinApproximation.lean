@@ -57,7 +57,11 @@ lemma cdf_mono {m : ℕ} (p : PMF (Fin m)) :
   unfold cdf
   apply Finset.sum_le_sum
   intro k _
-  split_ifs with h1 h2 <;> first | exact le_refl _ | exact absurd (lt_of_lt_of_le h1 hij) h2 | exact zero_le _
+  split_ifs with h1 h2
+  · exact le_refl _
+  · exact absurd (lt_of_lt_of_le h1 hij) h2
+  · exact zero_le _
+  · exact le_refl _
 
 noncomputable def invCdf {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) : Fin m :=
   (Finset.univ.filter (fun (i : Fin m) => cdf p i ≤ x)).max' (by
@@ -101,7 +105,9 @@ theorem invCdf_eq_iff {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) (h
       have hmono := Monotone.reflect_lt (cdf_mono p) hlt
       omega
 
-noncomputable def uniformApprox {m : ℕ} [NeZero m] (p : PMF (Fin m)) (n : ℕ) [NeZero n] : (Fin n) → (Fin m) :=
+noncomputable def uniformApprox {m : ℕ} [NeZero m]
+    (p : PMF (Fin m)) (n : ℕ) [NeZero n] :
+    Fin n → Fin m :=
   fun i => invCdf p ((i : ℝ≥0∞) / n)
 
 /-- The number of naturals in [a, b) is at most ⌊b⌋ - ⌈a⌉ + 1 ≤ b - a + 1. -/
@@ -343,7 +349,11 @@ private theorem product_coin_approx
       ((φ_X ⁻¹' {a}) ×ˢ (φ_Y ⁻¹' S_a a)) ((φ_X ⁻¹' {b}) ×ˢ (φ_Y ⁻¹' S_a b))) := by
     intro a b hab; rw [Set.disjoint_left]
     rintro ⟨cx, cy⟩ h1 h2
-    exact hab (by simp only [Set.mem_prod, Set.mem_preimage, Set.mem_singleton_iff] at h1 h2; rw [← h1.1, h2.1])
+    have hcx : φ_X cx = a := by
+      simpa only [Set.mem_prod, Set.mem_preimage, Set.mem_singleton_iff] using h1.1
+    have hcx' : φ_X cx = b := by
+      simpa only [Set.mem_prod, Set.mem_preimage, Set.mem_singleton_iff] using h2.1
+    exact hab (hcx.symm.trans hcx')
   -- LHS = ∑_a vol(φ_X⁻¹({a})) * vol(φ_Y⁻¹(S_a))
   have hLHS : (volume (Prod.map φ_X φ_Y ⁻¹' S :
       Set (CoinTape nX × CoinTape nY))).toReal =
@@ -362,7 +372,12 @@ private theorem product_coin_approx
     have hdisj' : Pairwise (fun a b : Ω_X => Disjoint
         (({a} : Set Ω_X) ×ˢ S_a a) (({b} : Set Ω_X) ×ˢ S_a b)) := by
       intro a b hab; rw [Set.disjoint_left]
-      rintro ⟨x, y⟩ h1 h2; exact hab (by simp at h1 h2; rw [← h1.1, h2.1])
+      rintro ⟨x, y⟩ h1 h2
+      have hx : x = a := by
+        simpa only [Set.mem_prod, Set.mem_singleton_iff] using h1.1
+      have hx' : x = b := by
+        simpa only [Set.mem_prod, Set.mem_singleton_iff] using h2.1
+      exact hab (hx.symm.trans hx')
     rw [hS, measure_iUnion hdisj' (fun _ => MeasurableSet.of_discrete),
       tsum_fintype, ENNReal.toReal_sum (fun a _ => measure_ne_top _ _)]
     congr 1; ext a; change ((volume.prod volume) _).toReal = _
@@ -404,8 +419,12 @@ private theorem product_coin_approx
         rw [show (volume (φ_X ⁻¹' (↑T : Set Ω_X) : Set (CoinTape nX))).toReal =
           ∑ a ∈ T, (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal from by
           rw [show (φ_X ⁻¹' (↑T : Set Ω_X) : Set (CoinTape nX)) =
-            ⋃ a ∈ T, φ_X ⁻¹' ({a} : Set Ω_X) from by ext; simp,
-            measure_biUnion_finset (fun a _ b _ h => Disjoint.preimage _ (Set.disjoint_singleton.mpr h))
+            ⋃ a ∈ T, φ_X ⁻¹' ({a} : Set Ω_X) from by
+              ext
+              simp,
+            measure_biUnion_finset
+              (fun a _ b _ h =>
+                Disjoint.preimage _ (Set.disjoint_singleton.mpr h))
               (fun _ _ => MeasurableSet.of_discrete),
             ENNReal.toReal_sum (fun _ _ => measure_ne_top _ _)]] at this
         rw [show (volume (↑T : Set Ω_X)).toReal =
