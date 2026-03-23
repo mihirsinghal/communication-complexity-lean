@@ -142,7 +142,7 @@ noncomputable def equalityHashProtocol (n k : ℕ) :
 /-- Public-coin upper bound for equality: if the hash range has size
 `2 ^ k` and `1 / 2 ^ k < ε`, then the equality protocol has
 communication complexity at most `k + 1`. -/
-theorem publicCoin_communicationComplexity_le
+theorem publicCoin_communicationComplexity_le_of_hε
     (n k : ℕ) {ε : ℝ} (hε : (1 : ℝ) / 2 ^ k < ε) :
     PublicCoin.communicationComplexity (equality n) ε ≤ k + 1 := by
   -- We use the random-hash protocol over the finite probability space
@@ -177,6 +177,34 @@ theorem publicCoin_communicationComplexity_le
       rw [hset]
       simpa using Functions.Hash.collision_prob_le (α := Input n) (2 ^ k) x y hxy
   simpa [equalityHashProtocol_complexity] using hcc
+
+/-- Public-coin upper bound for equality as a direct function of `ε`. -/
+theorem publicCoin_communicationComplexity_le
+    (n : ℕ) {ε : ℝ} (hε : 0 < ε) :
+    PublicCoin.communicationComplexity (equality n) ε ≤
+      Nat.clog 2 (⌈ε⁻¹⌉₊ + 1) + 1 := by
+  let k := Nat.clog 2 (⌈ε⁻¹⌉₊ + 1)
+  have hεinv_lt : ε⁻¹ < ((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ) := by
+    calc
+      ε⁻¹ ≤ ((⌈ε⁻¹⌉₊ : ℕ) : ℝ) := Nat.le_ceil (ε⁻¹)
+      _ < ((⌈ε⁻¹⌉₊ : ℕ) : ℝ) + 1 := by norm_num
+      _ = ((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ) := by norm_num
+  have hk_nat : ⌈ε⁻¹⌉₊ + 1 ≤ 2 ^ k := by
+    dsimp [k]
+    exact Nat.le_pow_clog (by decide) (⌈ε⁻¹⌉₊ + 1)
+  have hk_real : ε⁻¹ < (2 ^ k : ℝ) := by
+    have hk_nat' : (((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ)) ≤ (((2 ^ k : ℕ) : ℝ)) := by
+      exact_mod_cast hk_nat
+    calc
+      ε⁻¹ < (((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ)) := hεinv_lt
+      _ ≤ (((2 ^ k : ℕ) : ℝ)) := hk_nat'
+      _ = (2 ^ k : ℝ) := by norm_num
+  have hk_pos : (0 : ℝ) < 2 ^ k := by positivity
+  have hbound : (1 : ℝ) / 2 ^ k < ε := by
+    rw [div_lt_iff₀ hk_pos]
+    have hmul := mul_lt_mul_of_pos_left hk_real hε
+    simpa [hε.ne'] using hmul
+  simpa [k] using publicCoin_communicationComplexity_le_of_hε n k hbound
 
 end Functions.Equality
 
