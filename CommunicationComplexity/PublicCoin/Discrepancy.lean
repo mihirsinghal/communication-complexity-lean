@@ -88,22 +88,33 @@ namespace Deterministic
 
 namespace Protocol
 
+private lemma nonneg_of_discrepancy_bound
+    [μ : FiniteProbabilitySpace (X × Y)]
+    (g : X → Y → Bool) (γ : ℝ)
+    (hdisc : ∀ R : Set (X × Y), Rectangle.IsRectangle R → |discrepancy g R| ≤ γ) :
+    0 ≤ γ := by
+  have huniv :=
+    hdisc Set.univ ⟨Set.univ, Set.univ, by
+      ext xy
+      simp⟩
+  exact le_trans (abs_nonneg _) huniv
+
 /-- The sign attached to a rectangle in the leaf partition of a Boolean protocol:
 it is `1` when the protocol outputs `false` on that rectangle, and `-1` otherwise. -/
 private noncomputable def rectangleSign
-    (p : Deterministic.Protocol X Y Bool) (R : Set (X × Y)) : ℝ := by
+    (p : Protocol X Y Bool) (R : Set (X × Y)) : ℝ := by
   classical
   exact if ∀ xy ∈ R, p.run xy.1 xy.2 = false then 1 else -1
 
 private lemma rectangleSign_abs
-    (p : Deterministic.Protocol X Y Bool) (R : Set (X × Y)) :
+    (p : Protocol X Y Bool) (R : Set (X × Y)) :
     |rectangleSign p R| = 1 := by
   classical
   rw [rectangleSign]
   split_ifs <;> norm_num
 
 private lemma rectangleSign_eq_boolSign
-    (p : Deterministic.Protocol X Y Bool)
+    (p : Protocol X Y Bool)
     {R : Set (X × Y)} (hR : R ∈ p.leafRectangles)
     {xy : X × Y} (hxy : xy ∈ R) :
     rectangleSign p R = boolSign (p.run xy.1 xy.2) := by
@@ -111,7 +122,7 @@ private lemma rectangleSign_eq_boolSign
   by_cases hfalse : ∀ z ∈ R, p.run z.1 z.2 = false
   · rw [rectangleSign, if_pos hfalse]
     simp [boolSign, hfalse xy hxy]
-  · have hmono := Deterministic.Protocol.leafRectangles_mono p p.run rfl R hR
+  · have hmono := leafRectangles_mono p p.run rfl R hR
     have htrue : p.run xy.1 xy.2 = true := by
       cases hrun : p.run xy.1 xy.2 with
       | false =>
@@ -127,12 +138,12 @@ private lemma rectangleSign_eq_boolSign
 /-- A finite enumeration of the leaf rectangles of a protocol. -/
 private noncomputable def leafRectanglesFinset
     [μ : FiniteProbabilitySpace (X × Y)]
-    (p : Deterministic.Protocol X Y Bool) : Finset (Set (X × Y)) :=
+    (p : Protocol X Y Bool) : Finset (Set (X × Y)) :=
   (Set.toFinite p.leafRectangles).toFinset
 
 private lemma mem_leafRectanglesFinset
     [μ : FiniteProbabilitySpace (X × Y)]
-    (p : Deterministic.Protocol X Y Bool) (R : Set (X × Y)) :
+    (p : Protocol X Y Bool) (R : Set (X × Y)) :
     R ∈ leafRectanglesFinset p ↔ R ∈ p.leafRectangles := by
   classical
   simpa [leafRectanglesFinset] using ((Set.toFinite p.leafRectangles).mem_toFinset (a := R))
@@ -140,12 +151,12 @@ private lemma mem_leafRectanglesFinset
 open Classical in
 private lemma sum_indicator_leafRectangles_eq
     [μ : FiniteProbabilitySpace (X × Y)]
-    (p : Deterministic.Protocol X Y Bool) (xy : X × Y) :
+    (p : Protocol X Y Bool) (xy : X × Y) :
     Finset.sum (leafRectanglesFinset p)
       (fun R => Set.indicator R (fun _ => rectangleSign p R) xy) =
       boolSign (p.run xy.1 xy.2) := by
   classical
-  let hPart := Deterministic.Protocol.leafRectangles_isMonoPartition p p.run rfl
+  let hPart := leafRectangles_isMonoPartition p p.run rfl
   obtain ⟨R, hR, hxyR⟩ := Rectangle.monoPartition_point_mem hPart xy
   have hR' : R ∈ leafRectanglesFinset p := by
     exact (mem_leafRectanglesFinset p R).2 hR
@@ -165,7 +176,7 @@ private lemma boolSign_mul_boolSign_eq_sub_two_indicator
   cases a <;> cases b <;> norm_num [boolSign]
 
 private lemma signedBias_eq_one_sub_two_distributionalError
-    (p : Deterministic.Protocol X Y Bool)
+    (p : Protocol X Y Bool)
     (μ : FiniteProbabilitySpace (X × Y))
     (g : X → Y → Bool) :
     ∫ xy : X × Y, boolSign (p.run xy.1 xy.2) * boolSign (g xy.1 xy.2) =
@@ -189,7 +200,7 @@ private lemma signedBias_eq_one_sub_two_distributionalError
 
 private lemma signedBias_eq_sum_rectangles
     [μ : FiniteProbabilitySpace (X × Y)]
-    (p : Deterministic.Protocol X Y Bool)
+    (p : Protocol X Y Bool)
     (g : X → Y → Bool) :
     ∫ xy : X × Y, boolSign (p.run xy.1 xy.2) * boolSign (g xy.1 xy.2) =
       Finset.sum (leafRectanglesFinset p) (fun R => rectangleSign p R * discrepancy g R) := by
@@ -229,16 +240,10 @@ distributional error of a deterministic protocol is constrained by its complexit
 theorem one_sub_two_distributionalError_le_two_pow_mul
     [μ : FiniteProbabilitySpace (X × Y)]
     (g : X → Y → Bool) (γ : ℝ)
-    (p : Deterministic.Protocol X Y Bool)
+    (p : Protocol X Y Bool)
     (hdisc : ∀ R : Set (X × Y), Rectangle.IsRectangle R → |discrepancy g R| ≤ γ) :
     1 - 2 * p.distributionalError μ g ≤ (2 : ℝ) ^ p.complexity * γ := by
-  classical
-  have hγ_nonneg : 0 ≤ γ := by
-    have huniv :=
-      hdisc Set.univ ⟨Set.univ, Set.univ, by
-        ext xy
-        simp⟩
-    exact le_trans (abs_nonneg _) huniv
+  have hγ_nonneg := nonneg_of_discrepancy_bound (μ := μ) g γ hdisc
   have hrect :
       ∀ R ∈ leafRectanglesFinset p, |rectangleSign p R * discrepancy g R| ≤ γ := by
     intro R hR
@@ -286,7 +291,7 @@ theorem one_sub_two_distributionalError_le_two_pow_mul
 theorem logb_le_complexity_of_distributionalError
     [μ : FiniteProbabilitySpace (X × Y)]
     (g : X → Y → Bool) (γ : ℝ)
-    (p : Deterministic.Protocol X Y Bool)
+    (p : Protocol X Y Bool)
     (hdisc : ∀ R : Set (X × Y), Rectangle.IsRectangle R → |discrepancy g R| ≤ γ)
     (hγ : 0 < γ)
     (herr : 0 < 1 - 2 * p.distributionalError μ g) :
