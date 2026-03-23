@@ -1,5 +1,7 @@
 import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.MeasurableSpace.Defs
+import Mathlib.MeasureTheory.Constructions.Pi
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 import Mathlib.MeasureTheory.Measure.Prod
 import Mathlib.Probability.ProbabilityMassFunction.Basic
@@ -41,6 +43,13 @@ noncomputable instance instProd (Ω₁ Ω₂ : Type*)
     [FiniteProbabilitySpace Ω₁] [FiniteProbabilitySpace Ω₂] :
     FiniteProbabilitySpace (Ω₁ × Ω₂) :=
   FiniteProbabilitySpace.of (Ω₁ × Ω₂)
+
+open Classical in
+noncomputable instance instPi
+    {ι : Type*} [Fintype ι] (Ω : ι → Type*)
+    [∀ i, FiniteProbabilitySpace (Ω i)] :
+    FiniteProbabilitySpace ((i : ι) → Ω i) :=
+  FiniteProbabilitySpace.of ((i : ι) → Ω i)
 
 namespace FiniteProbabilitySpace
 

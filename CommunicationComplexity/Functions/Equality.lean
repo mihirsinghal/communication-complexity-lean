@@ -1,14 +1,26 @@
 import CommunicationComplexity.Basic
 import CommunicationComplexity.Deterministic.UpperBounds
 import CommunicationComplexity.Deterministic.Rectangle
+import CommunicationComplexity.Functions.Hash
+import CommunicationComplexity.PublicCoin.Complexity
 
 namespace CommunicationComplexity
+
+open MeasureTheory
 
 namespace Functions.Equality
 
 /-- The equality function on `n`-bit strings. Returns `true` iff the two inputs are equal. -/
 def equality (n : ℕ) (x y : Fin n → Bool) : Bool :=
   decide (x = y)
+
+abbrev Input (n : ℕ) := Fin n → Bool
+
+/-- The public randomness for the hashing protocol: a uniformly random
+hash function from `n`-bit strings into `Fin (2 ^ k)`. -/
+abbrev HashSpace (n k : ℕ) := Functions.Hash.HashSpace (Input n) (2 ^ k)
+
+instance hashRangeNeZero (k : ℕ) : NeZero (2 ^ k) := ⟨pow_ne_zero _ (by decide)⟩
 
 /-- The deterministic communication complexity of equality is at most n + 1:
 Alice sends her n-bit input, Bob computes equality and sends one bit. -/
@@ -94,6 +106,105 @@ theorem communicationComplexity_eq (n : ℕ) :
   · next h =>
     apply le_antisymm (communicationComplexity_le n)
     exact le_communicationComplexity n (by omega)
+
+/-- The standard public-coin equality protocol from a random hash
+function: Alice sends `h x`, Bob compares it with `h y`, and then sends
+the comparison bit. -/
+noncomputable def equalityHashProtocol (n k : ℕ) :
+    PublicCoin.FiniteMessage.Protocol (HashSpace n k) (Input n) (Input n) Bool :=
+  PublicCoin.FiniteMessage.Protocol.alice
+    (fun x h => h x)
+    (fun hx =>
+      PublicCoin.FiniteMessage.Protocol.bob
+        (fun y h => decide (h y = hx))
+        (fun b => PublicCoin.FiniteMessage.Protocol.output b))
+
+@[simp] theorem equalityHashProtocol_rrun
+    (n k : ℕ) (x y : Input n) (h : HashSpace n k) :
+    (equalityHashProtocol n k).rrun x y h = decide (h x = h y) := by
+  change decide (h y = h x) = decide (h x = h y)
+  simp [eq_comm]
+
+@[simp] theorem equalityHashProtocol_complexity
+    (n k : ℕ) :
+    (equalityHashProtocol n k).complexity = k + 1 := by
+  unfold equalityHashProtocol PublicCoin.FiniteMessage.Protocol.alice
+    PublicCoin.FiniteMessage.Protocol.bob PublicCoin.FiniteMessage.Protocol.output
+  simp only [Deterministic.FiniteMessage.Protocol.complexity,
+    Fintype.card_fin, Fintype.univ_bool, Finset.sup_insert,
+    Finset.sup_singleton]
+  rw [show Nat.clog 2 (2 ^ k) = k by
+    exact Nat.clog_pow 2 k (by decide)]
+  have hbool : Nat.clog 2 (Fintype.card Bool) + max 0 0 = 1 := by decide
+  simp only [hbool]
+  rw [Finset.sup_const Finset.univ_nonempty 1]
+
+/-- Public-coin upper bound for equality: if the hash range has size
+`2 ^ k` and `1 / 2 ^ k < ε`, then the equality protocol has
+communication complexity at most `k + 1`. -/
+theorem publicCoin_communicationComplexity_le_of_hε
+    (n k : ℕ) {ε : ℝ} (hε : (1 : ℝ) / 2 ^ k < ε) :
+    PublicCoin.communicationComplexity (equality n) ε ≤ k + 1 := by
+  -- We use the random-hash protocol over the finite probability space
+  -- of all functions `Input n → Fin (2 ^ k)`.
+  have hcc :
+      PublicCoin.communicationComplexity (equality n) ε ≤
+        (equalityHashProtocol n k).complexity := by
+    refine PublicCoin.communicationComplexity_le_of_finiteMessage
+      (f := equality n) ε ((1 : ℝ) / 2 ^ k) hε (equalityHashProtocol n k) ?_
+    -- We now verify the worst-case error bound input by input.
+    intro x y
+    by_cases hxy : x = y
+    · -- On equal inputs, Bob always receives the same hash value as Alice.
+      subst hxy
+      have hset :
+          {ω : HashSpace n k | (equalityHashProtocol n k).rrun x x ω ≠ equality n x x} = ∅ := by
+        ext ω
+        change (decide (ω x = ω x) ≠ decide (x = x)) ↔ False
+        simp
+      rw [hset]
+      simp
+    · -- On distinct inputs, the protocol errs exactly on a hash collision.
+      have hset :
+          {ω : HashSpace n k |
+            (equalityHashProtocol n k).rrun x y ω ≠ equality n x y} =
+          {ω : HashSpace n k | ω x = ω y} := by
+        ext ω
+        simpa [Set.mem_setOf_eq] using
+          (show ((equalityHashProtocol n k).rrun x y ω ≠ equality n x y) ↔ ω x = ω y from by
+            rw [equalityHashProtocol_rrun]
+            simp [equality, hxy, eq_comm])
+      rw [hset]
+      simpa using Functions.Hash.collision_prob_le (α := Input n) (2 ^ k) x y hxy
+  simpa [equalityHashProtocol_complexity] using hcc
+
+/-- Public-coin upper bound for equality as a direct function of `ε`. -/
+theorem publicCoin_communicationComplexity_le
+    (n : ℕ) {ε : ℝ} (hε : 0 < ε) :
+    PublicCoin.communicationComplexity (equality n) ε ≤
+      Nat.clog 2 (⌈ε⁻¹⌉₊ + 1) + 1 := by
+  let k := Nat.clog 2 (⌈ε⁻¹⌉₊ + 1)
+  have hεinv_lt : ε⁻¹ < ((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ) := by
+    calc
+      ε⁻¹ ≤ ((⌈ε⁻¹⌉₊ : ℕ) : ℝ) := Nat.le_ceil (ε⁻¹)
+      _ < ((⌈ε⁻¹⌉₊ : ℕ) : ℝ) + 1 := by norm_num
+      _ = ((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ) := by norm_num
+  have hk_nat : ⌈ε⁻¹⌉₊ + 1 ≤ 2 ^ k := by
+    dsimp [k]
+    exact Nat.le_pow_clog (by decide) (⌈ε⁻¹⌉₊ + 1)
+  have hk_real : ε⁻¹ < (2 ^ k : ℝ) := by
+    have hk_nat' : (((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ)) ≤ (((2 ^ k : ℕ) : ℝ)) := by
+      exact_mod_cast hk_nat
+    calc
+      ε⁻¹ < (((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℝ)) := hεinv_lt
+      _ ≤ (((2 ^ k : ℕ) : ℝ)) := hk_nat'
+      _ = (2 ^ k : ℝ) := by norm_num
+  have hk_pos : (0 : ℝ) < 2 ^ k := by positivity
+  have hbound : (1 : ℝ) / 2 ^ k < ε := by
+    rw [div_lt_iff₀ hk_pos]
+    have hmul := mul_lt_mul_of_pos_left hk_real hε
+    simpa [hε.ne'] using hmul
+  simpa [k] using publicCoin_communicationComplexity_le_of_hε n k hbound
 
 end Functions.Equality
 
