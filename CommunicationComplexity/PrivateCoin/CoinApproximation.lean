@@ -24,19 +24,16 @@ namespace CommunicationComplexity
 
 namespace Internal
 
-def cdfNat {m : ℕ} (p : PMF (Fin m)) (n : ℕ) : ℝ≥0∞ :=
+def cdf {m : ℕ} (p : PMF (Fin m)) (n : ℕ) : ℝ≥0∞ :=
   ∑ j : Fin m, if j < n then p j else 0
 
--- def cdf {m : ℕ} (p : PMF (Fin m)) : Fin (m + 1) → ℝ≥0∞ :=
---   fun i => cdfNat p i
+@[simp] lemma cdf_zero {m : ℕ} (p : PMF (Fin m)) :
+    cdf p 0 = 0 := by
+  simp [cdf]
 
-@[simp] lemma cdfNat_zero {m : ℕ} (p : PMF (Fin m)) :
-    cdfNat p 0 = 0 := by
-  simp [cdfNat]
-
-lemma cdfNat_succ {m : ℕ} (p : PMF (Fin m)) (n : Fin m) :
-    cdfNat p (n + 1) = cdfNat p n + p n := by
-  simp only [cdfNat]
+lemma cdf_succ {m : ℕ} (p : PMF (Fin m)) (n : Fin m) :
+    cdf p (n + 1) = cdf p n + p n := by
+  simp only [cdf]
   -- Split: ∑ (if j < n+1 ...) = ∑ (if j < n ...) + ∑ (if j = n ...)
   have key : ∀ j : Fin m,
       (if (j : ℕ) < (n : ℕ) + 1 then (p j : ℝ≥0∞) else 0) =
@@ -47,23 +44,23 @@ lemma cdfNat_succ {m : ℕ} (p : PMF (Fin m)) (n : Fin m) :
   simp_rw [key, Finset.sum_add_distrib, Finset.sum_ite_eq',
     Finset.mem_univ, if_true]
 
-lemma cdfNat_one {m : ℕ} (p : PMF (Fin m)) :
-    cdfNat p m = 1 := by
-  simp only [cdfNat, Fin.is_lt, ↓reduceIte]
+lemma cdf_one {m : ℕ} (p : PMF (Fin m)) :
+    cdf p m = 1 := by
+  simp only [cdf, Fin.is_lt, ↓reduceIte]
   have hsum := PMF.tsum_coe p
   simp only [tsum_fintype] at hsum
   exact hsum
 
 lemma cdf_mono {m : ℕ} (p : PMF (Fin m)) :
-    Monotone (cdfNat p) := by
+    Monotone (cdf p) := by
   intro i j hij
-  unfold cdfNat
+  unfold cdf
   apply Finset.sum_le_sum
   intro k _
   split_ifs with h1 h2 <;> first | exact le_refl _ | exact absurd (lt_of_lt_of_le h1 hij) h2 | exact zero_le _
 
 noncomputable def invCdf {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) : Fin m :=
-  (Finset.univ.filter (fun (i : Fin m) => cdfNat p i ≤ x)).max' (by
+  (Finset.univ.filter (fun (i : Fin m) => cdf p i ≤ x)).max' (by
     unfold Finset.Nonempty
     have _ := NeZero.ne m
     refine ⟨(⟨0, by omega⟩ : Fin m), ?_⟩
@@ -71,7 +68,7 @@ noncomputable def invCdf {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞)
   )
 
 theorem invCdf_eq_iff {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) (hx : x < 1) (i : Fin m) :
-    invCdf p x = i ↔ cdfNat p i ≤ x ∧ x < cdfNat p (i + 1) := by
+    invCdf p x = i ↔ cdf p i ≤ x ∧ x < cdf p (i + 1) := by
   constructor
   · intro h
     unfold invCdf at h
@@ -90,7 +87,7 @@ theorem invCdf_eq_iff {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) (h
         rw [← Fin.val_fin_le] at h
         simp at h
       · have hi : i + 1 = m := by omega
-        rw [hi, cdfNat_one]
+        rw [hi, cdf_one]
         trivial
   · rintro ⟨hlo, hhi⟩
     unfold invCdf
@@ -103,6 +100,145 @@ theorem invCdf_eq_iff {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) (h
       have hlt := lt_of_le_of_lt hb hhi
       have hmono := Monotone.reflect_lt (cdf_mono p) hlt
       omega
+
+noncomputable def uniformApprox {m : ℕ} [NeZero m] (p : PMF (Fin m)) (n : ℕ) [NeZero n] : (Fin n) → (Fin m) :=
+  fun i => invCdf p ((i : ℝ≥0∞) / n)
+
+/-- The number of naturals in [a, b) is at most ⌊b⌋ - ⌈a⌉ + 1 ≤ b - a + 1. -/
+private lemma card_nat_in_Ico (n : ℕ) (a b : ℝ) (hab : a ≤ b) :
+    ((Finset.univ.filter (fun j : Fin n =>
+      a ≤ (j : ℝ) ∧ (j : ℝ) < b)).card : ℝ) ≤ b - a + 1 := by
+  by_cases hS : (Finset.univ.filter (fun j : Fin n =>
+      a ≤ (j : ℝ) ∧ (j : ℝ) < b)).card = 0
+  · simp [hS]; linarith
+  set S := Finset.univ.filter (fun j : Fin n => a ≤ (j : ℝ) ∧ (j : ℝ) < b)
+  have hne : S.Nonempty := Finset.card_pos.mp (Nat.pos_of_ne_zero hS)
+  set jlo := (S.min' hne : ℕ)
+  set jhi := (S.max' hne : ℕ)
+  have hlo_mem := Finset.min'_mem S hne
+  have hhi_mem := Finset.max'_mem S hne
+  have hlo_ge : a ≤ jlo := ((Finset.mem_filter.mp hlo_mem).2).1
+  have hhi_lt : (jhi : ℝ) < b := ((Finset.mem_filter.mp hhi_mem).2).2
+  have hle : jlo ≤ jhi := (Finset.min'_le S _ hhi_mem)
+  -- S maps injectively (via Fin.val) into Finset.Icc jlo jhi in ℕ
+  have hcard_le : S.card ≤ jhi - jlo + 1 := by
+    calc S.card
+        = (Finset.image Fin.val S).card :=
+          (Finset.card_image_of_injective _ Fin.val_injective).symm
+      _ ≤ (Finset.Icc jlo jhi).card := by
+          apply Finset.card_le_card
+          intro k hk
+          obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hk
+          exact Finset.mem_Icc.mpr ⟨Finset.min'_le _ _ hj, Finset.le_max' _ _ hj⟩
+      _ = jhi - jlo + 1 := by simp; omega
+  calc (S.card : ℝ) ≤ (jhi - jlo + 1 : ℕ) := by exact_mod_cast hcard_le
+    _ = (jhi : ℝ) - (jlo : ℝ) + 1 := by
+        rw [Nat.cast_add, Nat.cast_sub hle]; simp
+    _ ≤ b - a + 1 := by linarith
+
+/-- The number of elements j ∈ Fin n with j/n ∈ [a, b) is at most
+(b - a) * n + 1 when a ≤ b ≤ 1. -/
+private lemma card_div_in_interval (n : ℕ) [NeZero n] (a b : ℝ≥0∞)
+    (hab : a ≤ b) (hb : b ≤ 1) :
+    (Finset.card (Finset.univ.filter (fun j : Fin n =>
+      a ≤ (j : ℝ≥0∞) / n ∧ (j : ℝ≥0∞) / n < b)) : ℝ≥0∞) ≤
+      (b - a) * n + 1 := by
+  have ha_fin : a ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hab.trans hb)
+  have hb_fin : b ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hb
+  have hab_real : a.toReal ≤ b.toReal := ENNReal.toReal_le_toReal ha_fin hb_fin |>.mpr hab
+  -- The ENNReal set ⊆ the ℝ set
+  have hsub : Finset.univ.filter (fun j : Fin n =>
+      a ≤ (j : ℝ≥0∞) / n ∧ (j : ℝ≥0∞) / n < b) ⊆
+    Finset.univ.filter (fun j : Fin n =>
+      a.toReal * n ≤ (j : ℝ) ∧ (j : ℝ) < b.toReal * n) := by
+    intro j hj
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+    obtain ⟨h1, h2⟩ := hj
+    constructor
+    · -- a ≤ j/n → a * n ≤ j → a.toReal * n ≤ j (in ℝ)
+      have h1' : a * n ≤ j := by
+        rwa [ENNReal.le_div_iff_mul_le (by simp [NeZero.ne n]) (by simp)] at h1
+      calc a.toReal * n = (a * n).toReal := by
+            rw [ENNReal.toReal_mul, ENNReal.toReal_natCast]
+        _ ≤ (j : ℝ≥0∞).toReal :=
+            ENNReal.toReal_mono (by simp) h1'
+        _ = j := by simp
+    · -- j/n < b → j < b * n → j < b.toReal * n (in ℝ)
+      have h2' : (j : ℝ≥0∞) < b * n := by
+        rwa [ENNReal.div_lt_iff (by left; simp [NeZero.ne n]) (by left; simp)] at h2
+      calc (j : ℝ) = (j : ℝ≥0∞).toReal := by simp
+        _ < (b * n).toReal :=
+            (ENNReal.toReal_lt_toReal (by simp)
+              (ENNReal.mul_ne_top hb_fin (ENNReal.natCast_ne_top n))).mpr h2'
+        _ = b.toReal * n := by rw [ENNReal.toReal_mul, ENNReal.toReal_natCast]
+  -- Apply the ℝ counting lemma
+  have hR := card_nat_in_Ico n (a.toReal * n) (b.toReal * n)
+    (mul_le_mul_of_nonneg_right hab_real (Nat.cast_nonneg _))
+  -- Combine: card (ENNReal set) ≤ (b.toReal - a.toReal) * n + 1 in ℝ
+  have hcard_real : ((Finset.univ.filter (fun j : Fin n =>
+      a ≤ (j : ℝ≥0∞) / n ∧ (j : ℝ≥0∞) / n < b)).card : ℝ) ≤
+      (b.toReal - a.toReal) * n + 1 := by
+    calc _ ≤ ((Finset.univ.filter (fun j : Fin n =>
+        a.toReal * n ≤ (j : ℝ) ∧ (j : ℝ) < b.toReal * n)).card : ℝ) := by
+          exact_mod_cast Finset.card_le_card hsub
+      _ ≤ b.toReal * n - a.toReal * n + 1 := hR
+      _ = (b.toReal - a.toReal) * n + 1 := by ring
+  -- Convert ℝ bound to ENNReal
+  -- hcard_real has b.toReal - a.toReal; rewrite to (b-a).toReal
+  rw [show b.toReal - a.toReal = (b - a).toReal from
+    (ENNReal.toReal_sub_of_le hab hb_fin).symm] at hcard_real
+  calc ((Finset.univ.filter _).card : ℝ≥0∞)
+      = ENNReal.ofReal ↑(Finset.univ.filter _).card := by rw [ENNReal.ofReal_natCast]
+    _ ≤ ENNReal.ofReal ((b - a).toReal * n + 1) := ENNReal.ofReal_le_ofReal hcard_real
+    _ = (b - a) * n + 1 := by
+        rw [ENNReal.ofReal_add (mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _)) (by norm_num),
+          ENNReal.ofReal_one, ENNReal.ofReal_mul ENNReal.toReal_nonneg,
+          ENNReal.ofReal_toReal (ne_top_of_le_ne_top ENNReal.one_ne_top (tsub_le_self.trans hb)),
+          ENNReal.ofReal_natCast]
+
+theorem uniformApprox_approx {m : ℕ} [NeZero m] (p : PMF (Fin m)) (n : ℕ) [NeZero n] (i : Fin m) :
+    (Finset.card {j : Fin n | uniformApprox p n j = i} : ℝ≥0∞) / (n : ℝ≥0∞) ≤ (p i) + 1 / (n : ℝ≥0∞) := by
+  -- Characterize the preimage using invCdf_eq_iff
+  have hset : Finset.univ.filter (fun j : Fin n => uniformApprox p n j = i) ⊆
+      Finset.univ.filter (fun j : Fin n =>
+        cdf p i ≤ (j : ℝ≥0∞) / n ∧ (j : ℝ≥0∞) / n < cdf p (i + 1)) := by
+    intro j hj
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and,
+      uniformApprox] at hj ⊢
+    have hlt : (j : ℝ≥0∞) / n < 1 := by
+      rw [ENNReal.div_lt_iff (by simp [NeZero.ne n]) (by simp)]
+      simp [show (j : ℕ) < n from j.isLt]
+    exact (invCdf_eq_iff p _ hlt i).mp hj
+  -- Bound cardinality of the preimage
+  have hcard := Finset.card_le_card hset
+  -- Rewrite LHS to use the filter form
+  have hcard_eq : Finset.card {j : Fin n | uniformApprox p n j = i} =
+      (Finset.univ.filter (fun j : Fin n => uniformApprox p n j = i)).card := by
+    rfl
+  -- Use the interval counting lemma
+  have hcdf_le : cdf p i ≤ cdf p (i + 1) := cdf_mono p (Nat.le_succ _)
+  have hcdf_le1 : cdf p (i + 1) ≤ 1 := by
+    calc cdf p (i + 1) ≤ cdf p m := cdf_mono p (by omega)
+      _ = 1 := cdf_one p
+  have hint := card_div_in_interval n (cdf p i) (cdf p (i + 1)) hcdf_le hcdf_le1
+  -- cdf p (i+1) - cdf p i = p i
+  have hdiff : cdf p (↑i + 1) - cdf p i = p i := by
+    rw [cdf_succ]
+    exact ENNReal.add_sub_cancel_left
+      (ne_top_of_le_ne_top ENNReal.one_ne_top (le_trans (cdf_mono p (Nat.le_succ _)) hcdf_le1))
+  rw [hdiff] at hint
+  -- Combine: card / n ≤ (p i * n + 1) / n = p i + 1/n
+  rw [hcard_eq]
+  calc ((Finset.univ.filter (fun j : Fin n => uniformApprox p n j = i)).card : ℝ≥0∞) / n
+      ≤ ((Finset.univ.filter _).card : ℝ≥0∞) / n :=
+        ENNReal.div_le_div_right (by exact_mod_cast hcard) n
+    _ ≤ (p i * n + 1) / n := ENNReal.div_le_div_right hint n
+    _ = p i + 1 / n := by
+        rw [ENNReal.add_div]
+        congr 1
+        rw [mul_comm, mul_div_assoc]
+        exact ENNReal.mul_div_cancel
+          (Nat.cast_ne_zero.mpr (NeZero.ne n)) (ENNReal.natCast_ne_top n)
 
 
 /-- For any finite type `Ω` with a probability measure and any `δ > 0`,
