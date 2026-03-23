@@ -66,8 +66,7 @@ lemma cdf_mono {m : ℕ} (p : PMF (Fin m)) :
 noncomputable def invCdf {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) : Fin m :=
   (Finset.univ.filter (fun (i : Fin m) => cdf p i ≤ x)).max' (by
     unfold Finset.Nonempty
-    have _ := NeZero.ne m
-    refine ⟨(⟨0, by omega⟩ : Fin m), ?_⟩
+    refine ⟨(⟨0, Nat.pos_of_neZero m⟩ : Fin m), ?_⟩
     simp
   )
 
