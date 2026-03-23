@@ -6,6 +6,8 @@ import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Nat.Log
 import Mathlib.Data.Finset.Lattice.Fold
 import Mathlib.MeasureTheory.MeasurableSpace.Defs
+import Mathlib.Probability.ProbabilityMassFunction.Basic
+import Mathlib.Data.ENNReal.Basic
 
 /-!
 # Coin Approximation
@@ -16,10 +18,92 @@ finite probability spaces can be simulated by CoinTape protocols.
 -/
 
 open MeasureTheory
+open scoped ENNReal
 
 namespace CommunicationComplexity
 
 namespace Internal
+
+def cdfNat {m : ℕ} (p : PMF (Fin m)) (n : ℕ) : ℝ≥0∞ :=
+  ∑ j : Fin m, if j < n then p j else 0
+
+-- def cdf {m : ℕ} (p : PMF (Fin m)) : Fin (m + 1) → ℝ≥0∞ :=
+--   fun i => cdfNat p i
+
+@[simp] lemma cdfNat_zero {m : ℕ} (p : PMF (Fin m)) :
+    cdfNat p 0 = 0 := by
+  simp [cdfNat]
+
+lemma cdfNat_succ {m : ℕ} (p : PMF (Fin m)) (n : Fin m) :
+    cdfNat p (n + 1) = cdfNat p n + p n := by
+  simp only [cdfNat]
+  -- Split: ∑ (if j < n+1 ...) = ∑ (if j < n ...) + ∑ (if j = n ...)
+  have key : ∀ j : Fin m,
+      (if (j : ℕ) < (n : ℕ) + 1 then (p j : ℝ≥0∞) else 0) =
+      (if (j : ℕ) < (n : ℕ) then p j else 0) +
+      (if j = n then p n else 0) := by
+    intro j
+    split_ifs with h1 h2 <;> simp_all <;> omega
+  simp_rw [key, Finset.sum_add_distrib, Finset.sum_ite_eq',
+    Finset.mem_univ, if_true]
+
+lemma cdfNat_one {m : ℕ} (p : PMF (Fin m)) :
+    cdfNat p m = 1 := by
+  simp only [cdfNat, Fin.is_lt, ↓reduceIte]
+  have hsum := PMF.tsum_coe p
+  simp only [tsum_fintype] at hsum
+  exact hsum
+
+lemma cdf_mono {m : ℕ} (p : PMF (Fin m)) :
+    Monotone (cdfNat p) := by
+  intro i j hij
+  unfold cdfNat
+  apply Finset.sum_le_sum
+  intro k _
+  split_ifs with h1 h2 <;> first | exact le_refl _ | exact absurd (lt_of_lt_of_le h1 hij) h2 | exact zero_le _
+
+noncomputable def invCdf {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) : Fin m :=
+  (Finset.univ.filter (fun (i : Fin m) => cdfNat p i ≤ x)).max' (by
+    unfold Finset.Nonempty
+    have _ := NeZero.ne m
+    refine ⟨(⟨0, by omega⟩ : Fin m), ?_⟩
+    simp
+  )
+
+theorem invCdf_eq_iff {m : ℕ} [NeZero m] (p : PMF (Fin m)) (x : ℝ≥0∞) (hx : x < 1) (i : Fin m) :
+    invCdf p x = i ↔ cdfNat p i ≤ x ∧ x < cdfNat p (i + 1) := by
+  constructor
+  · intro h
+    unfold invCdf at h
+    rw [Finset.max'_eq_iff] at h
+    constructor
+    · have h := h.1
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at h
+      exact h
+    · have h := h.2
+      by_cases hi : i + 1 < m
+      · specialize h ⟨i + 1, hi⟩
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at h
+        by_contra hcontra
+        rw [not_lt] at hcontra
+        specialize h hcontra
+        rw [← Fin.val_fin_le] at h
+        simp at h
+      · have hi : i + 1 = m := by omega
+        rw [hi, cdfNat_one]
+        trivial
+  · rintro ⟨hlo, hhi⟩
+    unfold invCdf
+    rw [Finset.max'_eq_iff]
+    constructor
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact hlo
+    · intro b hb
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hb
+      have hlt := lt_of_le_of_lt hb hhi
+      have hmono := Monotone.reflect_lt (cdf_mono p) hlt
+      omega
+
 
 /-- For any finite type `Ω` with a probability measure and any `δ > 0`,
 there exist `n` and `φ : CoinTape n → Ω` such that for any set `S`,
