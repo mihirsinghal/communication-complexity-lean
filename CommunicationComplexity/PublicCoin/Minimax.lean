@@ -9,6 +9,25 @@ namespace CommunicationComplexity
 
 open MeasureTheory
 
+namespace Deterministic
+
+namespace Protocol
+
+variable {X Y α : Type*}
+
+/-- The distributional error of a deterministic protocol with respect to a distribution `μ` on `X × Y`:
+the probability that the protocol output disagrees with `f`. -/
+noncomputable def distributionalError
+    (p : Protocol X Y α)
+    (μ : FiniteProbabilitySpace (X × Y))
+    (f : X → Y → α) : ℝ := by
+  letI := μ
+  exact (volume {xy : X × Y | p.run xy.1 xy.2 ≠ f xy.1 xy.2}).toReal
+
+end Protocol
+
+end Deterministic
+
 namespace PublicCoin
 
 open Classical in
@@ -22,7 +41,7 @@ theorem minimax_lower_bound
     (μ : FiniteProbabilitySpace (X × Y))
     (h : ∀ (p : Deterministic.Protocol X Y α),
       p.complexity ≤ n →
-      (volume {xy : X × Y | p.run xy.1 xy.2 ≠ f xy.1 xy.2}).toReal > ε) :
+      p.distributionalError μ f > ε) :
     n < communicationComplexity f ε := by
   -- Prove by contradiction: suppose CC(f, ε) ≤ n
   rw [show (n : ENat) < communicationComplexity f ε ↔
@@ -35,7 +54,7 @@ theorem minimax_lower_bound
       (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal > ε := by
     intro ω
     have h1 := h (p.toDeterministic ω) (by simp [hc])
-    simp only [Protocol.toDeterministic_run] at h1; exact h1
+    simpa [Deterministic.Protocol.distributionalError, Protocol.toDeterministic_run] using h1
   -- Use μ as the measure on X × Y
   letI : MeasureSpace (X × Y) := μ.toMeasureSpace
   -- g(ω) = vol_μ({(x,y) | p fails with randomness ω}), satisfies g(ω) > ε
