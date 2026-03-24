@@ -233,25 +233,18 @@ theorem exists_good_randomness
           (fun ωs => by simp [Set.mem_Icc]; split <;> norm_num)
       · -- Mean bound: E[Y_i] = P[p.rrun x y ω ≠ f x y] ≤ ε
         intro i
-        -- The integral over the product space equals the integral over Ω
-        -- via measurePreserving_eval (marginal of product = volume)
+        -- The i-th coordinate of the product space has the original distribution.
         set g : Ω → ℝ := fun ω => if p.rrun x y ω ≠ f x y then 1 else 0
-        have hmp := measurePreserving_eval
-          (μ := fun (_ : Fin t) => (volume : Measure Ω)) i
         have : ∫ ωs, g (ωs i) ∂μ = ∫ ω, g ω ∂(volume : Measure Ω) := by
-          set ν : Measure (Fin t → Ω) :=
-            Measure.pi fun _ => (volume : Measure Ω)
-          have h1 : ∫ (ωs : Fin t → Ω), g (ωs i) ∂ν =
-              ∫ ω, g ω ∂(Measure.map (Function.eval i) ν) :=
-            (integral_map (measurable_pi_apply i).aemeasurable
-              Measurable.of_discrete.aestronglyMeasurable).symm
-          simp only [hμ_def, hmp.map_eq] at h1 ⊢; exact h1
+          simpa [hμ_def] using
+            (FiniteProbabilitySpace.integral_comp_eval (ι := Fin t) (Ω := Ω) i g)
         rw [this]
+        -- Identify the mean with the failure probability on a single input.
         have hg_eq : g = Set.indicator {ω | p.rrun x y ω ≠ f x y} 1 := by
           ext ω; simp [g, Set.indicator_apply]
-        rw [hg_eq, integral_indicator MeasurableSet.of_discrete, Pi.one_def,
-          integral_const, smul_eq_mul, mul_one,
-          measureReal_restrict_apply_univ]
+        rw [hg_eq]
+        rw [← FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+          (Ω := Ω) {ω | p.rrun x y ω ≠ f x y}]
         exact hp x y
       · linarith
       · exact hc

@@ -81,8 +81,10 @@ theorem discrepancy_eq_prob_false_sub_prob_true
   -- Now use linearity of the integral and identify each indicator integral
   -- with the corresponding probability.
   rw [integral_sub (Integrable.of_finite) (Integrable.of_finite)]
-  rw [MeasureTheory.integral_indicator_one MeasurableSet.of_discrete, MeasureTheory.integral_indicator_one MeasurableSet.of_discrete]
-  simp only [Measure.real, SFalse, STrue]
+  rw [← FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+      (Ω := X × Y) SFalse]
+  rw [← FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+      (Ω := X × Y) STrue]
 
 namespace Deterministic
 
@@ -176,13 +178,12 @@ private lemma boolSign_mul_boolSign_eq_sub_two_indicator
   cases a <;> cases b <;> norm_num [boolSign]
 
 private lemma signedBias_eq_one_sub_two_distributionalError
+    [μ : FiniteProbabilitySpace (X × Y)]
     (p : Protocol X Y Bool)
-    (μ : FiniteProbabilitySpace (X × Y))
     (g : X → Y → Bool) :
     ∫ xy : X × Y, boolSign (p.run xy.1 xy.2) * boolSign (g xy.1 xy.2) =
       1 - 2 * p.distributionalError μ g := by
   classical
-  letI := μ
   let Err : Set (X × Y) := {xy : X × Y | p.run xy.1 xy.2 ≠ g xy.1 xy.2}
   have hpoint :
       (fun xy : X × Y => boolSign (p.run xy.1 xy.2) * boolSign (g xy.1 xy.2)) =
@@ -195,8 +196,9 @@ private lemma signedBias_eq_one_sub_two_distributionalError
   rw [integral_sub (Integrable.of_finite) (Integrable.of_finite)]
   rw [MeasureTheory.integral_const]
   rw [MeasureTheory.integral_const_mul]
-  rw [MeasureTheory.integral_indicator_one MeasurableSet.of_discrete]
-  simp [Deterministic.Protocol.distributionalError, Err, Measure.real]
+  rw [← FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+    (Ω := X × Y) Err]
+  simp [Deterministic.Protocol.distributionalError, Err]
 
 private lemma signedBias_eq_sum_rectangles
     [μ : FiniteProbabilitySpace (X × Y)]
@@ -261,7 +263,8 @@ theorem one_sub_two_distributionalError_le_two_pow_mul
         ≤ ((leafRectanglesFinset p).card : ℝ) * γ := by
     calc
       |Finset.sum (leafRectanglesFinset p) (fun R => rectangleSign p R * discrepancy g R)|
-          ≤ Finset.sum (leafRectanglesFinset p) (fun R => |rectangleSign p R * discrepancy g R|) := by
+          ≤ Finset.sum (leafRectanglesFinset p)
+              (fun R => |rectangleSign p R * discrepancy g R|) := by
             simpa using
               (Finset.abs_sum_le_sum_abs (s := leafRectanglesFinset p)
                 (f := fun R => rectangleSign p R * discrepancy g R))

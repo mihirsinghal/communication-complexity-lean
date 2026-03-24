@@ -218,15 +218,8 @@ theorem single_coin_approx
   have hN_eq : N = 2 ^ n := by simp [N, Fintype.card_fin]
   -- PMF on Fin k from the measure on Ω
   set e := Fintype.equivFin Ω
-  have huniv : (Set.univ : Set Ω) = ⋃ i : Fin k, {e.symm i} := by
-    ext x; simp only [Set.mem_univ, Set.mem_iUnion, Set.mem_singleton_iff]
-    exact Iff.intro (fun _ => ⟨e x, (e.symm_apply_apply x).symm⟩) (fun _ => trivial)
-  have hpmf : HasSum (fun i : Fin k => volume ({e.symm i} : Set Ω)) 1 := by
-    rw [show (1 : ℝ≥0∞) = volume (Set.univ : Set Ω) from measure_univ.symm, huniv]
-    rw [measure_iUnion
-      (fun i j h => Set.disjoint_singleton.mpr (e.symm.injective.ne h))
-      (fun _ => MeasurableSet.of_discrete)]
-    exact ENNReal.summable.hasSum
+  have hpmf : HasSum (fun i : Fin k => volume ({e.symm i} : Set Ω)) 1 :=
+    FiniteProbabilitySpace.hasSum_measure_singletons e
   set q : PMF (Fin k) := ⟨fun i => volume ({e.symm i} : Set Ω), hpmf⟩
   -- φ: CoinTape n ≃ Fin N → uniformApprox → Fin k → e.symm → Ω
   set eC : CoinTape n ≃ Fin N := Fintype.equivFin _
@@ -254,23 +247,31 @@ theorem single_coin_approx
   -- CoinTape volume = counting / N
   have hvol_pre : (volume (φ ⁻¹' S : Set (CoinTape n))).toReal =
       ((Finset.univ.filter (fun c : CoinTape n => φ c ∈ S)).card : ℝ) / N := by
-    change (ProbabilityTheory.uniformOn Set.univ _).toReal = _
-    rw [ProbabilityTheory.uniformOn_univ, ENNReal.toReal_div,
-      Measure.count_apply MeasurableSet.of_discrete,
-      Set.encard_eq_coe_toFinset_card]
-    simp only [ENat.toENNReal_coe, ENNReal.toReal_natCast]
-    congr 1; congr 1; congr 1; ext c; simp [Set.mem_toFinset, Set.mem_preimage]
+    simpa [N, Set.mem_preimage] using
+      uniformOn_univ_measureReal_eq_card_filter
+        (Ω := CoinTape n) (φ ⁻¹' S : Set (CoinTape n))
   -- Volume of S as sum of q
   have hvol_S : (volume S).toReal = ∑ i ∈ S_idx, (q i).toReal := by
-    have hS_eq : S = ⋃ i ∈ S_idx, ({e.symm i} : Set Ω) := by
-      ext x; simp only [S_idx, Finset.mem_filter, Finset.mem_univ, true_and,
-        Set.mem_iUnion, Set.mem_singleton_iff]
-      exact ⟨fun hx => ⟨e x, by rwa [e.symm_apply_apply], (e.symm_apply_apply x).symm⟩,
-             fun ⟨j, hj, hjx⟩ => hjx ▸ hj⟩
-    rw [hS_eq, measure_biUnion_finset
-      (fun i _ j _ hij => Set.disjoint_singleton.mpr (e.symm.injective.ne hij))
-      (fun j _ => MeasurableSet.of_discrete),
-      ENNReal.toReal_sum (fun j _ => (measure_lt_top _ _).ne)]; rfl
+    have hpre : e ⁻¹' (↑S_idx : Set (Fin k)) = S := by
+      ext x
+      change (e x ∈ S_idx) ↔ x ∈ S
+      simp [S_idx]
+    rw [← hpre]
+    rw [FiniteProbabilitySpace.measureReal_preimage_finset
+      (Ξ := Ω) (Ω := Fin k) e S_idx]
+    refine Finset.sum_congr rfl ?_
+    intro i hi
+    have hs : e ⁻¹' ({i} : Set (Fin k)) = ({e.symm i} : Set Ω) := by
+      ext x
+      constructor
+      · intro hx
+        simpa using congrArg e.symm hx
+      · intro hx
+        subst x
+        exact e.apply_symm_apply i
+    rw [hs]
+    change (volume ({e.symm i} : Set Ω)).toReal = (volume ({e.symm i} : Set Ω)).toReal
+    rfl
   -- Combine
   rw [hvol_pre, hfiber]; push_cast
   have hN_pos_real : (0 : ℝ) < N := by positivity
@@ -358,11 +359,11 @@ private theorem product_coin_approx
       Set (CoinTape nX × CoinTape nY))).toReal =
       ∑ a : Ω_X, (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal *
         (volume (φ_Y ⁻¹' S_a a : Set (CoinTape nY))).toReal := by
-    rw [hunion, measure_iUnion hdisj (fun _ => MeasurableSet.of_discrete),
-      tsum_fintype, ENNReal.toReal_sum (fun a _ => measure_ne_top _ _)]
-    congr 1; ext a
-    change ((volume.prod volume) _).toReal = _
-    rw [Measure.prod_prod, ENNReal.toReal_mul]
+    rw [hunion, FiniteProbabilitySpace.measureReal_iUnion_fintype _ hdisj]
+    refine Finset.sum_congr rfl ?_
+    intro a ha
+    simpa using FiniteProbabilitySpace.measureReal_prod
+      (φ_X ⁻¹' ({a} : Set Ω_X)) (φ_Y ⁻¹' S_a a)
   -- RHS = ∑_a vol({a}) * vol(S_a)
   have hRHS : (volume S).toReal = ∑ a : Ω_X, (volume ({a} : Set Ω_X)).toReal *
       (volume (S_a a)).toReal := by
@@ -377,10 +378,10 @@ private theorem product_coin_approx
       have hx' : x = b := by
         simpa only [Set.mem_prod, Set.mem_singleton_iff] using h2.1
       exact hab (hx.symm.trans hx')
-    rw [hS, measure_iUnion hdisj' (fun _ => MeasurableSet.of_discrete),
-      tsum_fintype, ENNReal.toReal_sum (fun a _ => measure_ne_top _ _)]
-    congr 1; ext a; change ((volume.prod volume) _).toReal = _
-    rw [Measure.prod_prod, ENNReal.toReal_mul]
+    rw [hS, FiniteProbabilitySpace.measureReal_iUnion_fintype _ hdisj']
+    refine Finset.sum_congr rfl ?_
+    intro a ha
+    simpa using FiniteProbabilitySpace.measureReal_prod ({a} : Set Ω_X) (S_a a)
   -- Step 1: bound using hY on each slice
   set pX := fun a => (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal
   set qX := fun a => (volume ({a} : Set Ω_X)).toReal
@@ -390,13 +391,13 @@ private theorem product_coin_approx
     Finset.sum_le_sum (fun a _ => mul_le_mul_of_nonneg_left (hY _) ENNReal.toReal_nonneg)
   -- ∑ pX * (g + δ/2) = ∑ pX * g + δ/2 (since ∑ pX = 1)
   have hpX_sum : ∑ a : Ω_X, pX a = 1 := by
-    simp only [pX, ← ENNReal.toReal_sum (fun a _ => measure_ne_top _ _)]
-    rw [show ∑ a : Ω_X, volume (φ_X ⁻¹' {a} : Set (CoinTape nX)) = volume Set.univ from by
-      rw [← measure_biUnion_finset
-        (fun a _ b _ h => Disjoint.preimage _ (Set.disjoint_singleton.mpr h))
-        (fun _ _ => MeasurableSet.of_discrete)]
-      congr 1; ext cx; simp]
-    simp [measure_univ]
+    calc ∑ a : Ω_X, pX a
+        = (volume (φ_X ⁻¹' (Set.univ : Set Ω_X) : Set (CoinTape nX))).toReal := by
+            symm
+            simpa [pX] using
+              (FiniteProbabilitySpace.measureReal_preimage_finset
+                (Ξ := CoinTape nX) (Ω := Ω_X) φ_X Finset.univ)
+      _ = 1 := by simp [measure_univ]
   have hexpand : ∑ a, pX a * ((volume (S_a a)).toReal + δ / 2) =
       (∑ a, pX a * (volume (S_a a)).toReal) + δ / 2 := by
     simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, hpX_sum, one_mul]
@@ -414,24 +415,10 @@ private theorem product_coin_approx
       (fun T => by
         have := hX (↑T : Set Ω_X)
         simp only [pX, qX]
-        -- convert: vol(φ_X⁻¹(T)) = ∑_{a∈T} pX(a) and vol(T) = ∑_{a∈T} qX(a)
-        rw [show (volume (φ_X ⁻¹' (↑T : Set Ω_X) : Set (CoinTape nX))).toReal =
-          ∑ a ∈ T, (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal from by
-          rw [show (φ_X ⁻¹' (↑T : Set Ω_X) : Set (CoinTape nX)) =
-            ⋃ a ∈ T, φ_X ⁻¹' ({a} : Set Ω_X) from by
-              ext
-              simp,
-            measure_biUnion_finset
-              (fun a _ b _ h =>
-                Disjoint.preimage _ (Set.disjoint_singleton.mpr h))
-              (fun _ _ => MeasurableSet.of_discrete),
-            ENNReal.toReal_sum (fun _ _ => measure_ne_top _ _)]] at this
-        rw [show (volume (↑T : Set Ω_X)).toReal =
-          ∑ a ∈ T, (volume ({a} : Set Ω_X)).toReal from by
-          rw [show (↑T : Set Ω_X) = ⋃ a ∈ T, ({a} : Set Ω_X) from by ext; simp,
-            measure_biUnion_finset (fun a _ b _ h => Set.disjoint_singleton.mpr h)
-              (fun _ _ => MeasurableSet.of_discrete),
-            ENNReal.toReal_sum (fun _ _ => measure_ne_top _ _)]] at this
+        -- Convert both finite-set measures into sums over singleton fibers.
+        rw [FiniteProbabilitySpace.measureReal_preimage_finset
+          (Ξ := CoinTape nX) (Ω := Ω_X) φ_X T] at this
+        rw [FiniteProbabilitySpace.measureReal_finset (Ω := Ω_X) T] at this
         linarith)
   calc ∑ a, pX a * (volume (φ_Y ⁻¹' S_a a : Set (CoinTape nY))).toReal
       ≤ (∑ a, pX a * gval a) + δ / 2 := by linarith [hstep1, hexpand]

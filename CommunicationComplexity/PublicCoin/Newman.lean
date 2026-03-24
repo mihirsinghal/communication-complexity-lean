@@ -122,21 +122,21 @@ theorem FiniteMessage.Protocol.newmanProtocol_ApproxComputes
       {i | p.run (ωs i, x) (ωs i, y) ≠ f x y} ×ˢ Set.univ := by
     ext ⟨i, u⟩; simp
   rw [hset]
-  -- Product measure of S ×ˢ univ = volume(S) * volume(univ) = volume(S)
-  rw [show (volume : Measure (newmanIndexSpace X Y ε c × Unit)) =
-    volume.prod volume from rfl]
-  rw [Measure.prod_prod, measure_univ, mul_one]
-  -- volume on newmanIndexSpace = uniformOn Set.univ
-  change (ProbabilityTheory.uniformOn Set.univ _).toReal ≤ _
-  rw [ProbabilityTheory.uniformOn_univ, ENNReal.toReal_div]
-  classical
-  rw [Measure.count_apply MeasurableSet.of_discrete,
-    Set.encard_eq_coe_toFinset_card]
-  simp only [ENat.toENNReal_coe, ENNReal.toReal_natCast, Fintype.card_fin]
+  -- Identify the product-space error probability with the measure of the bad index set.
+  rw [FiniteProbabilitySpace.measureReal_prod]
+  simp only [ne_eq, measure_univ, ENNReal.toReal_one, mul_one, ge_iff_le]
+  let BadIdx : Set (newmanIndexSpace X Y ε c) :=
+    {i | p.run (ωs i, x) (ωs i, y) ≠ f x y}
+  -- Now compute that measure in the uniform index space by cardinality.
+  change (((ProbabilityTheory.uniformOn Set.univ : Measure (newmanIndexSpace X Y ε c))
+    BadIdx).toReal ≤ c * ε)
+  rw [uniformOn_univ_measureReal_eq_card_filter
+    (Ω := newmanIndexSpace X Y ε c) BadIdx]
+  simp only [ne_eq, Set.mem_setOf_eq, Fintype.card_fin, BadIdx]
   convert hωs x y using 1
-  congr 1; norm_cast
-  apply Finset.card_equiv (Equiv.refl _)
-  intro i; simp; rfl
+  congr 1
+  simp [ωs]
+  congr
 
 theorem FiniteMessage.Protocol.newmanProtocol_complexity
     {Ω X Y α : Type*} [FiniteProbabilitySpace Ω]
