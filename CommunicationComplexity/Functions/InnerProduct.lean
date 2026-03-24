@@ -45,8 +45,9 @@ private lemma pmf_toReal_eq_two_pow_inv (x : BoolInput n) :
     (FiniteProbabilitySpace.toPMF (BoolInput n) x).toReal = (1 : ℝ) / 2 ^ n := by
   classical
   change (volume (Set.singleton x : Set (BoolInput n))).toReal = (1 : ℝ) / 2 ^ n
-  change (((ProbabilityTheory.uniformOn Set.univ : Measure (BoolInput n)) (Set.singleton x)).toReal
-    = (1 : ℝ) / 2 ^ n)
+  change
+    (((ProbabilityTheory.uniformOn Set.univ : Measure (BoolInput n))
+        (Set.singleton x)).toReal = (1 : ℝ) / 2 ^ n)
   rw [ProbabilityTheory.uniformOn_univ, ENNReal.toReal_div]
   have hcount : (Measure.count (Set.singleton x)).toReal = 1 := by
     unfold Set.singleton
@@ -67,30 +68,18 @@ private lemma integral_eq_average_sum (f : BoolInput n → ℝ) :
 /-- Flipping a coordinate where `y` has a `1` toggles the inner product. -/
 lemma innerProduct_flipAt_eq_xor (x y : BoolInput n) (i : Fin n) (hyi : y i = true) :
     innerProduct n (flipAt i x) y = Bool.xor (innerProduct n x y) true := by
-  classical
-  have hflip :
-      innerProduct n (flipAt i x) y = innerProduct n x y - x i + !x i := by
-    calc
-      innerProduct n (flipAt i x) y
-        = Finset.sum (Finset.univ.erase i) (fun j : Fin n => flipAt i x j && y j) +
-            (flipAt i x i && y i) := by
-              unfold innerProduct
-              simp [add_comm]
-      _ = Finset.sum (Finset.univ.erase i) (fun j : Fin n => x j && y j) + !x i := by
-            congr 1
-            · refine Finset.sum_congr rfl ?_
-              intro j hj
-              have hji : j ≠ i := (Finset.mem_erase.mp hj).1
-              simp [flipAt, hji]
-            · simp [flipAt, hyi]
-      _ = innerProduct n x y - x i + !x i := by
-            rw [show innerProduct n x y =
-                Finset.sum (Finset.univ.erase i) (fun j : Fin n => x j && y j) + x i by
-                  unfold innerProduct
-                  simp [hyi, add_comm]]
-            cases hxi : x i <;> simp [hxi]
-  rw [hflip]
-  cases hsum : innerProduct n x y <;> cases hxi : x i <;> decide
+  unfold innerProduct
+  rw [← Finset.add_sum_erase (a := i) (h := Finset.mem_univ _)]
+  rw [← Finset.add_sum_erase (a := i) (h := Finset.mem_univ _)]
+  unfold flipAt
+  simp only [Function.update_self]
+  nth_rw 1 [Finset.sum_congr (g := fun j => x j && y j) rfl]
+  · rw [hyi]
+    simp only [Bool.and_true, Bool.bne_true]
+    rw [(show (∀ x y, (!x) + y = !(x + y)) by decide)]
+  · intro x_1 hx
+    simp at hx
+    simp [hx]
 
 /-- Orthogonality of Walsh characters for the inner product function. -/
 private lemma sum_boolSign_innerProduct_eq_zero_of_exists_true
@@ -169,36 +158,26 @@ private lemma boolSign_innerProduct_mul_eq_xorInput
 the expectation of the square. -/
 private lemma sq_integral_le_integral_sq
     (f : BoolInput n → ℝ) :
-    (∫ x : BoolInput n, f x)^2 ≤ ∫ x : BoolInput n, (f x)^2 := by
-  have hsq :
-      (∫ x : BoolInput n, f x)^2 ≤ ∫ x : BoolInput n, (f x)^2 :=
-    ConvexOn.map_integral_le
-      (by simpa using (show ConvexOn ℝ Set.univ (fun x : ℝ => x ^ 2) from
-        Even.convexOn_pow (𝕜 := ℝ) (by decide : Even 2)))
-      (by simpa using
-        (show ContinuousOn (fun x : ℝ => x ^ 2) Set.univ from
-          (continuous_pow 2).continuousOn))
-      isClosed_univ
-      (Filter.Eventually.of_forall fun _ => Set.mem_univ _)
-      Integrable.of_finite
-      Integrable.of_finite
-  simpa [pow_two] using hsq
+    (∫ x : BoolInput n, f x)^2 ≤ ∫ x : BoolInput n, (f x)^2 :=
+  ConvexOn.map_integral_le
+    (by simpa using (show ConvexOn ℝ Set.univ (fun x : ℝ => x ^ 2) from
+      Even.convexOn_pow (𝕜 := ℝ) (by decide : Even 2)))
+    (by simpa using
+      (show ContinuousOn (fun x : ℝ => x ^ 2) Set.univ from
+        (continuous_pow 2).continuousOn))
+    isClosed_univ
+    (Filter.Eventually.of_forall fun _ => Set.mem_univ _)
+    Integrable.of_finite
+    Integrable.of_finite
 
 /-- Summed orthogonality for Walsh characters. -/
 private lemma sum_boolSign_innerProduct_mul_eq_indicator
     (y z : BoolInput n) :
     ∑ x : BoolInput n, boolSign (innerProduct n x y) * boolSign (innerProduct n x z) =
       if y = z then 2 ^ n else 0 := by
-  calc
-    ∑ x : BoolInput n, boolSign (innerProduct n x y) * boolSign (innerProduct n x z)
-      = ∑ x : BoolInput n, boolSign (innerProduct n x (xorInput y z)) := by
-          refine Finset.sum_congr rfl ?_
-          intro x hx
-          exact boolSign_innerProduct_mul_eq_xorInput x y z
-    _ = if xorInput y z = zeroInput n then 2 ^ n else 0 :=
-          sum_boolSign_innerProduct_eq_zeroInput_indicator (n := n) (xorInput y z)
-    _ = if y = z then 2 ^ n else 0 := by
-          simp [xorInput_eq_zeroInput_iff]
+  simp_rw [boolSign_innerProduct_mul_eq_xorInput]
+  rw [sum_boolSign_innerProduct_eq_zeroInput_indicator]
+  simp [xorInput_eq_zeroInput_iff]
 
 private lemma indicatorOne_sq
     (B : Set (BoolInput n)) (y : BoolInput n) :
@@ -216,43 +195,20 @@ private lemma sum_sq_eq_sum_prod
     {α β : Type*} [Fintype α] [Fintype β] (f : α → β → ℝ) :
     ∑ x : α, (∑ y : β, f x y)^2 =
       ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
-  calc
-    ∑ x : α, (∑ y : β, f x y)^2
-        = ∑ x : α, ∑ y : β, ∑ z : β, f x y * f x z := by
-            refine Finset.sum_congr rfl ?_
-            intro x hx
-            simp [pow_two, Fintype.sum_mul_sum]
-    _ = ∑ x : α, ∑ yz : β × β, f x yz.1 * f x yz.2 := by
-          refine Finset.sum_congr rfl ?_
-          intro x hx
-          simpa using
-            (Fintype.sum_prod_type (fun yz : β × β => f x yz.1 * f x yz.2)).symm
-    _ = ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
-          calc
-            ∑ x : α, ∑ yz : β × β, f x yz.1 * f x yz.2
-                = ∑ p : α × (β × β), f p.1 p.2.1 * f p.1 p.2.2 := by
-                    simpa using
-                      (Fintype.sum_prod_type
-                        (fun p : α × (β × β) => f p.1 p.2.1 * f p.1 p.2.2)).symm
-            _ = ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
-                  simpa using
-                    (Fintype.sum_prod_type_right
-                      (f := fun p : α × (β × β) => f p.1 p.2.1 * f p.1 p.2.2))
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl ?_
+  intro _ _
+  simp only [pow_two, Fintype.sum_mul_sum]
+  rw [eq_comm]
+  apply Fintype.sum_prod_type
 
 private lemma sum_mul_mul
     {α : Type*} [Fintype α] (a b : ℝ) (f g : α → ℝ) :
     ∑ x : α, (a * f x) * (b * g x) = a * b * ∑ x : α, f x * g x := by
-
-  calc
-    ∑ x : α, (a * f x) * (b * g x)
-        = ∑ x : α, (f x * g x) * (a * b) := by
-            refine Finset.sum_congr rfl ?_
-            intro x hx
-            ring
-    _ = (∑ x : α, f x * g x) * (a * b) := by
-          rw [Finset.sum_mul]
-    _ = a * b * ∑ x : α, f x * g x := by
-          ring
+  conv =>
+    enter [1, 2, x]
+    equals (a * b) * (f x * g x) => ring
+  rw [Finset.mul_sum]
 
 private lemma sum_mul_ite_eq_diag
     {α : Type*} [Fintype α] [DecidableEq α] (h : α → α → ℝ) (c : ℝ) :
@@ -263,7 +219,6 @@ private lemma sum_mul_ite_eq_diag
   intro y hy
   simp
 
-open Classical in
 /-- A weighted orthogonality identity for a finite family of functions. -/
 private lemma sum_sq_mul_of_orthogonal
     {α β : Type*} [Fintype α] [Fintype β] [DecidableEq β]
@@ -271,19 +226,12 @@ private lemma sum_sq_mul_of_orthogonal
     (horth : ∀ y z, ∑ x : α, φ x y * φ x z = if y = z then c else 0) :
     ∑ x : α, (∑ y : β, b y * φ x y)^2 =
       ∑ y : β, (b y)^2 * c := by
-  rw [sum_sq_eq_sum_prod (fun x y => b y * φ x y)]
-  have hcollapse :
-      ∑ yz : β × β, ∑ x : α, (b yz.1 * φ x yz.1) * (b yz.2 * φ x yz.2) =
-      ∑ yz : β × β, (b yz.1 * b yz.2) * (if yz.1 = yz.2 then c else 0) := by
-    refine Finset.sum_congr rfl ?_
-    intro yz hyz
-    rw [sum_mul_mul (a := b yz.1) (b := b yz.2)
-      (f := fun x => φ x yz.1) (g := fun x => φ x yz.2), horth]
-  rw [hcollapse]
-  refine (sum_mul_ite_eq_diag (h := fun y z => b y * b z) (c := c)).trans ?_
+  rw [sum_sq_eq_sum_prod]
+  simp_rw [sum_mul_mul, horth]
+  rw [sum_mul_ite_eq_diag (fun y z => b y * b z)]
   refine Finset.sum_congr rfl ?_
-  intro y hy
-  simp [pow_two]
+  ring_nf
+  simp
 
 open Classical in
 /-- Weighted orthogonality identity for Walsh characters of inner product. -/
@@ -293,8 +241,8 @@ private lemma sum_sq_mul_boolSign_innerProduct
       (∑ y : BoolInput n, b y * boolSign (innerProduct n x y))^2 =
       ∑ y : BoolInput n, (b y)^2 * (2 ^ n : ℝ) := by
   refine sum_sq_mul_of_orthogonal
-    (φ := fun x y => boolSign (innerProduct n x y))
-    (c := (2 ^ n : ℝ)) (b := b) ?_
+    (fun x y => boolSign (innerProduct n x y))
+    (2 ^ n) b ?_
   intro y z
   simpa [mul_assoc] using sum_boolSign_innerProduct_mul_eq_indicator (n := n) y z
 
@@ -321,47 +269,6 @@ private lemma sum_sq_indicator_mul_boolSign_innerProduct_le
       simp [BoolInput, Fintype.card_pi, Fintype.card_fin, Fintype.card_bool, pow_two]
 
 open Classical in
-private lemma integral_sq_indicator_mul_boolSign_innerProduct_eq
-    (B : Set (BoolInput n)) :
-    ∫ x : BoolInput n,
-      (∫ y : BoolInput n,
-        (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2 =
-      ((1 : ℝ) / 2 ^ n)^3 *
-        ∑ x : BoolInput n,
-          (∑ y : BoolInput n,
-            (Set.indicator B 1 y) * boolSign (innerProduct n x y))^2 := by
-  let b : BoolInput n → ℝ := Set.indicator B 1
-  have hinner :
-      (fun x : BoolInput n =>
-        (∫ y : BoolInput n,
-          (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2) =
-      fun x : BoolInput n =>
-        (∫ y : BoolInput n, b y * boolSign (innerProduct n x y))^2 := by
-      ext x
-      have hpoint :
-          (fun y : BoolInput n =>
-            if y ∈ B then boolSign (innerProduct n x y) else 0) =
-          fun y : BoolInput n =>
-            b y * boolSign (innerProduct n x y) := by
-              ext y
-              simp [b, Set.indicator_apply]
-      simpa using congrArg (fun F => (∫ y : BoolInput n, F y)^2) hpoint
-  rw [hinner]
-  rw [integral_eq_average_sum]
-  simp_rw [integral_eq_average_sum]
-  have hscale :
-      ∑ x : BoolInput n,
-        (((1 : ℝ) / 2 ^ n) *
-          ∑ y : BoolInput n, b y * boolSign (innerProduct n x y))^2 =
-      ((1 : ℝ) / 2 ^ n)^2 *
-        ∑ x : BoolInput n,
-          (∑ y : BoolInput n, b y * boolSign (innerProduct n x y))^2 := by
-    simp_rw [mul_pow]
-    rw [← Finset.mul_sum]
-  rw [hscale]
-  ring
-
-open Classical in
 /-- The inner second moment appearing in the discrepancy calculation is at most `2^{-n}`. -/
 private lemma integral_sq_indicator_mul_boolSign_innerProduct_le
     (B : Set (BoolInput n)) :
@@ -369,20 +276,13 @@ private lemma integral_sq_indicator_mul_boolSign_innerProduct_le
       (∫ y : BoolInput n,
         (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2 ≤
       (1 : ℝ) / 2 ^ n := by
-  rw [integral_sq_indicator_mul_boolSign_innerProduct_eq]
-  have hnonneg : 0 ≤ ((1 : ℝ) / 2 ^ n)^3 := by
-    positivity
-  have hmain :=
-    mul_le_mul_of_nonneg_left
-      (sum_sq_indicator_mul_boolSign_innerProduct_le (n := n) B) hnonneg
-  have hpow : (2 : ℝ) ^ n ≠ 0 := by positivity
-  calc
-    ((1 : ℝ) / 2 ^ n)^3 *
-        ∑ x : BoolInput n,
-          (∑ y : BoolInput n, Set.indicator B 1 y * boolSign (innerProduct n x y))^2
-      ≤ ((1 : ℝ) / 2 ^ n)^3 * (2 ^ n : ℝ)^2 := hmain
-    _ = (1 : ℝ) / 2 ^ n := by
-        field_simp [hpow]
+  simp_rw [integral_eq_average_sum]
+  simp_rw [mul_pow]
+  rw [← Finset.mul_sum]
+  simp only [one_div, inv_pow, inv_pos, Nat.ofNat_pos, pow_pos,
+    mul_le_iff_le_one_right]
+  rw [inv_mul_le_one₀ (by positivity)]
+  apply sum_sq_indicator_mul_boolSign_innerProduct_le
 
 open Classical in
 private lemma discrepancy_prod_eq_integral
@@ -407,28 +307,16 @@ private lemma sq_discrepancy_prod_le
     (discrepancy (innerProduct n) (A ×ˢ B : Set (BoolInput n × BoolInput n)))^2 ≤
       (1 : ℝ) / 2 ^ n := by
   rw [discrepancy_prod_eq_integral]
-  calc
-    (∫ x : BoolInput n,
-        (if x ∈ A then (1 : ℝ) else 0) *
-          ∫ y : BoolInput n,
-            (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2
-      ≤ ∫ x : BoolInput n,
-          ((if x ∈ A then (1 : ℝ) else 0) *
-            ∫ y : BoolInput n,
-              (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2 :=
-        sq_integral_le_integral_sq (n := n) _
-    _ ≤ ∫ x : BoolInput n,
-          (∫ y : BoolInput n,
-            (if y ∈ B then (1 : ℝ) else 0) * boolSign (innerProduct n x y))^2 := by
-          refine MeasureTheory.integral_mono_ae (Integrable.of_finite) (Integrable.of_finite) ?_
-          filter_upwards with x
-          by_cases hx : x ∈ A
-          · simp [hx]
-          · simp only [hx, ite_mul, zero_mul, ite_pow, ne_eq, OfNat.ofNat_ne_zero,
-              not_false_eq_true, zero_pow]
-            positivity
-    _ ≤ (1 : ℝ) / 2 ^ n :=
-        integral_sq_indicator_mul_boolSign_innerProduct_le (n := n) B
+  apply le_trans (sq_integral_le_integral_sq _)
+  refine le_trans ?_ (integral_sq_indicator_mul_boolSign_innerProduct_le B)
+  apply MeasureTheory.integral_mono (Integrable.of_finite) (Integrable.of_finite)
+  intro x
+  simp only
+  by_cases hx : x ∈ A
+  · simp [hx]
+  · simp only [hx, ↓reduceIte, zero_mul, ne_eq, OfNat.ofNat_ne_zero,
+      not_false_eq_true, zero_pow, ite_mul, one_mul, zero_mul]
+    apply sq_nonneg
 
 open Classical in
 /-- Every rectangle has discrepancy at most `2^{-n/2}` for the inner product function over the
