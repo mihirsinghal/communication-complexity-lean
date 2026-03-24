@@ -216,20 +216,43 @@ private lemma sum_sq_eq_sum_prod
     {α β : Type*} [Fintype α] [Fintype β] (f : α → β → ℝ) :
     ∑ x : α, (∑ y : β, f x y)^2 =
       ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
-  rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl ?_
-  intro _ _
-  simp only [pow_two, Fintype.sum_mul_sum]
-  rw [eq_comm]
-  apply Fintype.sum_prod_type
+  calc
+    ∑ x : α, (∑ y : β, f x y)^2
+        = ∑ x : α, ∑ y : β, ∑ z : β, f x y * f x z := by
+            refine Finset.sum_congr rfl ?_
+            intro x hx
+            simp [pow_two, Fintype.sum_mul_sum]
+    _ = ∑ x : α, ∑ yz : β × β, f x yz.1 * f x yz.2 := by
+          refine Finset.sum_congr rfl ?_
+          intro x hx
+          simpa using
+            (Fintype.sum_prod_type (fun yz : β × β => f x yz.1 * f x yz.2)).symm
+    _ = ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
+          calc
+            ∑ x : α, ∑ yz : β × β, f x yz.1 * f x yz.2
+                = ∑ p : α × (β × β), f p.1 p.2.1 * f p.1 p.2.2 := by
+                    simpa using
+                      (Fintype.sum_prod_type
+                        (fun p : α × (β × β) => f p.1 p.2.1 * f p.1 p.2.2)).symm
+            _ = ∑ yz : β × β, ∑ x : α, f x yz.1 * f x yz.2 := by
+                  simpa using
+                    (Fintype.sum_prod_type_right
+                      (f := fun p : α × (β × β) => f p.1 p.2.1 * f p.1 p.2.2))
 
 private lemma sum_mul_mul
     {α : Type*} [Fintype α] (a b : ℝ) (f g : α → ℝ) :
     ∑ x : α, (a * f x) * (b * g x) = a * b * ∑ x : α, f x * g x := by
-  conv =>
-    enter [1, 2, x]
-    equals (a * b) * (f x * g x) => ring
-  rw [Finset.mul_sum]
+
+  calc
+    ∑ x : α, (a * f x) * (b * g x)
+        = ∑ x : α, (f x * g x) * (a * b) := by
+            refine Finset.sum_congr rfl ?_
+            intro x hx
+            ring
+    _ = (∑ x : α, f x * g x) * (a * b) := by
+          rw [Finset.sum_mul]
+    _ = a * b * ∑ x : α, f x * g x := by
+          ring
 
 private lemma sum_mul_ite_eq_diag
     {α : Type*} [Fintype α] [DecidableEq α] (h : α → α → ℝ) (c : ℝ) :
@@ -240,6 +263,7 @@ private lemma sum_mul_ite_eq_diag
   intro y hy
   simp
 
+open Classical in
 /-- A weighted orthogonality identity for a finite family of functions. -/
 private lemma sum_sq_mul_of_orthogonal
     {α β : Type*} [Fintype α] [Fintype β] [DecidableEq β]
@@ -247,15 +271,19 @@ private lemma sum_sq_mul_of_orthogonal
     (horth : ∀ y z, ∑ x : α, φ x y * φ x z = if y = z then c else 0) :
     ∑ x : α, (∑ y : β, b y * φ x y)^2 =
       ∑ y : β, (b y)^2 * c := by
-  rw [sum_sq_eq_sum_prod]
-  conv =>
-    enter [1, 2, yz]
-    rw [sum_mul_mul]
-    rw [horth]
-  rw [sum_mul_ite_eq_diag (fun y z => b y * b z)]
+  rw [sum_sq_eq_sum_prod (fun x y => b y * φ x y)]
+  have hcollapse :
+      ∑ yz : β × β, ∑ x : α, (b yz.1 * φ x yz.1) * (b yz.2 * φ x yz.2) =
+      ∑ yz : β × β, (b yz.1 * b yz.2) * (if yz.1 = yz.2 then c else 0) := by
+    refine Finset.sum_congr rfl ?_
+    intro yz hyz
+    rw [sum_mul_mul (a := b yz.1) (b := b yz.2)
+      (f := fun x => φ x yz.1) (g := fun x => φ x yz.2), horth]
+  rw [hcollapse]
+  refine (sum_mul_ite_eq_diag (h := fun y z => b y * b z) (c := c)).trans ?_
   refine Finset.sum_congr rfl ?_
-  ring_nf
-  simp
+  intro y hy
+  simp [pow_two]
 
 open Classical in
 /-- Weighted orthogonality identity for Walsh characters of inner product. -/
@@ -265,8 +293,8 @@ private lemma sum_sq_mul_boolSign_innerProduct
       (∑ y : BoolInput n, b y * boolSign (innerProduct n x y))^2 =
       ∑ y : BoolInput n, (b y)^2 * (2 ^ n : ℝ) := by
   refine sum_sq_mul_of_orthogonal
-    (fun x y => boolSign (innerProduct n x y))
-    (2 ^ n) b ?_
+    (φ := fun x y => boolSign (innerProduct n x y))
+    (c := (2 ^ n : ℝ)) (b := b) ?_
   intro y z
   simpa [mul_assoc] using sum_boolSign_innerProduct_mul_eq_indicator (n := n) y z
 
