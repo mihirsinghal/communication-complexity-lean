@@ -15,8 +15,9 @@ namespace Protocol
 
 variable {X Y α : Type*}
 
-/-- The distributional error of a deterministic protocol with respect to a distribution `μ` on `X × Y`:
-the probability that the protocol output disagrees with `f`. -/
+/-- The distributional error of a deterministic protocol with respect
+to a distribution `μ` on `X × Y`: the probability that the protocol
+output disagrees with `f`. -/
 noncomputable def distributionalError
     (p : Protocol X Y α)
     (μ : FiniteProbabilitySpace (X × Y))
@@ -29,6 +30,37 @@ end Protocol
 end Deterministic
 
 namespace PublicCoin
+
+private lemma failureIntegral_swap
+    {X Y α : Type*} {m : ℕ} [μ : FiniteProbabilitySpace (X × Y)]
+    (p : Protocol (CoinTape m) X Y α)
+    (f : X → Y → α) :
+    ∫ ω, (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
+      ∫ xy : X × Y, (volume {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal := by
+  -- Rewrite each probability as an integral of the corresponding failure indicator,
+  -- then swap the order of integration.
+  have hg_eq : ∀ ω, (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
+      ∫ xy : X × Y,
+        Set.indicator {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
+          (fun _ => (1 : ℝ)) xy := by
+    intro ω
+    apply FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+  have hh_eq : ∀ xy : X × Y,
+      (volume {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
+        ∫ ω : CoinTape m,
+          Set.indicator {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
+            (fun _ => (1 : ℝ)) ω := by
+    intro xy
+    apply FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+  simp_rw [hg_eq, hh_eq]
+  simpa [Set.indicator_apply] using
+    (MeasureTheory.integral_integral_swap (Integrable.of_finite) :
+      ∫ xy : X × Y, ∫ ω : CoinTape m,
+        Set.indicator {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
+          (fun _ => (1 : ℝ)) ω =
+      ∫ ω : CoinTape m, ∫ xy : X × Y,
+        Set.indicator {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
+          (fun _ => (1 : ℝ)) xy).symm
 
 open Classical in
 /-- Yao's minimax principle (one direction): if there exists a joint
@@ -55,8 +87,8 @@ theorem minimax_lower_bound
     intro ω
     have h1 := h (p.toDeterministic ω) (by simp [hc])
     simpa [Deterministic.Protocol.distributionalError, Protocol.toDeterministic_run] using h1
-  -- Use μ as the measure on X × Y
-  letI : MeasureSpace (X × Y) := μ.toMeasureSpace
+  -- Use μ as the ambient finite probability space on X × Y.
+  letI : FiniteProbabilitySpace (X × Y) := μ
   -- g(ω) = vol_μ({(x,y) | p fails with randomness ω}), satisfies g(ω) > ε
   set g : CoinTape m → ℝ := fun ω =>
     (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal
@@ -67,52 +99,13 @@ theorem minimax_lower_bound
   have hh_le : ∀ xy : X × Y, h' xy ≤ ε := fun ⟨x, y⟩ => hp x y
   -- Lower bound: ∫_ω g(ω) > ε (since g > ε pointwise)
   have h_lower : ε < ∫ ω, g ω :=
-    FiniteProbabilitySpace.lt_integral_of_lt (CoinTape m) hg_gt
+    FiniteProbabilitySpace.lt_integral_of_lt hg_gt
   -- Upper bound: ∫_{(x,y)} h(x,y) ≤ ε (since h ≤ ε pointwise)
   have h_upper : ∫ xy : X × Y, h' xy ≤ ε :=
-    FiniteProbabilitySpace.integral_le_of_le (X × Y) hh_le
-  -- Fubini: both integrals equal the same double sum, just in different order.
-  -- On a FiniteProbabilitySpace, ∫ f = ∑ ω, (toPMF ω).toReal * f(ω).
-  -- So ∫_ω g(ω) = ∑_ω ct(ω) * ∑_{xy} μ(xy) * 1_{fail}
-  --             = ∑_{xy} μ(xy) * ∑_ω ct(ω) * 1_{fail}  [Finset.sum_comm]
-  --             = ∫_{xy} h'(xy)
-  -- We use MeasureTheory.integral_fintype to convert.
+    FiniteProbabilitySpace.integral_le_of_le hh_le
+  -- Fubini: average first over randomness or first over inputs.
   have h_fubini : ∫ ω, g ω = ∫ xy : X × Y, h' xy := by
-    -- Express g(ω) and h'(xy) as integrals of the same indicator
-    -- g(ω) = ∫_{xy} 1_{fail(ω,xy)} dμ  and  h'(xy) = ∫_ω 1_{fail(ω,xy)} dCT
-    -- Then ∫_ω g(ω) = ∫_ω ∫_{xy} F dμ dCT and ∫_{xy} h'(xy) = ∫_{xy} ∫_ω F dCT dμ
-    -- These are equal by MeasureTheory.integral_integral_swap (Fubini for Bochner integrals).
-    -- Step 1: g(ω) = ∫_{xy} (indicator of fail), h'(xy) = ∫_ω (indicator of fail)
-    have hg_eq : ∀ ω, g ω = ∫ xy : X × Y,
-        Set.indicator {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} (fun _ => (1 : ℝ)) xy := by
-      intro ω; simp only [g]
-      -- vol(S).toReal = ∫ S.indicator 1
-      symm; rw [MeasureTheory.integral_indicator MeasurableSet.of_discrete]
-      simp [Measure.real]
-    have hh_eq : ∀ xy : X × Y, h' xy = ∫ ω : CoinTape m,
-        Set.indicator
-          {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
-          (1 : CoinTape m → ℝ) ω := by
-      intro ⟨x, y⟩; simp only [h']
-      symm; rw [MeasureTheory.integral_indicator MeasurableSet.of_discrete]
-      simp [Measure.real]
-    -- Step 1': Rewrite g and h' using measureReal
-    -- g(ω) = (volume S_ω).toReal = measureReal S_ω
-    -- For now, express directly: g(ω) = ∫ indicator and h'(xy) = ∫ indicator
-    -- using the fact that for finite discrete spaces, vol(S).toReal = ∫ 1_S
-    have hg_ind : ∀ ω, g ω = ∫ xy : X × Y,
-        if p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2 then (1 : ℝ) else 0 := by
-      intro ω
-      rw [hg_eq ω]
-      congr 1; ext xy; simp [Set.indicator_apply]
-    have hh_ind : ∀ xy : X × Y, h' xy = ∫ ω : CoinTape m,
-        if p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2 then (1 : ℝ) else 0 := by
-      intro xy
-      rw [hh_eq xy]
-      congr 1; ext ω; simp [Set.indicator_apply]
-    simp_rw [hg_ind, hh_ind]
-    -- Step 2: Apply Fubini
-    exact MeasureTheory.integral_integral_swap (Integrable.of_finite)
+    simpa [g, h'] using failureIntegral_swap (p := p) (f := f)
   linarith
 
 end PublicCoin

@@ -21,6 +21,49 @@ private lemma numLeaves_pos (p : Protocol X Y α) : 0 < p.numLeaves := by
     have hsum : 0 < (P false).numLeaves + (P true).numLeaves := Nat.add_pos_left h _
     simpa [numLeaves, shape] using hsum
 
+private lemma complexity_eq_zero_of_numLeaves_eq_one
+    (p : Protocol X Y α) (hleaf : p.numLeaves = 1) :
+    p.complexity = 0 := by
+  cases p with
+  | output a =>
+      rfl
+  | alice f P =>
+      exfalso
+      have hs : (P false).shape.numLeaves + (P true).shape.numLeaves = 1 := by
+        simpa [numLeaves, shape] using hleaf
+      have hp0 : 0 < (P false).shape.numLeaves := by
+        simpa [numLeaves] using numLeaves_pos (P false)
+      have hp1 : 0 < (P true).shape.numLeaves := by
+        simpa [numLeaves] using numLeaves_pos (P true)
+      omega
+  | bob f P =>
+      exfalso
+      have hs : (P false).shape.numLeaves + (P true).shape.numLeaves = 1 := by
+        simpa [numLeaves, shape] using hleaf
+      have hp0 : 0 < (P false).shape.numLeaves := by
+        simpa [numLeaves] using numLeaves_pos (P false)
+      have hp1 : 0 < (P true).shape.numLeaves := by
+        simpa [numLeaves] using numLeaves_pos (P true)
+      omega
+
+private lemma max_sq_le_of_balanced
+    (m n : ℕ)
+    (hm : 3 * m ≤ 2 * n)
+    (hout : 3 * (n - m) ≤ 2 * n) :
+    9 * max (m ^ 2) ((n - m) ^ 2) ≤ 4 * n ^ 2 := by
+  have hmSq : 9 * m ^ 2 ≤ 4 * n ^ 2 := by
+    have hpow : (3 * m) * (3 * m) ≤ (2 * n) * (2 * n) := Nat.mul_le_mul hm hm
+    nlinarith [sq_nonneg m, sq_nonneg n]
+  have houtSq : 9 * (n - m) ^ 2 ≤ 4 * n ^ 2 := by
+    have hpow : (3 * (n - m)) * (3 * (n - m)) ≤ (2 * n) * (2 * n) :=
+      Nat.mul_le_mul hout hout
+    nlinarith [sq_nonneg (n - m), sq_nonneg n]
+  by_cases hcase : m ^ 2 ≤ (n - m) ^ 2
+  · rw [max_eq_right hcase]
+    exact houtSq
+  · rw [max_eq_left (le_of_not_ge hcase)]
+    exact hmSq
+
 /-- Balanced simulation theorem (R&Y-style): every deterministic protocol can be simulated by
 another protocol with the same behavior and complexity obeying
 `3^c ≤ 2^c * (#leaves)^2`. -/
@@ -38,27 +81,8 @@ theorem theorem_1_7_experiment (p : Protocol X Y α) :
     by_cases hn1 : n = 1
     · refine ⟨p, rfl, ?_⟩
       have hleaf1 : p.numLeaves = 1 := by simpa [hn1] using hpn
-      have hcomp0 : p.complexity = 0 := by
-        cases p with
-        | output a => rfl
-        | alice f P =>
-          exfalso
-          have hs : (P false).shape.numLeaves + (P true).shape.numLeaves = 1 := by
-            simpa [numLeaves, shape] using hleaf1
-          have hp0 : 0 < (P false).shape.numLeaves := by
-            simpa [numLeaves] using numLeaves_pos (P false)
-          have hp1 : 0 < (P true).shape.numLeaves := by
-            simpa [numLeaves] using numLeaves_pos (P true)
-          omega
-        | bob f P =>
-          exfalso
-          have hs : (P false).shape.numLeaves + (P true).shape.numLeaves = 1 := by
-            simpa [numLeaves, shape] using hleaf1
-          have hp0 : 0 < (P false).shape.numLeaves := by
-            simpa [numLeaves] using numLeaves_pos (P false)
-          have hp1 : 0 < (P true).shape.numLeaves := by
-            simpa [numLeaves] using numLeaves_pos (P true)
-          omega
+      have hcomp0 : p.complexity = 0 :=
+        complexity_eq_zero_of_numLeaves_eq_one p hleaf1
       subst hn1
       simp [hcomp0, hpn]
     · have hgt1 : 1 < n := by
@@ -131,19 +155,8 @@ theorem theorem_1_7_experiment (p : Protocol X Y α) :
           omega
         have hout2 : 3 * (n - m) ≤ 2 * n := by
           omega
-        have hmSq : 9 * m ^ 2 ≤ 4 * n ^ 2 := by
-          have hpow : (3 * m) * (3 * m) ≤ (2 * n) * (2 * n) := Nat.mul_le_mul hm2 hm2
-          nlinarith [sq_nonneg m, sq_nonneg n]
-        have houtSq : 9 * (n - m) ^ 2 ≤ 4 * n ^ 2 := by
-          have hpow : (3 * (n - m)) * (3 * (n - m)) ≤ (2 * n) * (2 * n) :=
-            Nat.mul_le_mul hout2 hout2
-          nlinarith [sq_nonneg (n - m), sq_nonneg n]
         have hmaxSq : 9 * max (m ^ 2) ((n - m) ^ 2) ≤ 4 * n ^ 2 := by
-          by_cases hcase : m ^ 2 ≤ (n - m) ^ 2
-          · rw [max_eq_right hcase]
-            exact houtSq
-          · rw [max_eq_left (le_of_not_ge hcase)]
-            exact hmSq
+          exact max_sq_le_of_balanced m n hm2 hout2
         have hqComp : q.complexity = 2 + max qIn.complexity qOut.complexity := by
           dsimp [q]
           exact testSubprotocol_complexity hsp qIn qOut
