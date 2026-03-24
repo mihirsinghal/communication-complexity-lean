@@ -1,5 +1,6 @@
 import CommunicationComplexity.PublicCoin.Minimax
 import CommunicationComplexity.Deterministic.Rectangle
+import CommunicationComplexity.Helper
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -19,11 +20,6 @@ open MeasureTheory
 open scoped BigOperators
 
 variable {X Y : Type*}
-
-/-- The `±1` sign attached to a Boolean value. We use `1` for `false`
-and `-1` for `true`. -/
-def boolSign (b : Bool) : ℝ :=
-  if b then -1 else 1
 
 /-- The discrepancy of a Boolean function `g` on a subset `S ⊆ X × Y`
 with respect to a distribution `μ` on `X × Y`. This is the expectation
@@ -171,11 +167,6 @@ private lemma sum_indicator_leafRectangles_eq
         Rectangle.monoPartition_part_unique hPart hR ((mem_leafRectanglesFinset p S).1 hS) hxyR hxyS
       exact hSR hEq.symm
     simp [hxyS]
-
-private lemma boolSign_mul_boolSign_eq_sub_two_indicator
-    (a b : Bool) :
-    boolSign a * boolSign b = (1 : ℝ) - 2 * (if a ≠ b then 1 else 0) := by
-  cases a <;> cases b <;> norm_num [boolSign]
 
 private lemma signedBias_eq_one_sub_two_distributionalError
     [μ : FiniteProbabilitySpace (X × Y)]

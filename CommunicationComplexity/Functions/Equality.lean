@@ -1,4 +1,5 @@
 import CommunicationComplexity.Basic
+import CommunicationComplexity.Helper
 import CommunicationComplexity.Deterministic.UpperBounds
 import CommunicationComplexity.Deterministic.Rectangle
 import CommunicationComplexity.Functions.Hash
@@ -11,14 +12,12 @@ open MeasureTheory
 namespace Functions.Equality
 
 /-- The equality function on `n`-bit strings. Returns `true` iff the two inputs are equal. -/
-def equality (n : ℕ) (x y : Fin n → Bool) : Bool :=
+def equality (n : ℕ) (x y : BoolInput n) : Bool :=
   decide (x = y)
-
-abbrev Input (n : ℕ) := Fin n → Bool
 
 /-- The public randomness for the hashing protocol: a uniformly random
 hash function from `n`-bit strings into `Fin (2 ^ k)`. -/
-abbrev HashSpace (n k : ℕ) := Functions.Hash.HashSpace (Input n) (2 ^ k)
+abbrev HashSpace (n k : ℕ) := Functions.Hash.HashSpace (BoolInput n) (2 ^ k)
 
 instance hashRangeNeZero (k : ℕ) : NeZero (2 ^ k) := ⟨pow_ne_zero _ (by decide)⟩
 
@@ -77,8 +76,8 @@ theorem le_communicationComplexity (n : ℕ) (hn : 1 ≤ n) :
   -- Find a "false" rectangle containing (x0, y0) with x0 ≠ y0
   have hx : (fun _ : Fin n => true) ≠ (fun _ : Fin n => false) := by
     intro h; have := congr_fun h ⟨0, hn⟩; simp at this
-  set x0 : Fin n → Bool := fun _ => true
-  set y0 : Fin n → Bool := fun _ => false
+  set x0 : BoolInput n := fun _ => true
+  set y0 : BoolInput n := fun _ => false
   obtain ⟨R0, hR0_mem, hR0_in⟩ := monoPartition_point_mem hPart (x0, y0)
   -- R0 is not in the image of rect: any rect z is "true"-mono,
   -- but R0 contains (x0, y0) with equality x0 y0 = false.
@@ -111,7 +110,7 @@ theorem communicationComplexity_eq (n : ℕ) :
 function: Alice sends `h x`, Bob compares it with `h y`, and then sends
 the comparison bit. -/
 noncomputable def equalityHashProtocol (n k : ℕ) :
-    PublicCoin.FiniteMessage.Protocol (HashSpace n k) (Input n) (Input n) Bool :=
+    PublicCoin.FiniteMessage.Protocol (HashSpace n k) (BoolInput n) (BoolInput n) Bool :=
   PublicCoin.FiniteMessage.Protocol.alice
     (fun x h => h x)
     (fun hx =>
@@ -120,7 +119,7 @@ noncomputable def equalityHashProtocol (n k : ℕ) :
         (fun b => PublicCoin.FiniteMessage.Protocol.output b))
 
 @[simp] theorem equalityHashProtocol_rrun
-    (n k : ℕ) (x y : Input n) (h : HashSpace n k) :
+    (n k : ℕ) (x y : BoolInput n) (h : HashSpace n k) :
     (equalityHashProtocol n k).rrun x y h = decide (h x = h y) := by
   change decide (h y = h x) = decide (h x = h y)
   simp [eq_comm]
@@ -146,7 +145,7 @@ theorem publicCoin_communicationComplexity_le_of_hε
     (n k : ℕ) {ε : ℝ} (hε : (1 : ℝ) / 2 ^ k < ε) :
     PublicCoin.communicationComplexity (equality n) ε ≤ k + 1 := by
   -- We use the random-hash protocol over the finite probability space
-  -- of all functions `Input n → Fin (2 ^ k)`.
+  -- of all functions `BoolInput n → Fin (2 ^ k)`.
   have hcc :
       PublicCoin.communicationComplexity (equality n) ε ≤
         (equalityHashProtocol n k).complexity := by
@@ -175,7 +174,7 @@ theorem publicCoin_communicationComplexity_le_of_hε
             rw [equalityHashProtocol_rrun]
             simp [equality, hxy, eq_comm])
       rw [hset]
-      simpa using Functions.Hash.collision_prob_le (α := Input n) (2 ^ k) x y hxy
+      simpa using Functions.Hash.collision_prob_le (α := BoolInput n) (2 ^ k) x y hxy
   simpa [equalityHashProtocol_complexity] using hcc
 
 /-- Public-coin upper bound for equality as a direct function of `ε`. -/
