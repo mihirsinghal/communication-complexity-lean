@@ -240,6 +240,28 @@ theorem ofProtocol_equiv (p : Deterministic.Protocol X Y α) :
     ∃ (P : Protocol X Y α), P.run = p.run ∧ P.complexity = p.complexity :=
   ⟨ofProtocol p, funext₂ (ofProtocol_run p), ofProtocol_complexity p⟩
 
+/-- Pull back a finite-message protocol along functions `fX : X' → X`
+and `fY : Y' → Y`, composing each message function with the maps. -/
+def comap (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
+    Protocol X' Y' α :=
+  match p with
+  | .output a => .output a
+  | Protocol.alice f P =>
+      Protocol.alice (f ∘ fX) (fun b => (P b).comap fX fY)
+  | Protocol.bob f P =>
+      Protocol.bob (f ∘ fY) (fun b => (P b).comap fX fY)
+
+@[simp]
+theorem comap_run (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
+    (x' : X') (y' : Y') :
+    (p.comap fX fY).run x' y' = p.run (fX x') (fY y') := by
+  induction p <;> simp [comap, run, *]
+
+@[simp]
+theorem comap_complexity (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
+    (p.comap fX fY).complexity = p.complexity := by
+  induction p <;> simp [comap, complexity, *]
+
 end Deterministic.FiniteMessage.Protocol
 
 end CommunicationComplexity

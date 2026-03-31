@@ -73,6 +73,26 @@ theorem bob_to_alice (f : Y → Bool) (P : Bool → Protocol X Y α) :
       q.complexity = (bob f P).complexity :=
   ⟨(bob f P).swap, fun x y => swap_run _ x y, swap_complexity _⟩
 
+/-- Pull back a protocol along functions `fX : X' → X` and `fY : Y' → Y`.
+The resulting protocol over `X' × Y'` simulates the original by applying
+`fX` and `fY` to the inputs before each message function. -/
+def comap (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) : Protocol X' Y' α :=
+  match p with
+  | .output val => .output val
+  | .alice f P => .alice (f ∘ fX) (fun b => (P b).comap fX fY)
+  | .bob f P => .bob (f ∘ fY) (fun b => (P b).comap fX fY)
+
+@[simp]
+theorem comap_run (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
+    (x' : X') (y' : Y') :
+    (p.comap fX fY).run x' y' = p.run (fX x') (fY y') := by
+  induction p <;> simp [comap, run, *]
+
+@[simp]
+theorem comap_complexity (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
+    (p.comap fX fY).complexity = p.complexity := by
+  induction p <;> simp [comap, complexity, *]
+
 end Protocol
 
 end Deterministic

@@ -1,7 +1,7 @@
 import CommunicationComplexity.Deterministic.Complexity
 import CommunicationComplexity.PrivateCoin.Basic
 import CommunicationComplexity.PrivateCoin.FiniteMessage
-import CommunicationComplexity.PrivateCoin.GeneralFiniteMessage
+import CommunicationComplexity.PrivateCoin.CoinApproximation
 
 namespace CommunicationComplexity
 
@@ -16,14 +16,15 @@ coin-flip randomized protocols that compute `f` with error at most
 noncomputable def communicationComplexity
     {X Y α} (f : X → Y → α) (ε : ℝ) : ENat :=
   ⨅ (nX : ℕ) (nY : ℕ)
-    (p : Protocol nX nY X Y α)
+    (p : Protocol (CoinTape nX) (CoinTape nY) X Y α)
     (_ : p.ApproxComputes f ε),
     (p.complexity : ENat)
 
 theorem communicationComplexity_le_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     communicationComplexity f ε ≤ n ↔
-      ∃ (nX nY : ℕ) (p : Protocol nX nY X Y α),
+      ∃ (nX nY : ℕ)
+        (p : Protocol (CoinTape nX) (CoinTape nY) X Y α),
         p.ApproxComputes f ε ∧
         p.complexity ≤ n := by
   unfold communicationComplexity
@@ -32,7 +33,8 @@ theorem communicationComplexity_le_iff
 theorem le_communicationComplexity_iff
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     (n : ENat) ≤ communicationComplexity f ε ↔
-      ∀ (nX nY : ℕ) (p : Protocol nX nY X Y α),
+      ∀ (nX nY : ℕ)
+        (p : Protocol (CoinTape nX) (CoinTape nY) X Y α),
         p.ApproxComputes f ε →
         n ≤ p.complexity := by
   unfold communicationComplexity
@@ -42,58 +44,69 @@ theorem communicationComplexity_le_iff_finiteMessage
     {X Y α} (f : X → Y → α) (ε : ℝ) (n : ℕ) :
     communicationComplexity f ε ≤ n ↔
       ∃ (nX nY : ℕ)
-        (p : FiniteMessage.Protocol nX nY X Y α),
-        (∀ x y,
-          (volume {ω : CoinTape nX × CoinTape nY |
-            p.run x y ω.1 ω.2 ≠ f x y}).toReal
-            ≤ ε) ∧
+        (p : FiniteMessage.Protocol (CoinTape nX) (CoinTape nY) X Y α),
+        p.ApproxComputes f ε ∧
         p.complexity ≤ n := by
   rw [communicationComplexity_le_iff]
   constructor
-  · rintro ⟨nX, nY, p, hp, hc⟩
-    obtain ⟨P, hP_run, hP_comp⟩ :=
-      FiniteMessage.Protocol.ofProtocol_equiv p
-    refine ⟨nX, nY, P, ?_, hP_comp ▸ hc⟩
-    intro x y; simp_rw [hP_run]; exact hp x y
-  · rintro ⟨nX, nY, p, hp, hc⟩
+  · -- Binary → FiniteMessage via ofProtocol
+    rintro ⟨nX, nY, p, hp, hc⟩
+    refine ⟨nX, nY, FiniteMessage.Protocol.ofProtocol p, ?_,
+      Deterministic.FiniteMessage.Protocol.ofProtocol_complexity p ▸ hc⟩
+    intro x y
+    simp only [FiniteMessage.Protocol.rrun,
+      Deterministic.FiniteMessage.Protocol.ofProtocol_run]
+    exact hp x y
+  · -- FiniteMessage → Binary via toProtocol
+    rintro ⟨nX, nY, p, hp, hc⟩
     refine ⟨nX, nY, p.toProtocol, ?_,
-      FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
-    intro x y; simp_rw [FiniteMessage.Protocol.toProtocol_run]; exact hp x y
+      Deterministic.FiniteMessage.Protocol.toProtocol_complexity p ▸ hc⟩
+    intro x y
+    change (volume {ω : CoinTape nX × CoinTape nY |
+      Deterministic.Protocol.run (Deterministic.FiniteMessage.Protocol.toProtocol p)
+        (ω.1, x) (ω.2, y) ≠ f x y}).toReal ≤ ε
+    simp only [Deterministic.FiniteMessage.Protocol.toProtocol_run]
+    exact hp x y
 
 /-- Communication complexity is monotone in ε: allowing more error can
 only make computation easier. -/
 theorem communicationComplexity_mono
     {X Y α} (f : X → Y → α) {ε ε' : ℝ} (h : ε' ≤ ε) :
     communicationComplexity f ε ≤ communicationComplexity f ε' := by
-  -- Larger ε means more protocols qualify, so the infimum is ≤
   match hm : communicationComplexity f ε' with
   | ⊤ => exact le_top
   | (m : ℕ) =>
-    obtain ⟨nX, nY, p, hp, hc⟩ := (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
+    obtain ⟨nX, nY, p, hp, hc⟩ :=
+      (communicationComplexity_le_iff f ε' m).mp (le_of_eq hm)
     exact (communicationComplexity_le_iff f ε m).mpr
       ⟨nX, nY, p, fun x y => le_trans (hp x y) h, hc⟩
 
-/-- If a general finite-message protocol ε'-computes f with ε' < ε,
-then the private-coin communication complexity at error ε is at most
-the protocol's complexity. -/
-theorem communicationComplexity_le_of_generalFiniteMessage
-    {X Y α} {Ω_X Ω_Y : Type*} [Fintype Ω_X] [Fintype Ω_Y]
+/-- If a finite-message protocol over arbitrary finite probability
+spaces ε'-computes f with ε' < ε, then the private-coin communication
+complexity at error ε is at most the protocol's complexity. -/
+theorem communicationComplexity_le_of_finiteMessage
+    {X Y α} {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
     [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
     [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
     [IsProbabilityMeasure (volume : Measure Ω_X)]
     [IsProbabilityMeasure (volume : Measure Ω_Y)]
     (f : X → Y → α) (ε ε' : ℝ) (hε : ε' < ε)
-    (p : PrivateCoin.GeneralFiniteMessage.Protocol Ω_X Ω_Y X Y α)
+    (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (hp : p.ApproxComputes f ε') :
     PrivateCoin.communicationComplexity f ε ≤ p.complexity := by
-  rw [PrivateCoin.communicationComplexity_le_iff_finiteMessage]
+  rw [communicationComplexity_le_iff_finiteMessage]
   -- Convert ApproxComputes to ApproxSatisfies
-  rw [PrivateCoin.GeneralFiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies] at hp
-  -- Apply the key theorem: get a coin-flip FiniteMessage protocol
-  obtain ⟨nX, nY, q, hq, hc⟩ :=
-    PrivateCoin.GeneralFiniteMessage.Protocol.ApproxSatisfies_finiteMessage
-      p _ ε' ε hε hp
-  exact ⟨nX, nY, q, fun x y => hq x y, le_of_eq hc⟩
+  rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies] at hp
+  -- Use toCoinTape to get a CoinTape-based protocol
+  have hδ : 0 < ε - ε' := sub_pos.mpr hε
+  let tc := p.toCoinTape (ε - ε') hδ
+  refine ⟨tc.1, tc.2.1, tc.2.2, ?_, le_of_eq ?_⟩
+  · -- ApproxComputes at error ε
+    rw [FiniteMessage.Protocol.ApproxComputes_eq_ApproxSatisfies]
+    -- toCoinTape_approxSatisfies gives error ε' + (ε - ε') = ε
+    have h := p.toCoinTape_approxSatisfies _ ε' (ε - ε') hδ hp
+    convert h using 1; ring
+  · exact p.toCoinTape_complexity (ε - ε') hδ
 
 end PrivateCoin
 

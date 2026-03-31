@@ -43,7 +43,7 @@ namespace PublicCoin
 reduction: `Fin (derandomizationSamples X Y ε c)`. -/
 noncomputable abbrev newmanIndexSpace
     (X Y : Type*) [Fintype X] [Fintype Y] (ε c : ℝ) :=
-  Fin (GeneralFiniteMessage.Protocol.derandomizationSamples X Y ε c)
+  Fin (FiniteMessage.Protocol.derandomizationSamples X Y ε c)
 
 noncomputable instance newmanIndexSpace.fintype
     (X Y : Type*) [Fintype X] [Fintype Y] (ε c : ℝ) :
@@ -52,7 +52,7 @@ noncomputable instance newmanIndexSpace.fintype
 noncomputable instance newmanIndexSpace.nonempty
     (X Y : Type*) [Fintype X] [Fintype Y] (ε c : ℝ) :
     Nonempty (newmanIndexSpace X Y ε c) :=
-  ⟨⟨0, by simp [GeneralFiniteMessage.Protocol.derandomizationSamples]⟩⟩
+  ⟨⟨0, by simp [FiniteMessage.Protocol.derandomizationSamples]⟩⟩
 
 noncomputable instance newmanIndexSpace.measureSpace
     (X Y : Type*) [Fintype X] [Fintype Y] (ε c : ℝ) :
@@ -65,53 +65,57 @@ noncomputable instance newmanIndexSpace.isProbabilityMeasure
   change IsProbabilityMeasure (ProbabilityTheory.uniformOn Set.univ)
   infer_instance
 
-/-- Convert a public-coin protocol to a private-coin finite-message
-protocol using the Newman reduction. Alice samples a random index
-i from `newmanIndexSpace` and sends it to Bob. Both then simulate
-the public-coin protocol with the i-th seed from a fixed table. -/
-noncomputable def GeneralFiniteMessage.Protocol.toPrivateCoin
+/-- The Newman reduction: given a public-coin protocol that ε-computes f,
+construct a private-coin protocol where Alice samples a random index i
+from `newmanIndexSpace` and sends it to Bob. Both then simulate the
+public-coin protocol with the i-th seed from a fixed table of good
+randomness values (chosen via Chernoff + union bound). -/
+noncomputable def FiniteMessage.Protocol.newmanProtocol
     {Ω X Y α : Type*} [Fintype Ω]
     [Fintype X] [Fintype Y]
     [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
     [IsProbabilityMeasure (volume : Measure Ω)]
-    (p : GeneralFiniteMessage.Protocol Ω X Y α)
+    (p : FiniteMessage.Protocol Ω X Y α)
     (f : X → Y → α) (ε c : ℝ)
     (hε : 0 < ε) (hε1 : ε < 1) (hc : 1 < c)
     (hp : p.ApproxComputes f ε) :
-    PrivateCoin.GeneralFiniteMessage.Protocol
+    PrivateCoin.FiniteMessage.Protocol
       (newmanIndexSpace X Y ε c) Unit X Y α :=
   -- Choose good randomness values via Chernoff + union bound
-  let ωs := (GeneralFiniteMessage.Protocol.exists_good_randomness
+  let ωs := (FiniteMessage.Protocol.exists_good_randomness
     p f ε c hε hε1 hc hp).choose
   -- Alice sends her random index i ∈ newmanIndexSpace to Bob,
   -- then both simulate with ωs(i)
-  .alice (fun _ ω_x => ω_x) (fun i =>
-    (p.toDeterministic (ωs i)).toPrivateCoinOver)
+  PrivateCoin.FiniteMessage.Protocol.alice
+    (fun _ ω_x => ω_x)
+    (fun i => (p.toDeterministic (ωs i)).toPrivateCoin)
 
-theorem GeneralFiniteMessage.Protocol.toPrivateCoin_ApproxComputes
+theorem FiniteMessage.Protocol.newmanProtocol_ApproxComputes
     {Ω X Y α : Type*} [Fintype Ω]
     [Fintype X] [Fintype Y]
     [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
     [IsProbabilityMeasure (volume : Measure Ω)]
-    (p : GeneralFiniteMessage.Protocol Ω X Y α)
+    (p : FiniteMessage.Protocol Ω X Y α)
     (f : X → Y → α) (ε c : ℝ)
     (hε : 0 < ε) (hε1 : ε < 1) (hc : 1 < c)
     (hp : p.ApproxComputes f ε) :
-    (p.toPrivateCoin f ε c hε hε1 hc hp).ApproxComputes f (c * ε) := by
-  -- The spec from exists_good_randomness
-  -- ApproxComputes means: for all x y, P[run ≠ f x y] ≤ c * ε
+    (p.newmanProtocol f ε c hε hε1 hc hp).ApproxComputes f (c * ε) := by
+  -- ApproxComputes means: for all x y, P[rrun ≠ f x y] ≤ c * ε
   -- on the product space newmanIndexSpace × Unit
   intro x y
-  unfold toPrivateCoin PrivateCoin.GeneralFiniteMessage.Protocol.run
-  simp only [Deterministic.FiniteMessage.Protocol.toPrivateCoinOver_run, toDeterministic_run]
+  -- Unfold the protocol definition to get at the run behavior
+  unfold newmanProtocol PrivateCoin.FiniteMessage.Protocol.alice
+  simp only [PrivateCoin.FiniteMessage.Protocol.rrun,
+    Deterministic.FiniteMessage.Protocol.run,
+    Deterministic.FiniteMessage.Protocol.comap_run]
   set ωs := (exists_good_randomness p f ε c hε hε1 hc hp).choose
   have hωs := (exists_good_randomness p f ε c hε hε1 hc hp).choose_spec
-  -- The error set only depends on ω.1
+  -- The error set only depends on ω.1 (the index)
   have hset : {ω : newmanIndexSpace X Y ε c × Unit |
-      p.run x y (ωs ω.1) ≠ f x y} =
-      {i | p.run x y (ωs i) ≠ f x y} ×ˢ Set.univ := by
+      p.run (ωs ω.1, x) (ωs ω.1, y) ≠ f x y} =
+      {i | p.run (ωs i, x) (ωs i, y) ≠ f x y} ×ˢ Set.univ := by
     ext ⟨i, u⟩; simp
-  simp only [hset]
+  rw [hset]
   -- Product measure of S ×ˢ univ = volume(S) * volume(univ) = volume(S)
   rw [show (volume : Measure (newmanIndexSpace X Y ε c × Unit)) =
     volume.prod volume from rfl]
@@ -128,27 +132,28 @@ theorem GeneralFiniteMessage.Protocol.toPrivateCoin_ApproxComputes
   apply Finset.card_equiv (Equiv.refl _)
   intro i; simp; rfl
 
-theorem GeneralFiniteMessage.Protocol.toPrivateCoin_complexity
+theorem FiniteMessage.Protocol.newmanProtocol_complexity
     {Ω X Y α : Type*} [Fintype Ω]
     [Fintype X] [Fintype Y]
     [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
     [IsProbabilityMeasure (volume : Measure Ω)]
-    (p : GeneralFiniteMessage.Protocol Ω X Y α)
+    (p : FiniteMessage.Protocol Ω X Y α)
     (f : X → Y → α) (ε c : ℝ)
     (hε : 0 < ε) (hε1 : ε < 1) (hc : 1 < c)
     (hp : p.ApproxComputes f ε) :
-    (p.toPrivateCoin f ε c hε hε1 hc hp).complexity =
-      Nat.clog 2 (GeneralFiniteMessage.Protocol.derandomizationSamples
+    (p.newmanProtocol f ε c hε hε1 hc hp).complexity =
+      Nat.clog 2 (FiniteMessage.Protocol.derandomizationSamples
         X Y ε c) + p.complexity := by
-  simp only [toPrivateCoin,
-    PrivateCoin.GeneralFiniteMessage.Protocol.complexity,
-    Deterministic.FiniteMessage.Protocol.toPrivateCoinOver_complexity,
-    toDeterministic_complexity]
+  unfold newmanProtocol PrivateCoin.FiniteMessage.Protocol.alice
+  simp only [Deterministic.FiniteMessage.Protocol.complexity,
+    Deterministic.FiniteMessage.Protocol.toPrivateCoin_complexity,
+    PublicCoin.FiniteMessage.Protocol.toDeterministic_complexity]
   -- sup of constant function = constant (since newmanIndexSpace is nonempty)
   rw [Finset.sup_const
     (α := ℕ) (Finset.univ_nonempty (α := newmanIndexSpace X Y ε c)),
     show Fintype.card (newmanIndexSpace X Y ε c) =
-      derandomizationSamples X Y ε c from Fintype.card_fin _]
+      FiniteMessage.Protocol.derandomizationSamples X Y ε c
+      from Fintype.card_fin _]
 
 /-- Newman's theorem: for any ε' > c·ε, private-coin communication
 complexity at error ε' is at most public-coin complexity at error ε
@@ -161,7 +166,7 @@ theorem newman
     PrivateCoin.communicationComplexity f ε' ≤
       PublicCoin.communicationComplexity f ε +
         Nat.clog 2
-          (GeneralFiniteMessage.Protocol.derandomizationSamples
+          (FiniteMessage.Protocol.derandomizationSamples
             X Y ε c) := by
   -- Match on the public-coin complexity
   match h : PublicCoin.communicationComplexity f ε with
@@ -170,40 +175,37 @@ theorem newman
     -- There exists a public-coin protocol with complexity ≤ n
     obtain ⟨m, p, hp, hc_le⟩ :=
       (PublicCoin.communicationComplexity_le_iff f ε n).mp (le_of_eq h)
-    -- Lift to GeneralFiniteMessage
-    let pGFM := GeneralFiniteMessage.Protocol.ofProtocol p
-    have hpGFM_approx : pGFM.ApproxComputes f ε := by
-      intro x y; simp only [pGFM, ne_eq,
-        GeneralFiniteMessage.Protocol.ofProtocol_run]; exact hp x y
-    -- Apply toPrivateCoin: get a private-coin GFM protocol that (c*ε)-computes f
-    let q := pGFM.toPrivateCoin f ε c hε hε1 hc hpGFM_approx
+    -- Lift to FiniteMessage
+    let pfm := PublicCoin.FiniteMessage.Protocol.ofProtocol p
+    have hpfm_approx : pfm.ApproxComputes f ε := by
+      intro x y
+      simp only [pfm, PublicCoin.FiniteMessage.Protocol.rrun,
+        Deterministic.FiniteMessage.Protocol.ofProtocol_run]
+      exact hp x y
+    -- Apply newmanProtocol: get a private-coin FM protocol that (c*ε)-computes f
+    let q := pfm.newmanProtocol f ε c hε hε1 hc hpfm_approx
     have hq_approx :=
-      GeneralFiniteMessage.Protocol.toPrivateCoin_ApproxComputes
-        pGFM f ε c hε hε1 hc hpGFM_approx
+      FiniteMessage.Protocol.newmanProtocol_ApproxComputes
+        pfm f ε c hε hε1 hc hpfm_approx
     -- q (c*ε)-computes f with c*ε < ε', so we can use
-    -- communicationComplexity_le_of_generalFiniteMessage
+    -- communicationComplexity_le_of_finiteMessage
     have hbound :=
-      PrivateCoin.communicationComplexity_le_of_generalFiniteMessage
+      PrivateCoin.communicationComplexity_le_of_finiteMessage
         f ε' (c * ε) hε' q hq_approx
-    -- q.complexity = ⌈log t⌉ + pGFM.complexity
-    -- pGFM.complexity = p.complexity ≤ n
-    -- q.complexity ≤ ⌈log t⌉ + n
-    -- since q = alice(send index) then (det protocol of complexity ≤ p.complexity ≤ n)
-    -- and pGFM.complexity = p.complexity
-    have hpGFM_comp : pGFM.complexity = p.complexity :=
-      GeneralFiniteMessage.Protocol.ofProtocol_complexity p
     -- Bound q.complexity
+    have hpfm_comp : pfm.complexity = p.complexity :=
+      Deterministic.FiniteMessage.Protocol.ofProtocol_complexity p
     have hq_comp : q.complexity =
-        Nat.clog 2 (GeneralFiniteMessage.Protocol.derandomizationSamples X Y ε c) +
-          pGFM.complexity :=
-      GeneralFiniteMessage.Protocol.toPrivateCoin_complexity pGFM f ε c hε hε1 hc hpGFM_approx
+        Nat.clog 2 (FiniteMessage.Protocol.derandomizationSamples X Y ε c) +
+          pfm.complexity :=
+      FiniteMessage.Protocol.newmanProtocol_complexity pfm f ε c hε hε1 hc hpfm_approx
     set t_log := Nat.clog 2
-      (GeneralFiniteMessage.Protocol.derandomizationSamples X Y ε c)
-    -- Goal is: CC ≤ ↑n + ↑t_log (after match rewrote PublicCoin.CC to n)
+      (FiniteMessage.Protocol.derandomizationSamples X Y ε c)
+    -- Goal is: CC ≤ ↑n + ↑t_log
     calc PrivateCoin.communicationComplexity f ε'
         ≤ (q.complexity : ENat) := hbound
-      _ = ↑(t_log + pGFM.complexity) := by exact_mod_cast hq_comp
-      _ = ↑(t_log + p.complexity) := by rw [hpGFM_comp]
+      _ = ↑(t_log + pfm.complexity) := by exact_mod_cast hq_comp
+      _ = ↑(t_log + p.complexity) := by rw [hpfm_comp]
       _ ≤ ↑(t_log + n) := by exact_mod_cast Nat.add_le_add_left hc_le _
       _ = ↑n + ↑t_log := by push_cast; ring
 
