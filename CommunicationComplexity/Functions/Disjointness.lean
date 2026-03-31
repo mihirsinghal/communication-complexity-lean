@@ -21,11 +21,10 @@ def foolingSet (n : ℕ) : Set (Set (Fin n) × Set (Fin n)) :=
 /-- Claim 1.21: the pairs `(X, Xᶜ)` form a fooling set for disjointness. -/
 theorem foolingSet_isFoolingSet (n : ℕ) :
     IsFoolingSet (foolingSet n) (disjointness n) := by
-  intro R hR hmono
-  intro p hp q hq
+  intro R hR hmono p hp q hq
   rcases p with ⟨X, Y⟩
   rcases q with ⟨X', Y'⟩
-  simp [foolingSet] at hp hq
+  simp only [foolingSet, Set.mem_inter_iff, Set.mem_setOf_eq] at hp hq
   rcases hp with ⟨rfl, hpR⟩
   rcases hq with ⟨rfl, hqR⟩
   by_cases hXX' : X = X'
@@ -40,7 +39,7 @@ theorem foolingSet_isFoolingSet (n : ℕ) :
         simpa [disjointness] using (disjoint_compl_right : Disjoint X Xᶜ)
       have hne : disjointness n X X'ᶜ ≠ true := by
         unfold disjointness
-        simp
+        simp only [ne_eq, decide_eq_true_eq]
         intro hdisj
         rw [Set.disjoint_left] at hdisj
         exact hdisj hi.1 hi.2
@@ -51,7 +50,7 @@ theorem foolingSet_isFoolingSet (n : ℕ) :
         simpa [disjointness] using (disjoint_compl_right : Disjoint X' X'ᶜ)
       have hne : disjointness n X' Xᶜ ≠ true := by
         unfold disjointness
-        simp
+        simp only [ne_eq, decide_eq_true_eq]
         intro hdisj
         rw [Set.disjoint_left] at hdisj
         exact hdisj hi.1 hi.2
