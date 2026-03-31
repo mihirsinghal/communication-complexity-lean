@@ -1,4 +1,5 @@
 import CommunicationComplexity.CoinTape
+import CommunicationComplexity.Deterministic.Basic
 import Mathlib.Data.Real.Basic
 
 namespace CommunicationComplexity
@@ -7,80 +8,69 @@ open MeasureTheory ProbabilityTheory
 
 namespace PrivateCoin
 
-/-- A randomized two-party communication protocol where each player has access
-to private coin flips. Alice gets `nX` independent fair coin flips
-(`CoinTape nX`) and Bob gets `nY` (`CoinTape nY`).
-At each step, a player sends a bit depending on their input and coins. -/
-inductive Protocol (nX nY : ℕ) (X Y α : Type*) where
-  | output (a : α) : Protocol nX nY X Y α
-  | alice
-      (f : X → CoinTape nX → Bool)
-      (P : Bool → Protocol nX nY X Y α) :
-      Protocol nX nY X Y α
-  | bob
-      (f : Y → CoinTape nY → Bool)
-      (P : Bool → Protocol nX nY X Y α) :
-      Protocol nX nY X Y α
+/-- A private-coin protocol is a deterministic protocol where Alice's
+input is augmented with private randomness `Ω_X` and Bob's with `Ω_Y`.
+Alice's message function sees `(ω_x, x)` and Bob's sees `(ω_y, y)`. -/
+abbrev Protocol (Ω_X Ω_Y : Type*) (X Y α : Type*) :=
+  Deterministic.Protocol (Ω_X × X) (Ω_Y × Y) α
 
 namespace Protocol
 
-variable {nX nY : ℕ} {X Y α : Type*}
+variable {Ω_X Ω_Y : Type*} {X Y α : Type*}
 
-/-- Executes the randomized protocol on inputs `x`, `y` with
-coin flips `ω_x`, `ω_y`. -/
-def run (p : Protocol nX nY X Y α) (x : X) (y : Y)
-    (ω_x : CoinTape nX) (ω_y : CoinTape nY) : α :=
-  match p with
-  | .output a => a
-  | .alice f P => (P (f x ω_x)).run x y ω_x ω_y
-  | .bob f P => (P (f y ω_y)).run x y ω_x ω_y
+/-- Output node for a private-coin protocol. -/
+def output (a : α) : Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.output a
 
-def complexity : Protocol nX nY X Y α → ℕ
-  | .output _ => 0
-  | .alice _ P => 1 + max (P false).complexity (P true).complexity
-  | .bob _ P => 1 + max (P false).complexity (P true).complexity
+/-- Alice sends a bit depending on her input `x` and private
+randomness `ω_x`. -/
+def alice (f : X → Ω_X → Bool)
+    (P : Bool → Protocol Ω_X Ω_Y X Y α) :
+    Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.alice (fun ⟨ω, x⟩ => f x ω) P
 
-/-- Swaps the roles of Alice and Bob, producing a protocol on
-`Y × X` from one on `X × Y`. The coin flip counts are also swapped. -/
-def swap : Protocol nX nY X Y α → Protocol nY nX Y X α
-  | .output a => .output a
-  | .alice f P => .bob f (fun b => (P b).swap)
-  | .bob f P => .alice f (fun b => (P b).swap)
+/-- Bob sends a bit depending on his input `y` and private
+randomness `ω_y`. -/
+def bob (f : Y → Ω_Y → Bool)
+    (P : Bool → Protocol Ω_X Ω_Y X Y α) :
+    Protocol Ω_X Ω_Y X Y α :=
+  Deterministic.Protocol.bob (fun ⟨ω, y⟩ => f y ω) P
 
-@[simp]
-theorem swap_run (p : Protocol nX nY X Y α) (x : X) (y : Y)
-    (ω_x : CoinTape nX) (ω_y : CoinTape nY) :
-    p.swap.run y x ω_y ω_x = p.run x y ω_x ω_y := by
-  induction p <;> simp [swap, run, *]
+/-- Execute a private-coin protocol on inputs `x`, `y` with
+private randomness `ω_x` for Alice and `ω_y` for Bob. -/
+def rrun (p : Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y)
+    (ω_x : Ω_X) (ω_y : Ω_Y) : α :=
+  p.run (ω_x, x) (ω_y, y)
 
 @[simp]
-theorem swap_complexity (p : Protocol nX nY X Y α) :
-    p.swap.complexity = p.complexity := by
-  induction p <;> simp [swap, complexity, *]
+theorem rrun_eq (p : Protocol Ω_X Ω_Y X Y α) (x : X) (y : Y)
+    (ω_x : Ω_X) (ω_y : Ω_Y) :
+    p.rrun x y ω_x ω_y = p.run (ω_x, x) (ω_y, y) := rfl
 
-/-- A randomized protocol `ε`-satisfies a predicate `Q` if for every
-input `(x, y)`, the probability that `Q x y (p.run ...)` fails
+/-- A private-coin protocol `ε`-satisfies a predicate `Q` if for every
+input `(x, y)`, the probability that `Q x y (p.rrun ...)` fails
 is at most `ε`. -/
 def ApproxSatisfies
-    (p : Protocol nX nY X Y α) (Q : X → Y → α → Prop)
+    [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
+    (p : Protocol Ω_X Ω_Y X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
   ∀ x y,
-    (volume {ω : CoinTape nX × CoinTape nY |
-      ¬Q x y (p.run x y ω.1 ω.2)}).toReal ≤ ε
+    (volume {ω : Ω_X × Ω_Y |
+      ¬Q x y (p.rrun x y ω.1 ω.2)}).toReal ≤ ε
 
-open Classical in
-/-- A randomized protocol `ε`-computes a function `f` if for every
-input `(x, y)`, the probability (under the uniform coin-flip measure)
+/-- A private-coin protocol `ε`-computes a function `f` if for every
+input `(x, y)`, the probability (under the coin-flip measure)
 of producing an incorrect answer is at most `ε`. -/
-def ApproxComputes
-    (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
+noncomputable def ApproxComputes
+    [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
+    (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
-    (volume {ω : CoinTape nX × CoinTape nY |
-      p.run x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
+    (volume {ω : Ω_X × Ω_Y |
+      p.rrun x y ω.1 ω.2 ≠ f x y}).toReal ≤ ε
 
-open Classical in
 theorem ApproxComputes_eq_ApproxSatisfies
-    (p : Protocol nX nY X Y α) (f : X → Y → α) (ε : ℝ) :
+    [MeasureSpace Ω_X] [MeasureSpace Ω_Y]
+    (p : Protocol Ω_X Ω_Y X Y α) (f : X → Y → α) (ε : ℝ) :
     p.ApproxComputes f ε =
       p.ApproxSatisfies (fun x y a => a = f x y) ε := by
   simp only [ApproxComputes, ApproxSatisfies, ne_eq]
