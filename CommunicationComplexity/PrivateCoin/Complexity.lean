@@ -2,6 +2,7 @@ import CommunicationComplexity.Deterministic.Complexity
 import CommunicationComplexity.PrivateCoin.Basic
 import CommunicationComplexity.PrivateCoin.FiniteMessage
 import CommunicationComplexity.PrivateCoin.CoinApproximation
+import CommunicationComplexity.FiniteProbabilitySpace
 
 namespace CommunicationComplexity
 
@@ -85,11 +86,8 @@ theorem communicationComplexity_mono
 spaces ε'-computes f with ε' < ε, then the private-coin communication
 complexity at error ε is at most the protocol's complexity. -/
 theorem communicationComplexity_le_of_finiteMessage
-    {X Y α} {Ω_X Ω_Y : Type*} [Finite Ω_X] [Finite Ω_Y]
-    [MeasureSpace Ω_X] [DiscreteMeasurableSpace Ω_X]
-    [MeasureSpace Ω_Y] [DiscreteMeasurableSpace Ω_Y]
-    [IsProbabilityMeasure (volume : Measure Ω_X)]
-    [IsProbabilityMeasure (volume : Measure Ω_Y)]
+    {X Y α} {Ω_X Ω_Y : Type*}
+    [FiniteProbabilitySpace Ω_X] [FiniteProbabilitySpace Ω_Y]
     (f : X → Y → α) (ε ε' : ℝ) (hε : ε' < ε)
     (p : FiniteMessage.Protocol Ω_X Ω_Y X Y α)
     (hp : p.ApproxComputes f ε') :

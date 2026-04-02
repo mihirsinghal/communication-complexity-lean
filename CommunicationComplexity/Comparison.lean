@@ -8,6 +8,29 @@ namespace CommunicationComplexity
 
 open MeasureTheory ProbabilityTheory
 
+/-- Fix the randomness of a binary public-coin protocol, producing a
+deterministic protocol with the same complexity (via comap). -/
+abbrev PublicCoin.Protocol.toDeterministic
+    {Ω X Y α : Type*}
+    (p : PublicCoin.Protocol Ω X Y α) (ω : Ω) :
+    Deterministic.Protocol X Y α :=
+  p.comap (Prod.mk ω) (Prod.mk ω)
+
+@[simp]
+theorem PublicCoin.Protocol.toDeterministic_run
+    {Ω X Y α : Type*}
+    (p : PublicCoin.Protocol Ω X Y α) (ω : Ω)
+    (x : X) (y : Y) :
+    (p.toDeterministic ω).run x y = p.rrun x y ω := by
+  simp [toDeterministic, PublicCoin.Protocol.rrun]
+
+@[simp]
+theorem PublicCoin.Protocol.toDeterministic_complexity
+    {Ω X Y α : Type*}
+    (p : PublicCoin.Protocol Ω X Y α) (ω : Ω) :
+    (p.toDeterministic ω).complexity = p.complexity := by
+  simp [toDeterministic]
+
 /-- Convert a deterministic finite-message protocol to a private-coin
 finite-message protocol by ignoring both coin spaces (via comap). -/
 abbrev Deterministic.FiniteMessage.Protocol.toPrivateCoin
