@@ -3,7 +3,7 @@ name: Build and Deploy Documentation
 on:
   push:
     branches:
-      - main
+      - main  # Build docs on merges to main
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository == 'mihirsinghal/communication-complexity-lean'
+    # if: github.repository == 'Communication-Complexity-Group-Project/communication-complexity-lean'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout project
@@ -32,10 +32,12 @@ jobs:
           build-args: "--wfail --iofail"
 
       - name: Build project documentation
-        id: build-docgen
-        uses: leanprover-community/docgen-action@v1
-        with:
-          build-page: false
+        run: lake build CommunicationComplexity:docs
+
+      - name: Verify generated documentation
+        run: |
+          test -f .lake/build/doc/index.html
+          find .lake/build/doc -maxdepth 2 | sed -n '1,40p'
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -46,7 +48,6 @@ jobs:
           path: .lake/build/doc
 
   deploy:
-    if: github.repository == 'mihirsinghal/communication-complexity-lean'
     needs: build
     runs-on: ubuntu-latest
     environment:
