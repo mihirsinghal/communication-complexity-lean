@@ -50,9 +50,7 @@ theorem Matrix.rank_add_le {X Y : Type*} [Fintype Y]
   unfold Matrix.rank; rw [Matrix.mulVecLin_add]
   refine (Submodule.finrank_mono ?_).trans
     (Submodule.finrank_add_le_finrank_add_finrank _ _)
-  intro v hv; obtain ⟨w, rfl⟩ := LinearMap.mem_range.mp hv
-  exact Submodule.add_mem_sup
-    (LinearMap.mem_range.mpr ⟨w, rfl⟩) (LinearMap.mem_range.mpr ⟨w, rfl⟩)
+  exact LinearMap.range_add_le _ _
 
 /-- Matrix rank is subadditive over finite sums. -/
 theorem Matrix.rank_sum_le {X Y : Type*} [Fintype Y]

@@ -4,6 +4,7 @@ import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Probability.UniformOn
 import Mathlib.MeasureTheory.Measure.Prod
+import CommunicationComplexity.FiniteProbabilitySpace
 
 namespace CommunicationComplexity
 
@@ -20,5 +21,9 @@ instance coinTapeIsProbabilityMeasure (n : ℕ) :
     IsProbabilityMeasure (volume : Measure (CoinTape n)) := by
   change IsProbabilityMeasure (uniformOn Set.univ)
   infer_instance
+
+noncomputable instance coinTapeFiniteProbabilitySpace (n : ℕ) :
+    FiniteProbabilitySpace (CoinTape n) :=
+  FiniteProbabilitySpace.of (CoinTape n)
 
 end CommunicationComplexity
