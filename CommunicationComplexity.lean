@@ -1,4 +1,1 @@
 import CommunicationComplexity.Basic
-import CommunicationComplexity.BitString
-import CommunicationComplexity.Functions.GapHamming
-import CommunicationComplexity.Functions.GapOrthogonality
