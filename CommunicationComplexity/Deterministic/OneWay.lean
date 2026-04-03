@@ -79,6 +79,11 @@ theorem communicationComplexity_le_iff (f : X → Y → α) (n : ℕ) :
   simp only [communicationComplexity,
     CommunicationComplexity.Internal.enat_iInf_le_coe_iff, Nat.cast_le, exists_prop]
 
+theorem le_communicationComplexity_iff (f : X → Y → α) (k : ℕ) :
+    (k : ENat) ≤ communicationComplexity f ↔
+      ∀ p : Protocol X Y α, Protocol.Computes p f → k ≤ Protocol.cost p := by
+  simp [communicationComplexity, le_iInf_iff, Nat.cast_le]
+
 /-- A one-way upper bound yields a deterministic upper bound, with additive
 `⌈log₂ |α|⌉` to let Bob send the decoded output in the interactive model. -/
 theorem deterministic_communicationComplexity_le_of_oneWay_le
@@ -110,6 +115,7 @@ theorem deterministic_communicationComplexity_le_of_oneWay_le_bool
     (h : OneWay.communicationComplexity f ≤ n) :
     Deterministic.communicationComplexity f ≤ n + 1 := by
   exact OneWay.deterministic_communicationComplexity_le_of_oneWay_le (f := f) (n := n) h
+
 
 
 end OneWay
