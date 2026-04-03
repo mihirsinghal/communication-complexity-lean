@@ -1,6 +1,7 @@
 import CommunicationComplexity.PublicCoin.Basic
 import CommunicationComplexity.PublicCoin.FiniteMessage
 import CommunicationComplexity.PrivateCoin.CoinApproximation
+import CommunicationComplexity.FiniteProbabilitySpace
 
 /-!
 # Public Coin Approximation
@@ -19,9 +20,7 @@ namespace PublicCoin
 finite probability space by one over CoinTape. Given `δ > 0`, produces
 `n` and a CoinTape-based protocol with the same complexity. -/
 noncomputable def FiniteMessage.Protocol.toCoinTape
-    {Ω : Type*} [Finite Ω]
-    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
-    [IsProbabilityMeasure (volume : Measure Ω)]
+    {Ω : Type*} [FiniteProbabilitySpace Ω]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω X Y α)
     (δ : ℝ) (hδ : 0 < δ) :
@@ -33,9 +32,7 @@ noncomputable def FiniteMessage.Protocol.toCoinTape
 
 @[simp]
 theorem FiniteMessage.Protocol.toCoinTape_complexity
-    {Ω : Type*} [Finite Ω]
-    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
-    [IsProbabilityMeasure (volume : Measure Ω)]
+    {Ω : Type*} [FiniteProbabilitySpace Ω]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω X Y α)
     (δ : ℝ) (hδ : 0 < δ) :
@@ -45,9 +42,7 @@ theorem FiniteMessage.Protocol.toCoinTape_complexity
 /-- The CoinTape approximation of a public-coin protocol preserves
 ApproxSatisfies up to the given slack δ. -/
 theorem FiniteMessage.Protocol.toCoinTape_approxSatisfies
-    {Ω : Type*} [Finite Ω]
-    [MeasureSpace Ω] [DiscreteMeasurableSpace Ω]
-    [IsProbabilityMeasure (volume : Measure Ω)]
+    {Ω : Type*} [FiniteProbabilitySpace Ω]
     {X Y α : Type*}
     (p : FiniteMessage.Protocol Ω X Y α)
     (Q : X → Y → α → Prop)
