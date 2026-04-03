@@ -1,1 +1,2 @@
 import CommunicationComplexity.Basic
+import CommunicationComplexity.Functions.GapHamming
