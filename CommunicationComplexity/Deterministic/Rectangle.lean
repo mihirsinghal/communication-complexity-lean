@@ -196,9 +196,26 @@ private lemma aux_card (p : Protocol X Y α) (A : Set X) (B : Set Y) :
               (Nat.pow_le_pow_right (by omega) (Nat.le_max_right _ _))
       _ = 2 ^ (1 + max (P false).complexity (P true).complexity) := by ring
 
+private lemma aux_finite (p : Protocol X Y α) (A : Set X) (B : Set Y) :
+    (leafRectanglesAux p A B).Finite := by
+  induction p generalizing A B with
+  | output _ =>
+    simp [leafRectanglesAux]
+  | alice f P ih =>
+    simp only [leafRectanglesAux]
+    exact (ih false _ _).union (ih true _ _)
+  | bob f P ih =>
+    simp only [leafRectanglesAux]
+    exact (ih false _ _).union (ih true _ _)
+
 lemma leafRectangles_card (p : Protocol X Y α) :
     Set.ncard (leafRectangles p) ≤ 2 ^ p.complexity :=
   aux_card p Set.univ Set.univ
+
+/-- The set of protocol leaf rectangles is finite. -/
+lemma leafRectangles_finite (p : Protocol X Y α) :
+    (leafRectangles p).Finite :=
+  aux_finite p Set.univ Set.univ
 
 /-- The leaf rectangles of a protocol computing `g` form a
 monochromatic rectangle partition. -/
@@ -275,6 +292,35 @@ theorem communicationComplexity_lower_bound
   have : 2 ^ p.complexity ≤ 2 ^ n :=
     Nat.pow_le_pow_right (by omega) (by omega)
   omega
+
+open Rectangle in
+/-- If the deterministic communication complexity of `g` is at most `n`,
+then every fooling set for `g` has size at most `2^n`. -/
+theorem foolingSet_ncard_le_pow_of_communicationComplexity_le
+    (g : X → Y → α) (S : Set (X × Y)) (n : ℕ)
+    (hS : Rectangle.IsFoolingSet S g)
+    (h : communicationComplexity g ≤ n) :
+    Set.ncard S ≤ 2 ^ n := by
+  obtain ⟨p, hp, hc⟩ := (communicationComplexity_le_iff g n).mp h
+  let Part := Protocol.leafRectangles p
+  have hPart : Rectangle.IsMonoPartition Part g :=
+    Protocol.leafRectangles_isMonoPartition p g hp
+  have hCard : Set.ncard Part ≤ 2 ^ n :=
+    (Protocol.leafRectangles_card p).trans (Nat.pow_le_pow_right (by omega) hc)
+  exact (Rectangle.foolingSet_ncard_le_of_monoPartition hS hPart
+    (Protocol.leafRectangles_finite p)).trans hCard
+
+/-- Fooling-set lower bound: the deterministic communication complexity
+of `g` is at least `⌈log₂ |S|⌉` for every fooling set `S` of `g`. -/
+theorem foolingSet_lower_bound
+    (g : X → Y → α) (S : Set (X × Y))
+    (hS : Rectangle.IsFoolingSet S g) :
+    (Nat.clog 2 (Set.ncard S) : ENat) ≤ communicationComplexity g := by
+  match h : communicationComplexity g with
+  | ⊤ => exact le_top
+  | (n : ℕ) =>
+    exact_mod_cast Nat.clog_le_of_le_pow
+      (foolingSet_ncard_le_pow_of_communicationComplexity_le g S n hS (le_of_eq h))
 
 end Deterministic
 

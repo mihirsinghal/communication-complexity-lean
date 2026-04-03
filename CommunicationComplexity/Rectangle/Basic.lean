@@ -33,6 +33,12 @@ theorem IsRectangle_iff (R : Set (X × Y)) :
 def IsMonochromatic (S : Set (X × Y)) (g : X → Y → α) : Prop :=
   ∀ x x' y y', (x, y) ∈ S → (x', y') ∈ S → g x y = g x' y'
 
+/-- A set `S ⊆ X × Y` is a fooling set for `g` if every monochromatic
+rectangle with respect to `g` contains at most one point of `S`. -/
+def IsFoolingSet (S : Set (X × Y)) (g : X → Y → α) : Prop :=
+  ∀ R : Set (X × Y), IsRectangle R → IsMonochromatic R g →
+    (S ∩ R).Subsingleton
+
 /-- A set of sets is a monochromatic rectangle partition of `X × Y`
 with respect to `g` if every member is a rectangle, every member is
 monochromatic for `g`, the members cover `X × Y`, and distinct
@@ -77,6 +83,32 @@ theorem monoPartition_values_eq (h : IsMonoPartition Part g)
     (hxy : (x, y) ∈ R) (hx'y' : (x', y') ∈ R) :
     g x y = g x' y' :=
   h.2.1 R hR x x' y y' hxy hx'y'
+
+open Classical in
+/-- Any monochromatic rectangle partition has at least as many parts as
+any fooling set for the same function. -/
+theorem foolingSet_encard_le_of_monoPartition
+    {S : Set (X × Y)} (hS : IsFoolingSet S g) (hPart : IsMonoPartition Part g) :
+    S.encard ≤ Part.encard := by
+  classical
+  choose rect hrect_mem hrect_in using fun p : X × Y => monoPartition_point_mem hPart p
+  have hmaps : ∀ p ∈ S, rect p ∈ Part := fun p _ => hrect_mem p
+  have hinj : Set.InjOn rect S := by
+    intro p hp q hq hpq
+    have hsub :=
+      hS (rect p) (hPart.1 _ (hrect_mem p)) (hPart.2.1 _ (hrect_mem p))
+    exact hsub ⟨hp, hrect_in p⟩ ⟨hq, by simpa [hpq] using hrect_in q⟩
+  exact Set.encard_le_encard_of_injOn hmaps hinj
+
+/-- Any finite monochromatic rectangle partition has at least as many parts as
+any fooling set for the same function. -/
+theorem foolingSet_ncard_le_of_monoPartition
+    {S : Set (X × Y)} (hS : IsFoolingSet S g) (hPart : IsMonoPartition Part g)
+    (hfin : Part.Finite) :
+    Set.ncard S ≤ Set.ncard Part := by
+  have henc := foolingSet_encard_le_of_monoPartition hS hPart
+  have hSfin : S.Finite := hfin.finite_of_encard_le henc
+  simpa [Set.ncard] using ENat.toNat_le_toNat henc hfin.encard_lt_top.ne
 
 end Rectangle
 
