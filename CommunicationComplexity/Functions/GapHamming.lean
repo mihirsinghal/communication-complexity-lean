@@ -1,7 +1,7 @@
 import CommunicationComplexity.Basic
+import CommunicationComplexity.BitString
 import CommunicationComplexity.PublicCoin.Basic
 import CommunicationComplexity.PrivateCoin.Basic
-import Mathlib.InformationTheory.Hamming
 
 namespace CommunicationComplexity
 
@@ -9,8 +9,8 @@ namespace Functions.GapHamming
 
 open MeasureTheory
 
-/-- `n`-bit strings, represented as Boolean-valued functions on `Fin n`. -/
-abbrev BitString (n : ℕ) := Fin n → Bool
+/-- Gap-Hamming uses the shared bitstring type. -/
+abbrev BitString (n : ℕ) := CommunicationComplexity.BitString n
 
 /-- The lower threshold in the standard Gap-Hamming promise. -/
 def lowThreshold (n : ℕ) : ℕ :=
@@ -55,27 +55,25 @@ This is stated directly for private-coin protocols solving the promise
 problem, without introducing a global promise-problem complexity API. -/
 theorem privateCoin_protocol_lower_bound
     (ε : ℝ) (hε : ε < 1 / 2) :
-    ∃ c : ℝ, 0 < c ∧
-      ∀ (n nX nY : ℕ)
+    ∃ c > 0,
+      ∀ {n nX nY : ℕ}
         (p : PrivateCoin.Protocol (CoinTape nX) (CoinTape nY)
           (BitString n) (BitString n) Bool),
-        (∀ x y, Promise n x y →
-          (volume {ω : CoinTape nX × CoinTape nY |
-            ¬IsGapHamming n x y (p.rrun x y ω.1 ω.2)}).toReal ≤ ε) →
-        c * (n : ℝ) ≤ (p.complexity : ℝ) := by
+        p.ApproxSatisfies
+            (fun x y b => Promise n x y → IsGapHamming n x y b) ε →
+          c * (n : ℝ) ≤ (p.complexity : ℝ) := by
   sorry
 
 /-- Public-coin variant of the Gap-Hamming linear lower bound. -/
 theorem publicCoin_protocol_lower_bound
     (ε : ℝ) (hε : ε < 1 / 2) :
-    ∃ c : ℝ, 0 < c ∧
-      ∀ (n m : ℕ)
+    ∃ c > 0,
+      ∀ {n m : ℕ}
         (p : PublicCoin.Protocol (CoinTape m)
           (BitString n) (BitString n) Bool),
-        (∀ x y, Promise n x y →
-          (volume {ω : CoinTape m |
-            ¬IsGapHamming n x y (p.rrun x y ω)}).toReal ≤ ε) →
-        c * (n : ℝ) ≤ (p.complexity : ℝ) := by
+        p.ApproxSatisfies
+            (fun x y b => Promise n x y → IsGapHamming n x y b) ε →
+          c * (n : ℝ) ≤ (p.complexity : ℝ) := by
   sorry
 
 end Functions.GapHamming
