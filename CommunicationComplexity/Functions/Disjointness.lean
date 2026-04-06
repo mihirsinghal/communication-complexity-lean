@@ -1,13 +1,8 @@
-<<<<<<< HEAD
-import CommunicationComplexity.Rectangle.Basic
-import Mathlib.Data.Set.SymmDiff
-=======
 import CommunicationComplexity.Basic
 import CommunicationComplexity.Deterministic.UpperBounds
 import CommunicationComplexity.Deterministic.Rectangle
 import Mathlib.Data.Set.SymmDiff
 import Mathlib.Data.Fintype.Powerset
->>>>>>> origin/main
 
 namespace CommunicationComplexity
 
@@ -65,8 +60,6 @@ theorem foolingSet_isFoolingSet (n : ℕ) :
       rw [htrue] at hval
       exact (hne hval.symm).elim
 
-<<<<<<< HEAD
-=======
 /-- The fooling set for disjointness has size `2^n`. -/
 theorem foolingSet_card (n : ℕ) :
     Set.ncard (foolingSet n) = 2 ^ n := by
@@ -155,7 +148,6 @@ theorem communicationComplexity_eq (n : ℕ) (hn : 1 ≤ n) :
   apply le_antisymm (communicationComplexity_le n)
   exact le_communicationComplexity n hn
 
->>>>>>> origin/main
 end Functions.Disjointness
 
 end CommunicationComplexity
