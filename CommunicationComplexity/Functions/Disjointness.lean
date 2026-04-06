@@ -1,5 +1,13 @@
+<<<<<<< HEAD
 import CommunicationComplexity.Rectangle.Basic
 import Mathlib.Data.Set.SymmDiff
+=======
+import CommunicationComplexity.Basic
+import CommunicationComplexity.Deterministic.UpperBounds
+import CommunicationComplexity.Deterministic.Rectangle
+import Mathlib.Data.Set.SymmDiff
+import Mathlib.Data.Fintype.Powerset
+>>>>>>> origin/main
 
 namespace CommunicationComplexity
 
@@ -57,6 +65,97 @@ theorem foolingSet_isFoolingSet (n : ℕ) :
       rw [htrue] at hval
       exact (hne hval.symm).elim
 
+<<<<<<< HEAD
+=======
+/-- The fooling set for disjointness has size `2^n`. -/
+theorem foolingSet_card (n : ℕ) :
+    Set.ncard (foolingSet n) = 2 ^ n := by
+  let f : Set (Fin n) → Set (Fin n) × Set (Fin n) := fun X => (X, Xᶜ)
+  have hf : Function.Injective f := by
+    intro X X' h
+    exact congrArg Prod.fst h
+  calc Set.ncard (foolingSet n)
+      = Set.ncard (Set.range f) := by
+          congr
+          ext p
+          rcases p with ⟨X, Y⟩
+          simp [f, foolingSet, eq_comm]
+    _ = 2 ^ n := by
+          simpa [Nat.card_eq_fintype_card, Fintype.card_set, Fintype.card_fin] using
+            Set.ncard_range_of_injective hf
+
+/-- The deterministic communication complexity of disjointness is at most `n + 1`:
+Alice sends her set, and Bob sends one bit for the answer. -/
+theorem communicationComplexity_le (n : ℕ) :
+    Deterministic.communicationComplexity (disjointness n) ≤ n + 1 := by
+  calc Deterministic.communicationComplexity (disjointness n)
+      ≤ Nat.clog 2 (Nat.card (Set (Fin n))) + Nat.clog 2 (Nat.card Bool) :=
+        Deterministic.communicationComplexity_le_clog_card_X_alpha (disjointness n)
+    _ = n + 1 := by
+        have hbool : Nat.clog 2 2 = 1 := by decide
+        simp only [Nat.card_eq_fintype_card, Fintype.card_set, Fintype.card_fin,
+          Fintype.card_bool, Nat.one_lt_ofNat, Nat.clog_pow]
+        rw [hbool]
+        norm_num
+
+open Deterministic.Protocol Rectangle in
+/-- For `n ≥ 1`, disjointness on subsets of `[n]` has deterministic
+communication complexity at least `n + 1`. -/
+theorem le_communicationComplexity (n : ℕ) (hn : 1 ≤ n) :
+    (n + 1 : ℕ) ≤ Deterministic.communicationComplexity (disjointness n) := by
+  apply Deterministic.communicationComplexity_lower_bound
+  intro Part hPart
+  choose rect hrect_mem hrect_in using fun X : Set (Fin n) =>
+    monoPartition_point_mem hPart (X, Xᶜ)
+  have hrect_inj : Function.Injective rect := by
+    intro X X' hXX
+    have hsub :=
+      foolingSet_isFoolingSet n (rect X) (hPart.1 _ (hrect_mem X)) (hPart.2.1 _ (hrect_mem X))
+    have hp : (X, Xᶜ) ∈ foolingSet n ∩ rect X := by
+      simp [foolingSet, hrect_in X]
+    have hq : (X', X'ᶜ) ∈ foolingSet n ∩ rect X := by
+      simp [foolingSet, hXX ▸ hrect_in X']
+    exact congrArg Prod.fst (hsub hp hq)
+  have himage_card :
+      Set.ncard (Set.range rect) = 2 ^ n := by
+    simpa [Fintype.card_set, Fintype.card_fin] using
+      Set.ncard_range_of_injective hrect_inj
+  let i0 : Fin n := ⟨0, hn⟩
+  let x0 : Set (Fin n) := {i0}
+  let y0 : Set (Fin n) := {i0}
+  obtain ⟨R0, hR0_mem, hR0_in⟩ := monoPartition_point_mem hPart (x0, y0)
+  have hR0_not_diag : R0 ∉ Set.range rect := by
+    rintro ⟨X, rfl⟩
+    have hval := monoPartition_values_eq hPart (hrect_mem X) (hrect_in X) hR0_in
+    have htrue : disjointness n X Xᶜ = true := by
+      simpa [disjointness] using (disjoint_compl_right : Disjoint X Xᶜ)
+    have hne : disjointness n x0 y0 ≠ true := by
+      unfold disjointness
+      simp only [ne_eq, decide_eq_true_eq]
+      intro hdisj
+      rw [Set.disjoint_left] at hdisj
+      have hnot : i0 ∉ y0 := hdisj (by simp [x0])
+      exact hnot (by simp [y0])
+    rw [htrue] at hval
+    exact (hne hval.symm).elim
+  have hinsert : insert R0 (Set.range rect) ⊆ Part :=
+    Set.insert_subset hR0_mem (fun R ⟨X, hX⟩ => hX ▸ hrect_mem X)
+  calc 2 ^ n
+      = Set.ncard (Set.range rect) := himage_card.symm
+    _ < Set.ncard (insert R0 (Set.range rect)) := by
+        rw [Set.ncard_insert_of_notMem hR0_not_diag, himage_card]
+        omega
+    _ ≤ Set.ncard Part :=
+        Set.ncard_le_ncard hinsert (Set.toFinite Part)
+
+/-- For `n ≥ 1`, the deterministic communication complexity of
+disjointness on subsets of `[n]` is exactly `n + 1`. -/
+theorem communicationComplexity_eq (n : ℕ) (hn : 1 ≤ n) :
+    Deterministic.communicationComplexity (disjointness n) = n + 1 := by
+  apply le_antisymm (communicationComplexity_le n)
+  exact le_communicationComplexity n hn
+
+>>>>>>> origin/main
 end Functions.Disjointness
 
 end CommunicationComplexity
