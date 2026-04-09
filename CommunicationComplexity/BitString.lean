@@ -13,11 +13,17 @@ namespace BitString
 
 open scoped BigOperators
 
+/-- The contribution of a single coordinate to the `{±1}`-valued inner
+product associated with two Boolean strings: equal bits contribute `1`,
+and different bits contribute `-1`. -/
+def signedBitProduct (a b : Bool) : ℤ :=
+  if a = b then 1 else -1
+
 /-- The signed inner product of two Boolean strings, viewed through the
 usual `{0,1}` to `{±1}` correspondence. Each agreeing coordinate
 contributes `1`, and each disagreeing coordinate contributes `-1`. -/
 def signedInner {n : ℕ} (x y : CommunicationComplexity.BitString n) : ℤ :=
-  ∑ i, if x i = y i then 1 else -1
+  ∑ i, signedBitProduct (x i) (y i)
 
 /-- The number of coordinates on which two bit strings agree. -/
 def agreementCount {n : ℕ} (x y : CommunicationComplexity.BitString n) : ℕ :=
@@ -50,7 +56,7 @@ theorem signedInner_eq_length_sub_twice_hammingDist
     {n : ℕ} (x y : CommunicationComplexity.BitString n) :
     signedInner x y = n - 2 * hammingDist x y := by
   classical
-  unfold signedInner
+  unfold signedInner signedBitProduct
   have hsplit :
       (∑ i : Fin n, if x i = y i then (1 : ℤ) else -1) =
         ∑ i : Fin n, ((1 : ℤ) - 2 * (if x i ≠ y i then 1 else 0)) := by

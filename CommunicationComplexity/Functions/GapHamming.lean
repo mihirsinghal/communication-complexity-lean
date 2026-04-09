@@ -9,9 +9,6 @@ namespace Functions.GapHamming
 
 open MeasureTheory
 
-/-- Gap-Hamming uses the shared bitstring type. -/
-abbrev BitString (n : ℕ) := CommunicationComplexity.BitString n
-
 /-- The lower threshold in the standard Gap-Hamming promise. -/
 def lowThreshold (n : ℕ) : ℕ :=
   n / 2 - Nat.sqrt n
