@@ -99,6 +99,19 @@ theorem communicationComplexity_le_of_finiteMessage
     convert h using 1; ring
   · exact p.toCoinTape_complexity (ε - ε') hδ
 
+
+theorem communicationComplexity_finite
+  [Fintype X] [Fintype Y]
+  (f : X → Y → α)
+  (ε : ℝ) :
+  communicationComplexity f ε ≠ ⊤ := by sorry
+
+noncomputable def communicationComplexityFin
+  [Fintype X] [Fintype Y]
+  (f : X → Y → α) (ε : ℝ) : ℕ :=
+  WithTop.untop (communicationComplexity f ε) (communicationComplexity_finite f ε)
+
+
 end PublicCoin
 
 end CommunicationComplexity
