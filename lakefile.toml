@@ -27,9 +27,8 @@ rev = "v4.28.0"
 [[require]]
 name = "PFR"
 git = "https://github.com/teorth/pfr"
-rev = "v4.28.0-rc1"
+rev = "ed49b75"
 
 [[lean_lib]]
 name = "CommunicationComplexity"
 globs = ["CommunicationComplexity.+"]
-
