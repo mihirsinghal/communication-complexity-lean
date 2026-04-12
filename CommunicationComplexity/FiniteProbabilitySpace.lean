@@ -3,28 +3,61 @@ import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.MeasurableSpace.Defs
 import Mathlib.MeasureTheory.Constructions.Pi
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
+import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 import Mathlib.MeasureTheory.Measure.Prod
+import Mathlib.MeasureTheory.Measure.Real
 import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Set
 
 open MeasureTheory
 
+namespace PMF
+
+/-- Bundle the measure associated to a PMF as a probability measure. -/
+noncomputable def toProbabilityMeasure
+    {Ω : Type*} [MeasurableSpace Ω] (p : PMF Ω) :
+    ProbabilityMeasure Ω :=
+  ⟨p.toMeasure, PMF.toMeasure.isProbabilityMeasure p⟩
+
+@[simp]
+theorem coe_toProbabilityMeasure
+    {Ω : Type*} [MeasurableSpace Ω] (p : PMF Ω) :
+    ((p.toProbabilityMeasure : ProbabilityMeasure Ω) : Measure Ω) = p.toMeasure :=
+  rfl
+
+end PMF
+
 namespace CommunicationComplexity
 
-class FiniteProbabilitySpace (Ω : Type*) where
-  toMeasureSpace : MeasureSpace Ω
+/-- A finite measurable space: the type is finite and the measurable
+structure is discrete. This deliberately does not include a measure. -/
+class FiniteMeasureSpace (Ω : Type*) [MeasurableSpace Ω] where
   fintype :
     Fintype Ω
   discrete :
-    @DiscreteMeasurableSpace Ω toMeasureSpace.toMeasurableSpace
+    DiscreteMeasurableSpace Ω
+
+attribute [instance] FiniteMeasureSpace.fintype
+attribute [instance] FiniteMeasureSpace.discrete
+
+/-- Helper for bundling already-existing finite measurable-space instances locally. -/
+def FiniteMeasureSpace.of
+    (Ω : Type*) [MeasurableSpace Ω] [Fintype Ω] [DiscreteMeasurableSpace Ω] :
+    FiniteMeasureSpace Ω :=
+{ fintype := inferInstance
+  discrete := inferInstance }
+
+class FiniteProbabilitySpace (Ω : Type*) where
+  toMeasureSpace : MeasureSpace Ω
+  finite :
+    @FiniteMeasureSpace Ω toMeasureSpace.toMeasurableSpace
   prob :
     @IsProbabilityMeasure Ω
       toMeasureSpace.toMeasurableSpace toMeasureSpace.volume
 
 attribute [instance] FiniteProbabilitySpace.toMeasureSpace
-attribute [instance] FiniteProbabilitySpace.fintype
-attribute [instance] FiniteProbabilitySpace.discrete
+attribute [instance] FiniteProbabilitySpace.finite
 attribute [instance] FiniteProbabilitySpace.prob
 
 /-- Helper for bundling already-existing instances locally. -/
@@ -36,9 +69,71 @@ def FiniteProbabilitySpace.of
     [IsProbabilityMeasure (volume : Measure Ω)] :
     FiniteProbabilitySpace Ω :=
 { toMeasureSpace := m
-  fintype := inferInstance
-  discrete := inferInstance
+  finite := FiniteMeasureSpace.of Ω
   prob := inferInstance }
+
+/-- Build a finite probability space from a finite measurable space and a probability measure. -/
+noncomputable def FiniteProbabilitySpace.ofProbabilityMeasure
+    (Ω : Type*) [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    (μ : ProbabilityMeasure Ω) :
+    FiniteProbabilitySpace Ω :=
+{ toMeasureSpace :=
+    { toMeasurableSpace := inferInstance
+      volume := (μ : Measure Ω) }
+  finite := inferInstance
+  prob := μ.2 }
+
+open Classical in
+/-- A probability measure on a finite measurable space is determined by its singleton masses. -/
+theorem FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons
+    {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    (μ : ProbabilityMeasure Ω) (S : Set Ω) :
+    (μ : Measure Ω).real S =
+      ∑ ω : Ω, if ω ∈ S then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+  let T : Finset Ω := Finset.univ.filter fun ω : Ω => ω ∈ S
+  have hST : (↑T : Set Ω) = S := by
+    ext ω
+    simp [T]
+  rw [← hST]
+  rw [← MeasureTheory.sum_measureReal_singleton (μ := (μ : Measure Ω)) T]
+  simp [T, Finset.sum_filter]
+
+open Classical in
+/-- On a finite measurable space, absolute continuity is equivalent to absolute continuity on
+singleton masses. -/
+theorem FiniteMeasureSpace.absolutelyContinuous_iff_forall_singletons
+    {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω] {μ ν : Measure Ω} :
+    μ ≪ ν ↔ ∀ ω, ν ({ω} : Set Ω) = 0 → μ ({ω} : Set Ω) = 0 := by
+  constructor
+  · intro h ω hν
+    exact h hν
+  · intro h S hνS
+    let T : Finset Ω := Finset.univ.filter fun ω : Ω => ω ∈ S
+    have hST : (↑T : Set Ω) = S := by
+      ext ω
+      simp [T]
+    rw [← hST]
+    rw [← MeasureTheory.sum_measure_singleton (μ := μ) (s := T)]
+    apply Finset.sum_eq_zero
+    intro ω hω
+    exact h ω (measure_mono_null (μ := ν) (by
+      intro z hz
+      rw [Set.mem_singleton_iff] at hz
+      subst z
+      simpa [T] using hω) hνS)
+
+noncomputable instance finiteMeasureSpaceProd
+    (Ω₁ Ω₂ : Type*) [MeasurableSpace Ω₁] [MeasurableSpace Ω₂]
+    [FiniteMeasureSpace Ω₁] [FiniteMeasureSpace Ω₂] :
+    FiniteMeasureSpace (Ω₁ × Ω₂) :=
+  FiniteMeasureSpace.of (Ω₁ × Ω₂)
+
+open Classical in
+noncomputable instance finiteMeasureSpacePi
+    {ι : Type*} [Fintype ι] (Ω : ι → Type*) [∀ i, MeasurableSpace (Ω i)]
+    [∀ i, FiniteMeasureSpace (Ω i)] :
+    FiniteMeasureSpace ((i : ι) → Ω i) :=
+  FiniteMeasureSpace.of ((i : ι) → Ω i)
 
 noncomputable instance instProd (Ω₁ Ω₂ : Type*)
     [FiniteProbabilitySpace Ω₁] [FiniteProbabilitySpace Ω₂] :
