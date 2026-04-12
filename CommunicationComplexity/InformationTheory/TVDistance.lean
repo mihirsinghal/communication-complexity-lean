@@ -161,6 +161,15 @@ theorem tvDistance_eq_tvDistanceSup
   rw [tvDistance]
   exact le_antisymm (by simpa [rhs] using hlower) (by simpa [rhs] using hupper)
 
+/-- The total variation distance bounds the probability gap of every measurable event. -/
+theorem abs_measureReal_sub_le_tvDistance
+    {Ω : Type*} [MeasurableSpace Ω] (μ ν : ProbabilityMeasure Ω)
+    (S : {S : Set Ω // MeasurableSet S}) :
+    |(μ : Measure Ω).real (S : Set Ω) - (ν : Measure Ω).real (S : Set Ω)| ≤
+      tvDistance μ ν := by
+  rw [tvDistance]
+  exact event_abs_measureReal_sub_le_half_totalVariation μ ν S
+
 open Classical in
 private lemma sum_indicator_le_sum_posPart
     {α : Type*} [Fintype α] (a : α → ℝ) (S : Set α) :

@@ -557,6 +557,19 @@ theorem zFiberMeasure_isProbabilityMeasure
   rw [zFiberMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure hz
 
+/-- Positive mass under the disjoint-conditioned measure implies positive mass under the
+original hard distribution. -/
+theorem volume_zFiber_ne_zero_of_disjointCondMeasure_ne_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (disjointCondMeasure n) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 := by
+  have hac : (disjointCondMeasure n) ≪ (volume : Measure (HardSample n)) := by
+    rw [disjointCondMeasure]
+    exact ProbabilityTheory.cond_absolutelyContinuous
+  intro hzero
+  exact hz (hac hzero)
+
 /-- The conditional law of the special bit-pair on a positive-mass `zVariable` fiber. -/
 noncomputable def conditionalSpecialPairLaw
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -581,6 +594,205 @@ def goodZEvent
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (γ : ℝ) : Set (HardSample n) :=
   {ω | goodZ n p γ (zVariable n p ω)}
+
+/-- On a positive-mass `Z=z` fiber, the conditional `specialPair` singleton mass is the
+corresponding preimage probability under the fiber measure. -/
+theorem conditionalSpecialPairLaw_singleton
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (b : Bool × Bool) :
+    ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} =
+      (zFiberMeasure n p z).real ((specialPair n) ⁻¹' {b}) := by
+  rw [conditionalSpecialPairLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rfl
+
+/-- Intersecting with the defining `Z=z` fiber does not change probabilities under the
+corresponding fiber measure. -/
+theorem zFiberMeasure_inter_fiber
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (S : Set (HardSample n)) :
+    (zFiberMeasure n p z).real (((zVariable n p) ⁻¹' {z}) ∩ S) =
+      (zFiberMeasure n p z).real S := by
+  rw [zFiberMeasure]
+  rw [Measure.real]
+  rw [ProbabilityTheory.cond_inter_self MeasurableSet.of_discrete]
+  rfl
+
+/-- Law of total probability over the finite `zVariable` fibers. -/
+theorem measureReal_eq_sum_zFiberMeasure_real
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (S : Set (HardSample n)) :
+    (volume : Measure (HardSample n)).real S =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+          (zFiberMeasure n p z).real S := by
+  classical
+  let μ : Measure (HardSample n) := volume
+  let Z := zVariable n p
+  have htotal := ProbabilityTheory.sum_meas_smul_cond_fiber (X := Z) Measurable.of_discrete μ
+  have hS : (∑ z, μ (Z ⁻¹' {z}) • μ[|Z ← z]) S = μ S := by
+    rw [htotal]
+  change μ.real S =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        μ.real (Z ⁻¹' {z}) * (μ[|Z ← z]).real S
+  rw [Measure.real]
+  rw [← hS]
+  simp only [Measure.real, Measure.coe_finset_sum, Finset.sum_apply, Measure.coe_smul,
+    Pi.smul_apply, smul_eq_mul]
+  rw [ENNReal.toReal_sum]
+  · apply Finset.sum_congr rfl
+    intro z _
+    rw [ENNReal.toReal_mul]
+  · intro z _
+    exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _)
+
+/-- Protocol error probability decomposed over the finite `zVariable` fibers. -/
+theorem protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (volume : Measure (HardSample n)).real (protocolErrorEvent n p) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+          (zFiberMeasure n p z).real (protocolErrorEvent n p) :=
+  measureReal_eq_sum_zFiberMeasure_real n p (protocolErrorEvent n p)
+
+/-- A good `z` gives the expected singleton-mass estimate for the conditional special-pair law. -/
+theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hgood : goodZ n p γ z)
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (b : Bool × Bool) :
+    |((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} - (1 / 4 : ℝ)| ≤ 2 * γ := by
+  have htv :=
+    TVDistance.abs_measureReal_sub_le_tvDistance
+      (conditionalSpecialPairLaw n p z hz) uniformBoolPair
+      ⟨({b} : Set (Bool × Bool)), MeasurableSet.of_discrete⟩
+  rw [uniformBoolPair_singleton] at htv
+  exact htv.trans (hgood hz)
+
+/-- A good `z` gives a lower bound on each singleton mass of the conditional special-pair law. -/
+theorem quarter_sub_two_mul_le_conditionalSpecialPairLaw_singleton
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hgood : goodZ n p γ z)
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (b : Bool × Bool) :
+    (1 / 4 : ℝ) - 2 * γ ≤
+      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} := by
+  have h :=
+    abs_conditionalSpecialPairLaw_singleton_sub_quarter_le n p hgood hz b
+  rw [abs_le] at h
+  linarith
+
+/-- On a good `Z` fiber, the conditional protocol-error probability is at least
+`1 / 4 - 2 * γ`. If the protocol output on the fiber is `true`, then the `(true, true)` special
+bit-pair witnesses errors; otherwise `(false, false)` witnesses errors. -/
+theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ} {ω : HardSample n}
+    (hgood : goodZ n p γ (zVariable n p ω))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {zVariable n p ω}) ≠ 0) :
+    (1 / 4 : ℝ) - 2 * γ ≤
+      (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) := by
+  haveI : IsFiniteMeasure (zFiberMeasure n p (zVariable n p ω)) := by
+    rw [zFiberMeasure]
+    infer_instance
+  by_cases hrun : p.run (X n ω) (Y n ω) = true
+  · have hmass :=
+      quarter_sub_two_mul_le_conditionalSpecialPairLaw_singleton n p hgood hz (true, true)
+    have hsubset :
+        ((zVariable n p) ⁻¹' {zVariable n p ω}) ∩
+            ((specialPair n) ⁻¹' {((true, true) : Bool × Bool)}) ⊆
+          protocolErrorEvent n p := by
+      intro ω' hω'
+      have hzEq : zVariable n p ω' = zVariable n p ω := by
+        simpa using hω'.1
+      have hrun' : p.run (X n ω') (Y n ω') = true := by
+        have hrunEq :=
+          Deterministic.Protocol.run_eq_of_transcript_eq p (congrArg Prod.fst hzEq)
+        simpa [input] using hrunEq.trans hrun
+      have hbits : ω'.xT = true ∧ ω'.yT = true := by
+        have hpair : specialPair n ω' = (true, true) := by
+          simpa using hω'.2
+        simpa [specialPair, specialX, specialY] using hpair
+      have hnot_disj : ¬Disjoint (X n ω') (Y n ω') := by
+        rw [disjoint_X_Y_iff]
+        exact not_not_intro hbits
+      simp [protocolErrorEvent, disjointness, hrun', hnot_disj]
+    have hmono :
+        (zFiberMeasure n p (zVariable n p ω)).real
+            (((zVariable n p) ⁻¹' {zVariable n p ω}) ∩
+              ((specialPair n) ⁻¹' {((true, true) : Bool × Bool)})) ≤
+          (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) :=
+      measureReal_mono hsubset (measure_ne_top _ _)
+    rw [zFiberMeasure_inter_fiber] at hmono
+    rw [← conditionalSpecialPairLaw_singleton n p (zVariable n p ω) hz (true, true)] at hmono
+    exact hmass.trans hmono
+  · have hrun_false : p.run (X n ω) (Y n ω) = false := by
+      cases h : p.run (X n ω) (Y n ω) <;> simp_all
+    have hmass :=
+      quarter_sub_two_mul_le_conditionalSpecialPairLaw_singleton n p hgood hz (false, false)
+    have hsubset :
+        ((zVariable n p) ⁻¹' {zVariable n p ω}) ∩
+            ((specialPair n) ⁻¹' {((false, false) : Bool × Bool)}) ⊆
+          protocolErrorEvent n p := by
+      intro ω' hω'
+      have hzEq : zVariable n p ω' = zVariable n p ω := by
+        simpa using hω'.1
+      have hrun' : p.run (X n ω') (Y n ω') = false := by
+        have hrunEq :=
+          Deterministic.Protocol.run_eq_of_transcript_eq p (congrArg Prod.fst hzEq)
+        simpa [input] using hrunEq.trans hrun_false
+      have hbits : ω'.xT = false ∧ ω'.yT = false := by
+        have hpair : specialPair n ω' = (false, false) := by
+          simpa using hω'.2
+        simpa [specialPair, specialX, specialY] using hpair
+      have hdisj : Disjoint (X n ω') (Y n ω') := by
+        rw [disjoint_X_Y_iff]
+        intro hboth
+        rw [hbits.1] at hboth
+        simp at hboth
+      simp [protocolErrorEvent, disjointness, hrun', hdisj]
+    have hmono :
+        (zFiberMeasure n p (zVariable n p ω)).real
+            (((zVariable n p) ⁻¹' {zVariable n p ω}) ∩
+              ((specialPair n) ⁻¹' {((false, false) : Bool × Bool)})) ≤
+          (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) :=
+      measureReal_mono hsubset (measure_ne_top _ _)
+    rw [zFiberMeasure_inter_fiber] at hmono
+    rw [← conditionalSpecialPairLaw_singleton n p (zVariable n p ω) hz (false, false)] at hmono
+    exact hmass.trans hmono
+
+/-- Variant of the good-fiber error lower bound where positivity is known only after
+conditioning on the disjoint event. -/
+theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent_of_disjointCondMeasure
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ} {ω : HardSample n}
+    (hgood : goodZ n p γ (zVariable n p ω))
+    (hz : (disjointCondMeasure n) ((zVariable n p) ⁻¹' {zVariable n p ω}) ≠ 0) :
+    (1 / 4 : ℝ) - 2 * γ ≤
+      (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) :=
+  quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent n p hgood
+    (volume_zFiber_ne_zero_of_disjointCondMeasure_ne_zero n p (zVariable n p ω) hz)
+
+/-- Event-form version of the good-fiber error lower bound. -/
+theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent_of_mem_goodZEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ} {ω : HardSample n}
+    (hgood : ω ∈ goodZEvent n p γ)
+    (hz : (disjointCondMeasure n) ((zVariable n p) ⁻¹' {zVariable n p ω}) ≠ 0) :
+    (1 / 4 : ℝ) - 2 * γ ≤
+      (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) :=
+  quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent_of_disjointCondMeasure n p hgood hz
 
 /-- The transcript entropy is at most the protocol length in bits, for any ambient measure. -/
 theorem entropy_message_le_complexity_mul_log_two_of_measure
