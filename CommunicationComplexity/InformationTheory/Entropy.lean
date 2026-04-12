@@ -82,7 +82,7 @@ theorem condMutualInfo_le_entropy_left
     [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z] :
     I[X : Y | Z ; μ] ≤ H[X ; μ] :=
   (condMutualInfo_le_condEntropy_left hX hY hZ).trans
-    (condEntropy_le_entropy hX hZ)
+    (condEntropy_le_entropy μ hX hZ)
 
 /-- Conditional mutual information is bounded by the entropy of the right variable. -/
 theorem condMutualInfo_le_entropy_right
@@ -90,6 +90,6 @@ theorem condMutualInfo_le_entropy_right
     [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z] :
     I[X : Y | Z ; μ] ≤ H[Y ; μ] :=
   (condMutualInfo_le_condEntropy_right hX hY hZ).trans
-    (condEntropy_le_entropy hY hZ)
+    (condEntropy_le_entropy μ hY hZ)
 
 end ProbabilityTheory

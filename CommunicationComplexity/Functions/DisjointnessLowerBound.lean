@@ -147,6 +147,14 @@ def input (ω : HardSample n) : Set (Fin n) × Set (Fin n) :=
 def specialIntersect : Set (HardSample n) :=
   {ω | ω.xT = true ∧ ω.yT = true}
 
+/-- The event that the two special-coordinate bits have prescribed values. -/
+def specialBitsEvent (bx bY : Bool) : Set (HardSample n) :=
+  {ω | ω.xT = bx ∧ ω.yT = bY}
+
+/-- The event that both special-coordinate bits are zero. -/
+def specialZeroZero : Set (HardSample n) :=
+  specialBitsEvent n false false
+
 /-- The event that the generated input pair is disjoint. -/
 def disjointEvent : Set (HardSample n) :=
   {ω | Disjoint (X n ω) (Y n ω)}
@@ -160,6 +168,11 @@ instance specialIntersectDecidablePred :
 noncomputable instance specialIntersectFintype :
     Fintype {ω : HardSample n // ω ∈ specialIntersect n} := by
   unfold specialIntersect
+  infer_instance
+
+noncomputable instance specialBitsEventFintype (bx bY : Bool) :
+    Fintype {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} := by
+  unfold specialBitsEvent
   infer_instance
 
 private def specialIntersectEquiv :
@@ -181,6 +194,25 @@ private def specialIntersectEquiv :
     rcases p with ⟨T, other⟩
     rfl
 
+private def specialBitsEventEquiv (bx bY : Bool) :
+    {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} ≃
+      Fin n × (Fin n → DisjointCoordinate) where
+  toFun ω := (ω.1.T, ω.1.other)
+  invFun p :=
+    ⟨{ T := p.1
+       xT := bx
+       yT := bY
+       other := p.2 }, by simp [specialBitsEvent]⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    rcases hω with ⟨hxT, hyT⟩
+    cases hxT
+    cases hyT
+    rfl
+  right_inv p := by
+    rcases p with ⟨T, other⟩
+    rfl
+
 @[simp] theorem card_specialIntersect :
     Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
       (n : ℕ) * 3 ^ (n : ℕ) := by
@@ -188,6 +220,16 @@ private def specialIntersectEquiv :
     Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
         Fintype.card (Fin n × (Fin n → DisjointCoordinate)) :=
       Fintype.card_congr (specialIntersectEquiv n)
+    _ = (n : ℕ) * 3 ^ (n : ℕ) := by
+      simp [Fintype.card_prod, Fintype.card_pi]
+
+@[simp] theorem card_specialBitsEvent (bx bY : Bool) :
+    Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} =
+      (n : ℕ) * 3 ^ (n : ℕ) := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} =
+        Fintype.card (Fin n × (Fin n → DisjointCoordinate)) :=
+      Fintype.card_congr (specialBitsEventEquiv n bx bY)
     _ = (n : ℕ) * 3 ^ (n : ℕ) := by
       simp [Fintype.card_prod, Fintype.card_pi]
 
@@ -284,6 +326,45 @@ theorem measureReal_specialIntersect :
   norm_num [Nat.cast_mul, Nat.cast_pow]
   field_simp [hn, hpow]
 
+/-- Each prescribed pair of special-coordinate bits has probability `1/4`. -/
+theorem measureReal_specialBitsEvent (bx bY : Bool) :
+    (volume (specialBitsEvent n bx bY)).toReal = (1 / 4 : ℝ) := by
+  classical
+  letI : DecidablePred (fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY) :=
+    fun ω => Classical.propDecidable (ω ∈ specialBitsEvent n bx bY)
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (specialBitsEvent n bx bY)).toReal = (1 / 4 : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_filter]
+  have hfilter :
+      (Finset.univ.filter fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY).card =
+        Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} := by
+    simp [Fintype.card_subtype]
+  have hfilter_real :
+      ((Finset.univ.filter fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY).card : ℝ) =
+        (Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} : ℝ) := by
+    exact_mod_cast hfilter
+  rw [hfilter_real, card_specialBitsEvent, card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+
+/-- The event `(X_T, Y_T) = (0, 0)` has probability `1/4`. -/
+theorem measureReal_specialZeroZero :
+    (volume (specialZeroZero n)).toReal = (1 / 4 : ℝ) := by
+  rw [specialZeroZero, measureReal_specialBitsEvent]
+
+/-- If both special-coordinate bits are zero, then the generated input pair is disjoint. -/
+theorem specialZeroZero_subset_disjointEvent :
+    specialZeroZero n ⊆ disjointEvent n := by
+  intro ω hω
+  rw [specialZeroZero, specialBitsEvent] at hω
+  change Disjoint (X n ω) (Y n ω)
+  rw [disjoint_X_Y_iff]
+  intro hbits
+  rw [hω.1] at hbits
+  simp at hbits
+
 /-- The hard distribution generates disjoint inputs with probability `3/4`. -/
 theorem measureReal_disjointEvent :
     (volume (disjointEvent n)).toReal = (3 / 4 : ℝ) := by
@@ -358,6 +439,26 @@ def firstConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n 
 def secondConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (specialCoordinate n ω, xExceptSpecial n ω, yAfterSpecial n ω)
 
+/-- The special-coordinate bit-pair. -/
+def specialPair (ω : HardSample n) : Bool × Bool :=
+  (specialX n ω, specialY n ω)
+
+instance boolPairFiniteMeasureSpace : FiniteMeasureSpace (Bool × Bool) :=
+  FiniteMeasureSpace.of (Bool × Bool)
+
+/-- The uniform law on a pair of bits. -/
+noncomputable def uniformBoolPair : ProbabilityMeasure (Bool × Bool) :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- Each bit-pair has mass `1/4` under the uniform law on two bits. -/
+theorem uniformBoolPair_singleton (b : Bool × Bool) :
+    ((uniformBoolPair : ProbabilityMeasure (Bool × Bool)) : Measure (Bool × Bool)).real {b} =
+      (1 / 4 : ℝ) := by
+  rw [uniformBoolPair]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure (Bool × Bool)).real {b} = (1 / 4 : ℝ)
+  rw [Measure.real, ProbabilityTheory.uniformOn_univ]
+  norm_num [Fintype.card_prod]
+
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
 theorem inputDist_measureReal_eq_preimage (S : Set (Set (Fin n) × Set (Fin n))) :
@@ -384,21 +485,192 @@ theorem distributionalError_inputDist_eq_sample
   rw [inputDist_measureReal_eq_preimage]
   rfl
 
+/-- The sample-space event where a deterministic protocol errs on disjointness. -/
+def protocolErrorEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : Set (HardSample n) :=
+  {ω | p.run (X n ω) (Y n ω) ≠ disjointness n (X n ω) (Y n ω)}
+
+/-- The sample-space event where a deterministic protocol outputs `true`. -/
+def protocolAcceptEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : Set (HardSample n) :=
+  {ω | p.run (X n ω) (Y n ω) = true}
+
+/-- The sample-space event where a deterministic protocol outputs `false`. -/
+def protocolRejectEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : Set (HardSample n) :=
+  {ω | p.run (X n ω) (Y n ω) = false}
+
+/-- Distributional error under the hard input distribution is the probability of the named
+sample-space error event. -/
+theorem distributionalError_inputDist_eq_protocolErrorEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    p.distributionalError (inputDist n) (disjointness n) =
+      (volume (protocolErrorEvent n p)).toReal := by
+  rw [distributionalError_inputDist_eq_sample]
+  rfl
+
+/-- On disjoint samples, an error is exactly a `false` protocol output. -/
+theorem mem_protocolErrorEvent_of_mem_disjointEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
+    ω ∈ protocolErrorEvent n p ↔ ω ∈ protocolRejectEvent n p := by
+  have hdisj : Disjoint (X n ω) (Y n ω) := hω
+  simp [protocolErrorEvent, protocolRejectEvent, disjointness, hdisj]
+
+/-- On intersecting-at-the-special-coordinate samples, an error is exactly a `true` protocol
+output. -/
+theorem mem_protocolErrorEvent_of_mem_specialIntersect
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {ω : HardSample n} (hω : ω ∈ specialIntersect n) :
+    ω ∈ protocolErrorEvent n p ↔ ω ∈ protocolAcceptEvent n p := by
+  have hnot_disj : ¬Disjoint (X n ω) (Y n ω) := by
+    rw [disjoint_X_Y_iff]
+    exact not_not_intro hω
+  simp [protocolErrorEvent, protocolAcceptEvent, disjointness, hnot_disj]
+
 /-- The transcript random variable induced by a deterministic protocol on the hard sample space. -/
 noncomputable def message
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (ω : HardSample n) : p.Leaf :=
   p.transcript (input n ω)
 
-/-- The transcript entropy is at most the protocol length in bits. -/
-theorem entropy_message_le_complexity_mul_log_two
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    H[message n p ; (volume : Measure (HardSample n))] ≤
+/-- The `Z = (M, T, X_{<T}, Y_{>T})` variable used in the Pinsker step. -/
+noncomputable def zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (ω : HardSample n) :
+    p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)) :=
+  (message n p ω, specialCoordinate n ω, xBeforeSpecial n ω, yAfterSpecial n ω)
+
+/-- The hard-distribution measure conditioned on a `zVariable` fiber. -/
+noncomputable def zFiberMeasure
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    Measure (HardSample n) :=
+  (volume : Measure (HardSample n))[|zVariable n p ← z]
+
+/-- A positive-mass `zVariable` fiber gives a probability measure. -/
+theorem zFiberMeasure_isProbabilityMeasure
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    IsProbabilityMeasure (zFiberMeasure n p z) := by
+  rw [zFiberMeasure]
+  exact ProbabilityTheory.cond_isProbabilityMeasure hz
+
+/-- The conditional law of the special bit-pair on a positive-mass `zVariable` fiber. -/
+noncomputable def conditionalSpecialPairLaw
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    ProbabilityMeasure (Bool × Bool) :=
+  ProbabilityMeasure.map
+    (⟨zFiberMeasure n p z, zFiberMeasure_isProbabilityMeasure n p z hz⟩ :
+      ProbabilityMeasure (HardSample n))
+    (Measurable.of_discrete.aemeasurable (f := specialPair n))
+
+/-- A `z` value is good when the conditional law of `(X_T, Y_T)` given `z` is close to uniform. -/
+def goodZ
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ : ℝ)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : Prop :=
+  ∀ hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0,
+    tvDistance (conditionalSpecialPairLaw n p z hz) uniformBoolPair ≤ 2 * γ
+
+/-- The sample-space event that the sampled `zVariable` value is good. -/
+def goodZEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ : ℝ) : Set (HardSample n) :=
+  {ω | goodZ n p γ (zVariable n p ω)}
+
+/-- The transcript entropy is at most the protocol length in bits, for any ambient measure. -/
+theorem entropy_message_le_complexity_mul_log_two_of_measure
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (μ : Measure (HardSample n)) :
+    H[message n p ; μ] ≤
       p.complexity * Real.log 2 := by
   letI : Nonempty p.Leaf := ⟨p.transcript (∅, ∅)⟩
   exact ProbabilityTheory.entropy_le_nat_mul_log_two_of_card_le_two_pow
-    (message n p) (volume : Measure (HardSample n))
+    (message n p) μ
     (Deterministic.Protocol.card_leaf_le_two_pow_complexity p)
+
+/-- The transcript entropy under the hard distribution is at most the protocol length in bits. -/
+theorem entropy_message_le_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    H[message n p ; (volume : Measure (HardSample n))] ≤
+      p.complexity * Real.log 2 :=
+  entropy_message_le_complexity_mul_log_two_of_measure n p (volume : Measure (HardSample n))
+
+/-- The first information term in the special-coordinate information lower bound. -/
+noncomputable def firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialX n : message n p | firstConditioning n ; disjointCondMeasure n]
+
+/-- The second information term in the special-coordinate information lower bound. -/
+noncomputable def secondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialY n : message n p | secondConditioning n ; disjointCondMeasure n]
+
+/-- The total information revealed about the special coordinate under the disjoint conditioning. -/
+noncomputable def specialInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  firstInfoTerm n p + secondInfoTerm n p
+
+/-- The first special-coordinate information term is bounded by the transcript length. -/
+theorem firstInfoTerm_le_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n p ≤ p.complexity * Real.log 2 := by
+  rw [firstInfoTerm]
+  exact (ProbabilityTheory.condMutualInfo_le_entropy_right
+    (μ := disjointCondMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete).trans
+    (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
+
+/-- The first special-coordinate information term is nonnegative. -/
+theorem firstInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ firstInfoTerm n p := by
+  rw [firstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointCondMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- The second special-coordinate information term is bounded by the transcript length. -/
+theorem secondInfoTerm_le_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondInfoTerm n p ≤ p.complexity * Real.log 2 := by
+  rw [secondInfoTerm]
+  exact (ProbabilityTheory.condMutualInfo_le_entropy_right
+    (μ := disjointCondMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete).trans
+    (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
+
+/-- The second special-coordinate information term is nonnegative. -/
+theorem secondInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ secondInfoTerm n p := by
+  rw [secondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointCondMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- The total special-coordinate information is at most twice the transcript length in bits. -/
+theorem specialInfo_le_two_mul_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    specialInfo n p ≤ 2 * (p.complexity * Real.log 2) := by
+  rw [specialInfo]
+  linarith [firstInfoTerm_le_complexity_mul_log_two n p,
+    secondInfoTerm_le_complexity_mul_log_two n p]
+
+/-- The total special-coordinate information is nonnegative. -/
+theorem specialInfo_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ specialInfo n p := by
+  rw [specialInfo]
+  linarith [firstInfoTerm_nonneg n p, secondInfoTerm_nonneg n p]
 
 /-- The generated input belongs to the transcript leaf of any deterministic protocol. -/
 theorem input_mem_transcript
@@ -430,6 +702,14 @@ theorem run_eq_of_message_eq
     (h : message n p ω = message n p ω') :
     p.run (X n ω) (Y n ω) = p.run (X n ω') (Y n ω') := by
   exact Deterministic.Protocol.run_eq_of_transcript_eq p h
+
+/-- Equal `Z` values have equal transcript messages, hence equal protocol outputs. -/
+theorem run_eq_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {ω ω' : HardSample n}
+    (h : zVariable n p ω = zVariable n p ω') :
+    p.run (X n ω) (Y n ω) = p.run (X n ω') (Y n ω') := by
+  exact run_eq_of_message_eq n p (congrArg Prod.fst h)
 
 end HardSample
 
