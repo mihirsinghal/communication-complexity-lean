@@ -170,6 +170,13 @@ theorem abs_measureReal_sub_le_tvDistance
   rw [tvDistance]
   exact event_abs_measureReal_sub_le_half_totalVariation μ ν S
 
+/-- Total variation distance is nonnegative. -/
+theorem tvDistance_nonneg
+    {Ω : Type*} [MeasurableSpace Ω] (μ ν : ProbabilityMeasure Ω) :
+    0 ≤ tvDistance μ ν := by
+  rw [tvDistance]
+  positivity
+
 open Classical in
 private lemma sum_indicator_le_sum_posPart
     {α : Type*} [Fintype α] (a : α → ℝ) (S : Set α) :
@@ -335,6 +342,131 @@ theorem tvDistance_eq_half_sum
         ∑ ω : Ω, |(μ : Measure Ω).real ({ω} : Set Ω) -
           (ν : Measure Ω).real ({ω} : Set Ω)| := by
   rw [tvDistance_eq_tvDistanceSup, tvDistanceSup_eq_half_sum]
+
+/-- On `Bool`, total variation distance is the absolute singleton-mass gap at `true`. -/
+theorem tvDistance_bool_eq_abs_true
+    (μ ν : ProbabilityMeasure Bool) :
+    tvDistance μ ν =
+      |(μ : Measure Bool).real ({true} : Set Bool) -
+        (ν : Measure Bool).real ({true} : Set Bool)| := by
+  rw [tvDistance_eq_half_sum]
+  have hμ :
+      (μ : Measure Bool).real ({false} : Set Bool) =
+        1 - (μ : Measure Bool).real ({true} : Set Bool) := by
+    have hcompl :
+        ({false} : Set Bool) = ({true} : Set Bool)ᶜ := by
+      ext b
+      cases b <;> simp
+    rw [hcompl, measureReal_compl MeasurableSet.of_discrete, probReal_univ]
+  have hν :
+      (ν : Measure Bool).real ({false} : Set Bool) =
+        1 - (ν : Measure Bool).real ({true} : Set Bool) := by
+    have hcompl :
+        ({false} : Set Bool) = ({true} : Set Bool)ᶜ := by
+      ext b
+      cases b <;> simp
+    rw [hcompl, measureReal_compl MeasurableSet.of_discrete, probReal_univ]
+  rw [Fintype.sum_bool, hμ, hν]
+  ring_nf
+  rw [show (-(μ : Measure Bool).real ({true} : Set Bool) +
+        (ν : Measure Bool).real ({true} : Set Bool)) =
+      -((μ : Measure Bool).real ({true} : Set Bool) -
+        (ν : Measure Bool).real ({true} : Set Bool)) by ring]
+  rw [abs_neg]
+  ring
+
+/-- Product of two probability measures, bundled as a probability measure. -/
+noncomputable def probabilityMeasureProd
+    {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    (μ : ProbabilityMeasure α) (ν : ProbabilityMeasure β) :
+    ProbabilityMeasure (α × β) :=
+  ⟨(μ : Measure α).prod (ν : Measure β), inferInstance⟩
+
+open Classical in
+/-- The total variation distance between product distributions is bounded by the sum of the
+total variation distances between their marginals. -/
+theorem tvDistance_prod_le
+    {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    [FiniteMeasureSpace α] [FiniteMeasureSpace β]
+    (μ₁ ν₁ : ProbabilityMeasure α) (μ₂ ν₂ : ProbabilityMeasure β) :
+    tvDistance (probabilityMeasureProd μ₁ μ₂) (probabilityMeasureProd ν₁ ν₂) ≤
+      tvDistance μ₁ ν₁ + tvDistance μ₂ ν₂ := by
+  let a : α → ℝ := fun x => (μ₁ : Measure α).real ({x} : Set α)
+  let b : β → ℝ := fun y => (μ₂ : Measure β).real ({y} : Set β)
+  let c : α → ℝ := fun x => (ν₁ : Measure α).real ({x} : Set α)
+  let d : β → ℝ := fun y => (ν₂ : Measure β).real ({y} : Set β)
+  have hb_sum : ∑ y : β, b y = 1 := by
+    simpa [b] using
+      (FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons μ₂ Set.univ).symm
+  have hc_sum : ∑ x : α, c x = 1 := by
+    simpa [c] using
+      (FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons ν₁ Set.univ).symm
+  have hb_nonneg : ∀ y, 0 ≤ b y := fun _ => measureReal_nonneg
+  have hc_nonneg : ∀ x, 0 ≤ c x := fun _ => measureReal_nonneg
+  rw [tvDistance_eq_half_sum, tvDistance_eq_half_sum, tvDistance_eq_half_sum]
+  have hpoint (x : α) (y : β) :
+      |a x * b y - c x * d y| ≤ |a x - c x| * b y + c x * |b y - d y| := by
+    calc
+      |a x * b y - c x * d y| =
+          |(a x - c x) * b y + c x * (b y - d y)| := by
+        ring_nf
+      _ ≤ |(a x - c x) * b y| + |c x * (b y - d y)| := abs_add_le _ _
+      _ = |a x - c x| * b y + c x * |b y - d y| := by
+        rw [abs_mul, abs_mul, abs_of_nonneg (hb_nonneg y), abs_of_nonneg (hc_nonneg x)]
+  have hsum_le :
+      ∑ p : α × β, |a p.1 * b p.2 - c p.1 * d p.2| ≤
+        ∑ x : α, |a x - c x| + ∑ y : β, |b y - d y| := by
+    calc
+      ∑ p : α × β, |a p.1 * b p.2 - c p.1 * d p.2|
+          = ∑ x : α, ∑ y : β, |a x * b y - c x * d y| := by
+        rw [Fintype.sum_prod_type]
+      _ ≤ ∑ x : α, ∑ y : β, (|a x - c x| * b y + c x * |b y - d y|) := by
+        apply Finset.sum_le_sum
+        intro x _
+        apply Finset.sum_le_sum
+        intro y _
+        exact hpoint x y
+      _ = ∑ x : α, |a x - c x| + ∑ y : β, |b y - d y| := by
+        calc
+          ∑ x : α, ∑ y : β, (|a x - c x| * b y + c x * |b y - d y|)
+              = ∑ x : α,
+                  (|a x - c x| * ∑ y : β, b y +
+                    c x * ∑ y : β, |b y - d y|) := by
+            apply Finset.sum_congr rfl
+            intro x _
+            rw [Finset.sum_add_distrib]
+            rw [← Finset.mul_sum, ← Finset.mul_sum]
+          _ = ∑ x : α, (|a x - c x| + c x * ∑ y : β, |b y - d y|) := by
+            simp [hb_sum]
+          _ = ∑ x : α, |a x - c x| + ∑ y : β, |b y - d y| := by
+            rw [Finset.sum_add_distrib, ← Finset.sum_mul, hc_sum, one_mul]
+  convert (mul_le_mul_of_nonneg_left hsum_le (by norm_num : (0 : ℝ) ≤ 1 / 2)) using 1
+  · apply congrArg ((1 / 2 : ℝ) * ·)
+    apply Finset.sum_congr rfl
+    intro p _
+    rcases p with ⟨x, y⟩
+    have hμ_prod :
+        ((probabilityMeasureProd μ₁ μ₂ : ProbabilityMeasure (α × β)) :
+          Measure (α × β)).real ({(x, y)} : Set (α × β)) = a x * b y := by
+      change (((μ₁ : Measure α).prod (μ₂ : Measure β)) ({(x, y)} : Set (α × β))).toReal =
+        a x * b y
+      rw [show ({(x, y)} : Set (α × β)) = ({x} : Set α) ×ˢ ({y} : Set β) by
+        ext p
+        simp [Prod.ext_iff]]
+      rw [Measure.prod_prod, ENNReal.toReal_mul]
+      rfl
+    have hν_prod :
+        ((probabilityMeasureProd ν₁ ν₂ : ProbabilityMeasure (α × β)) :
+          Measure (α × β)).real ({(x, y)} : Set (α × β)) = c x * d y := by
+      change (((ν₁ : Measure α).prod (ν₂ : Measure β)) ({(x, y)} : Set (α × β))).toReal =
+        c x * d y
+      rw [show ({(x, y)} : Set (α × β)) = ({x} : Set α) ×ˢ ({y} : Set β) by
+        ext p
+        simp [Prod.ext_iff]]
+      rw [Measure.prod_prod, ENNReal.toReal_mul]
+      rfl
+    simp [hμ_prod, hν_prod]
+  · ring
 
 end TVDistance
 

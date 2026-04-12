@@ -9,6 +9,7 @@ import Mathlib.MeasureTheory.Measure.Real
 import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Set
+import Mathlib.Analysis.Convex.Integral
 
 open MeasureTheory
 
@@ -99,6 +100,52 @@ theorem FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons
   simp [T, Finset.sum_filter]
 
 open Classical in
+/-- On a finite measurable space, the real measure of a preimage event is the sum of the
+real masses of the fibers that imply the event. -/
+theorem FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+    {Ω α : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    [Fintype α] (μ : ProbabilityMeasure Ω) (Z : Ω → α) (P : α → Prop) :
+    (μ : Measure Ω).real {ω | P (Z ω)} =
+      ∑ z : α, if P z then (μ : Measure Ω).real (Z ⁻¹' {z}) else 0 := by
+  rw [FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons μ {ω | P (Z ω)}]
+  symm
+  calc
+    (∑ z : α, if P z then (μ : Measure Ω).real (Z ⁻¹' {z}) else 0)
+        = ∑ z : α, if P z then
+            ∑ ω : Ω, if Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0
+          else 0 := by
+        apply Finset.sum_congr rfl
+        intro z _
+        by_cases hz : P z
+        · simp [hz, FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons μ
+            (Z ⁻¹' {z} : Set Ω)]
+        · simp [hz]
+    _ = ∑ z : α, ∑ ω : Ω,
+          if P z ∧ Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+        apply Finset.sum_congr rfl
+        intro z _
+        by_cases hz : P z <;> simp [hz]
+    _ = ∑ ω : Ω, ∑ z : α,
+          if P z ∧ Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+        rw [Finset.sum_comm]
+    _ = ∑ ω : Ω, if P (Z ω) then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+        apply Finset.sum_congr rfl
+        intro ω _
+        by_cases hP : P (Z ω)
+        · rw [Finset.sum_eq_single (Z ω)]
+          · simp [hP]
+          · intro z _ hz_ne
+            simp [hz_ne.symm]
+          · intro hnot
+            simp at hnot
+        · rw [Finset.sum_eq_zero]
+          · simp [hP]
+          · intro z _
+            by_cases hz : P z ∧ Z ω = z
+            · exact (hP (by rw [hz.2]; exact hz.1)).elim
+            · simp [hz]
+
+open Classical in
 /-- On a finite measurable space, absolute continuity is equivalent to absolute continuity on
 singleton masses. -/
 theorem FiniteMeasureSpace.absolutelyContinuous_iff_forall_singletons
@@ -121,6 +168,26 @@ theorem FiniteMeasureSpace.absolutelyContinuous_iff_forall_singletons
       rw [Set.mem_singleton_iff] at hz
       subst z
       simpa [T] using hω) hνS)
+
+/-- For any probability measure on a finite measurable space, the square of an expectation is
+bounded by the expectation of the square. -/
+theorem FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq
+    {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    (μ : ProbabilityMeasure Ω) (f : Ω → ℝ) :
+    (∫ ω, f ω ∂(μ : Measure Ω))^2 ≤ ∫ ω, (f ω)^2 ∂(μ : Measure Ω) :=
+  ConvexOn.map_integral_le
+    (by simpa using (show ConvexOn ℝ Set.univ (fun x : ℝ => x ^ 2) from
+      Even.convexOn_pow (𝕜 := ℝ) (by decide : Even 2)))
+    (by simpa using
+      (show ContinuousOn (fun x : ℝ => x ^ 2) Set.univ from
+        (continuous_pow 2).continuousOn))
+    isClosed_univ
+    (Filter.Eventually.of_forall fun _ => Set.mem_univ _)
+    Integrable.of_finite
+    Integrable.of_finite
+
+instance finiteMeasureSpaceBool : FiniteMeasureSpace Bool :=
+  FiniteMeasureSpace.of Bool
 
 noncomputable instance finiteMeasureSpaceProd
     (Ω₁ Ω₂ : Type*) [MeasurableSpace Ω₁] [MeasurableSpace Ω₂]
@@ -257,6 +324,14 @@ theorem integral_eq_pmf_sum {Ω : Type*} [FiniteProbabilitySpace Ω]
     ∫ ω, f ω = ∑ ω : Ω, (toPMF Ω ω).toReal * f ω := by
   rw [MeasureTheory.integral_fintype f (Integrable.of_finite)]; congr 1
 
+/-- On a finite probability space, the square of an expectation is bounded by the expectation of
+the square. -/
+theorem sq_integral_le_integral_sq
+    {Ω : Type*} [FiniteProbabilitySpace Ω] (f : Ω → ℝ) :
+    (∫ ω, f ω)^2 ≤ ∫ ω, (f ω)^2 :=
+  FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq
+    (⟨(volume : Measure Ω), inferInstance⟩ : ProbabilityMeasure Ω) f
+
 /-- Integrating a function over a coordinate of a finite product space is the same as
 integrating it over the original finite probability space. -/
 theorem integral_comp_eval
@@ -330,6 +405,19 @@ theorem integral_le_of_le {Ω : Type*} [FiniteProbabilitySpace Ω]
         Finset.sum_le_sum (fun ω _ =>
           mul_le_mul_of_nonneg_left (hf ω) (pmf_toReal_nonneg (Ω := Ω) ω))
     _ = c := by rw [← Finset.sum_mul, pmf_toReal_sum_eq_one (Ω := Ω), one_mul]
+
+/-- Markov's inequality for nonnegative functions on a finite probability space. -/
+theorem measureReal_ge_le_integral_div
+    {Ω : Type*} [FiniteProbabilitySpace Ω]
+    {f : Ω → ℝ} {ε : ℝ} (hf_nonneg : ∀ ω, 0 ≤ f ω) (hε : 0 < ε) :
+    (volume {ω : Ω | ε ≤ f ω}).toReal ≤ (∫ ω, f ω) / ε := by
+  have hmarkov :
+      ε * (volume : Measure Ω).real {ω : Ω | ε ≤ f ω} ≤ ∫ ω, f ω :=
+    mul_meas_ge_le_integral_of_nonneg
+      (μ := (volume : Measure Ω)) (f := f)
+      (ae_of_all _ hf_nonneg) Integrable.of_finite ε
+  rw [le_div_iff₀ hε]
+  simpa [Measure.real, mul_comm] using hmarkov
 
 /-- If f(x) > c everywhere under a probability measure on a nonempty type,
 then ∫ f > c. -/

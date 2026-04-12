@@ -365,6 +365,17 @@ theorem specialZeroZero_subset_disjointEvent :
   rw [hω.1] at hbits
   simp at hbits
 
+/-- A prescribed special-coordinate bit pair is disjoint exactly when it is not `(true, true)`. -/
+theorem specialBitsEvent_subset_disjointEvent
+    (bx bY : Bool) (hbits : ¬(bx = true ∧ bY = true)) :
+    specialBitsEvent n bx bY ⊆ disjointEvent n := by
+  intro ω hω
+  rw [specialBitsEvent] at hω
+  change Disjoint (X n ω) (Y n ω)
+  rw [disjoint_X_Y_iff]
+  intro hspecial
+  exact hbits ⟨hω.1.symm.trans hspecial.1, hω.2.symm.trans hspecial.2⟩
+
 /-- The hard distribution generates disjoint inputs with probability `3/4`. -/
 theorem measureReal_disjointEvent :
     (volume (disjointEvent n)).toReal = (3 / 4 : ℝ) := by
@@ -393,6 +404,31 @@ noncomputable instance disjointCondMeasure_isProbabilityMeasure :
     IsProbabilityMeasure (disjointCondMeasure n) := by
   rw [disjointCondMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
+
+/-- Under the disjoint-conditioned distribution, each non-intersecting special-coordinate bit-pair
+has probability `1 / 3`. -/
+theorem disjointCondMeasure_measureReal_specialBitsEvent
+    (bx bY : Bool) (hbits : ¬(bx = true ∧ bY = true)) :
+    (disjointCondMeasure n).real (specialBitsEvent n bx bY) = (1 / 3 : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hinter :
+      disjointEvent n ∩ specialBitsEvent n bx bY = specialBitsEvent n bx bY := by
+    exact Set.inter_eq_right.2 (specialBitsEvent_subset_disjointEvent n bx bY hbits)
+  have hD : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  have hbits_measure :
+      (volume : Measure (HardSample n)).real (specialBitsEvent n bx bY) = (1 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_specialBitsEvent n bx bY
+  rw [hinter, hD, hbits_measure]
+  norm_num
+
+/-- Under the disjoint-conditioned distribution, `(X_T, Y_T) = (false, false)` has probability
+`1 / 3`. -/
+theorem disjointCondMeasure_measureReal_specialZeroZero :
+    (disjointCondMeasure n).real (specialZeroZero n) = (1 / 3 : ℝ) := by
+  rw [specialZeroZero]
+  exact disjointCondMeasure_measureReal_specialBitsEvent n false false (by simp)
 
 /-- The special coordinate selected by the hard distribution. -/
 def specialCoordinate (ω : HardSample n) : Fin n :=
@@ -443,8 +479,39 @@ def secondConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n
 def specialPair (ω : HardSample n) : Bool × Bool :=
   (specialX n ω, specialY n ω)
 
+/-- The special-pair singleton event is the corresponding prescribed-bit event. -/
+theorem specialPair_preimage_singleton (b : Bool × Bool) :
+    (specialPair n) ⁻¹' {b} = specialBitsEvent n b.1 b.2 := by
+  ext ω
+  rcases b with ⟨bx, bY⟩
+  simp [specialPair, specialX, specialY, specialBitsEvent]
+
 instance boolPairFiniteMeasureSpace : FiniteMeasureSpace (Bool × Bool) :=
   FiniteMeasureSpace.of (Bool × Bool)
+
+/-- The uniform law on one bit. -/
+noncomputable def uniformBool : ProbabilityMeasure Bool :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- Each bit has mass `1/2` under the uniform law on one bit. -/
+theorem uniformBool_singleton (b : Bool) :
+    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b} =
+      (1 / 2 : ℝ) := by
+  rw [uniformBool]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure Bool).real {b} = (1 / 2 : ℝ)
+  rw [Measure.real, ProbabilityTheory.uniformOn_univ]
+  norm_num
+
+/-- The uniform law on one bit has full support. -/
+theorem uniformBool_toPMF_ne_zero (b : Bool) :
+    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).toPMF b ≠ 0 := by
+  intro hb
+  have hreal :
+      (((uniformBool : ProbabilityMeasure Bool) : Measure Bool).toPMF b).toReal =
+        (1 / 2 : ℝ) := by
+    simpa [Measure.toPMF_apply, Measure.real] using uniformBool_singleton b
+  rw [hb] at hreal
+  norm_num at hreal
 
 /-- The uniform law on a pair of bits. -/
 noncomputable def uniformBoolPair : ProbabilityMeasure (Bool × Bool) :=
@@ -458,6 +525,67 @@ theorem uniformBoolPair_singleton (b : Bool × Bool) :
   change (ProbabilityTheory.uniformOn Set.univ : Measure (Bool × Bool)).real {b} = (1 / 4 : ℝ)
   rw [Measure.real, ProbabilityTheory.uniformOn_univ]
   norm_num [Fintype.card_prod]
+
+/-- The uniform law on two bits is the product of the one-bit uniform laws. -/
+theorem uniformBoolPair_eq_prod :
+    uniformBoolPair =
+      TVDistance.probabilityMeasureProd uniformBool uniformBool := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [uniformBoolPair_singleton]
+  rcases b with ⟨bx, bY⟩
+  rw [TVDistance.probabilityMeasureProd]
+  change (1 / 4 : ℝ) =
+    (((uniformBool : ProbabilityMeasure Bool) : Measure Bool).prod
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) ({(bx, bY)})).toReal
+  rw [show ({(bx, bY)} : Set (Bool × Bool)) = ({bx} : Set Bool) ×ˢ ({bY} : Set Bool) by
+    ext p
+    simp [Prod.ext_iff]]
+  rw [Measure.prod_prod, ENNReal.toReal_mul]
+  have hx :
+      (((uniformBool : ProbabilityMeasure Bool) : Measure Bool) ({bx} : Set Bool)).toReal =
+        (1 / 2 : ℝ) := by
+    simpa [Measure.real] using uniformBool_singleton bx
+  have hy :
+      (((uniformBool : ProbabilityMeasure Bool) : Measure Bool) ({bY} : Set Bool)).toReal =
+        (1 / 2 : ℝ) := by
+    simpa [Measure.real] using uniformBool_singleton bY
+  rw [hx, hy]
+  norm_num
+
+/-- The law of the special bit-pair after conditioning on disjointness. -/
+noncomputable def disjointSpecialPairLaw : ProbabilityMeasure (Bool × Bool) :=
+  ProbabilityMeasure.map
+    (⟨disjointCondMeasure n, inferInstance⟩ : ProbabilityMeasure (HardSample n))
+    (Measurable.of_discrete.aemeasurable (f := specialPair n))
+
+/-- Under the disjoint conditioning, the special bit-pair is uniform over the three
+non-intersecting pairs. -/
+theorem disjointSpecialPairLaw_singleton (b : Bool × Bool) :
+    ((disjointSpecialPairLaw n : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} =
+      if b = (true, true) then 0 else (1 / 3 : ℝ) := by
+  rw [disjointSpecialPairLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  change (disjointCondMeasure n).real ((specialPair n) ⁻¹' {b}) =
+    if b = (true, true) then 0 else (1 / 3 : ℝ)
+  rw [specialPair_preimage_singleton]
+  by_cases hb : b = (true, true)
+  · subst hb
+    rw [disjointCondMeasure]
+    rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+    have hnone : disjointEvent n ∩ specialBitsEvent n true true = (∅ : Set (HardSample n)) := by
+      ext ω
+      simp [disjointEvent, specialBitsEvent, disjoint_X_Y_iff]
+    rw [hnone]
+    simp
+  · have hbits : ¬(b.1 = true ∧ b.2 = true) := by
+      intro h
+      exact hb (by cases b; simp_all)
+    rw [if_neg hb]
+    exact disjointCondMeasure_measureReal_specialBitsEvent n b.1 b.2 hbits
 
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
@@ -581,6 +709,28 @@ noncomputable def conditionalSpecialPairLaw
       ProbabilityMeasure (HardSample n))
     (Measurable.of_discrete.aemeasurable (f := specialPair n))
 
+/-- The conditional law of Alice's special bit on a positive-mass `zVariable` fiber. -/
+noncomputable def conditionalSpecialXLaw
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    ProbabilityMeasure Bool :=
+  ProbabilityMeasure.map
+    (⟨zFiberMeasure n p z, zFiberMeasure_isProbabilityMeasure n p z hz⟩ :
+      ProbabilityMeasure (HardSample n))
+    (Measurable.of_discrete.aemeasurable (f := specialX n))
+
+/-- The conditional law of Bob's special bit on a positive-mass `zVariable` fiber. -/
+noncomputable def conditionalSpecialYLaw
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    ProbabilityMeasure Bool :=
+  ProbabilityMeasure.map
+    (⟨zFiberMeasure n p z, zFiberMeasure_isProbabilityMeasure n p z hz⟩ :
+      ProbabilityMeasure (HardSample n))
+    (Measurable.of_discrete.aemeasurable (f := specialY n))
+
 /-- A `z` value is good when the conditional law of `(X_T, Y_T)` given `z` is close to uniform. -/
 def goodZ
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -589,11 +739,273 @@ def goodZ
   ∀ hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0,
     tvDistance (conditionalSpecialPairLaw n p z hz) uniformBoolPair ≤ 2 * γ
 
+open Classical in
+/-- The TV distance of the special-pair law on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
+noncomputable def zDistance
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
+  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
+    tvDistance (conditionalSpecialPairLaw n p z hz) uniformBoolPair
+  else
+    0
+
+open Classical in
+/-- The TV distance between Alice's conditional special-bit law and a uniform bit, set to `0` on
+zero-mass fibers. -/
+noncomputable def xDistance
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
+  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
+    tvDistance (conditionalSpecialXLaw n p z hz) uniformBool
+  else
+    0
+
+open Classical in
+/-- The TV distance between Bob's conditional special-bit law and a uniform bit, set to `0` on
+zero-mass fibers. -/
+noncomputable def yDistance
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
+  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
+    tvDistance (conditionalSpecialYLaw n p z hz) uniformBool
+  else
+    0
+
+open Classical in
+/-- If the conditional special-pair law on a fiber factors into the product of its one-bit
+conditional laws, then the pair distance is bounded by the sum of the two marginal distances. -/
+theorem zDistance_le_xDistance_add_yDistance_of_conditionalSpecialPairLaw_eq_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hprod : ∀ hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0,
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz)) :
+    zDistance n p z ≤ xDistance n p z + yDistance n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [zDistance, xDistance, yDistance, hz, hprod hz, uniformBoolPair_eq_prod] using
+      TVDistance.tvDistance_prod_le
+        (conditionalSpecialXLaw n p z hz) uniformBool
+        (conditionalSpecialYLaw n p z hz) uniformBool
+  · simp [zDistance, xDistance, yDistance, hz]
+
+/-- Averaged version of the product-law bridge for `zDistance`. -/
+theorem integral_zDistance_le_integral_xDistance_add_yDistance_of_conditionalSpecialPairLaw_eq_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz)) :
+    (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ≤
+      ∫ ω, xDistance n p (zVariable n p ω) + yDistance n p (zVariable n p ω)
+        ∂(disjointCondMeasure n) := by
+  apply integral_mono Integrable.of_finite Integrable.of_finite
+  intro ω
+  exact zDistance_le_xDistance_add_yDistance_of_conditionalSpecialPairLaw_eq_prod n p
+    (zVariable n p ω) (hprod (zVariable n p ω))
+
+/-- Separated-integral version of the averaged product-law bridge. -/
+theorem integral_zDistance_le_integral_xDistance_add_integral_yDistance_of_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz)) :
+    (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ≤
+      (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+        ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) := by
+  have h :=
+    integral_zDistance_le_integral_xDistance_add_yDistance_of_conditionalSpecialPairLaw_eq_prod
+      n p hprod
+  rw [integral_add Integrable.of_finite Integrable.of_finite] at h
+  exact h
+
+open Classical in
+/-- A bound on `zDistance` gives the quantified `goodZ` predicate. -/
+theorem goodZ_of_zDistance_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (h : zDistance n p z ≤ 2 * γ) :
+    goodZ n p γ z := by
+  intro hz
+  simpa [zDistance, hz] using h
+
+open Classical in
+/-- Conversely, a good `z` bounds `zDistance` when the threshold is nonnegative. -/
+theorem zDistance_le_of_goodZ
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hγ : 0 ≤ γ)
+    (hgood : goodZ n p γ z) :
+    zDistance n p z ≤ 2 * γ := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [zDistance, hz] using hgood hz
+  · simp [zDistance, hz, hγ]
+
+open Classical in
+/-- The `Z`-fiber TV distance is nonnegative. -/
+theorem zDistance_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    0 ≤ zDistance n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [zDistance, hz] using
+      TVDistance.tvDistance_nonneg (conditionalSpecialPairLaw n p z hz) uniformBoolPair
+  · simp [zDistance, hz]
+
+open Classical in
+/-- Alice's one-bit fiber distance is nonnegative. -/
+theorem xDistance_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    0 ≤ xDistance n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [xDistance, hz] using
+      TVDistance.tvDistance_nonneg (conditionalSpecialXLaw n p z hz) uniformBool
+  · simp [xDistance, hz]
+
+open Classical in
+/-- Bob's one-bit fiber distance is nonnegative. -/
+theorem yDistance_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    0 ≤ yDistance n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [yDistance, hz] using
+      TVDistance.tvDistance_nonneg (conditionalSpecialYLaw n p z hz) uniformBool
+  · simp [yDistance, hz]
+
+open Classical in
+/-- On a positive `Z` fiber, Alice's one-bit distance is the absolute deviation of
+`Pr[X_T = true | Z=z]` from `1 / 2`. -/
+theorem xDistance_eq_abs_specialX_true_sub_half
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    xDistance n p z =
+      |(zFiberMeasure n p z).real ((specialX n) ⁻¹' {true}) - (1 / 2 : ℝ)| := by
+  rw [xDistance, dif_pos hz]
+  rw [TVDistance.tvDistance_bool_eq_abs_true]
+  rw [conditionalSpecialXLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  rw [uniformBool_singleton]
+  rfl
+
+open Classical in
+/-- On a positive `Z` fiber, Bob's one-bit distance is the absolute deviation of
+`Pr[Y_T = true | Z=z]` from `1 / 2`. -/
+theorem yDistance_eq_abs_specialY_true_sub_half
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    yDistance n p z =
+      |(zFiberMeasure n p z).real ((specialY n) ⁻¹' {true}) - (1 / 2 : ℝ)| := by
+  rw [yDistance, dif_pos hz]
+  rw [TVDistance.tvDistance_bool_eq_abs_true]
+  rw [conditionalSpecialYLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  rw [uniformBool_singleton]
+  rfl
+
+open Classical in
+/-- Pinsker for Alice's one-bit fiber distance against the uniform bit. -/
+theorem two_mul_xDistance_sq_le_toReal_klDiv_uniformBool
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    2 * xDistance n p z ^ 2 ≤
+      (InformationTheory.klDiv
+        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [xDistance, dif_pos hz]
+  exact two_mul_tvDistance_sq_le_toReal_klDiv
+    (conditionalSpecialXLaw n p z hz) uniformBool
+    (FiniteMeasureSpace.probabilityMeasure_klDiv_ne_top_of_forall_toPMF_ne_zero
+      (conditionalSpecialXLaw n p z hz) uniformBool uniformBool_toPMF_ne_zero)
+
+open Classical in
+/-- Pinsker for Bob's one-bit fiber distance against the uniform bit. -/
+theorem two_mul_yDistance_sq_le_toReal_klDiv_uniformBool
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    2 * yDistance n p z ^ 2 ≤
+      (InformationTheory.klDiv
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [yDistance, dif_pos hz]
+  exact two_mul_tvDistance_sq_le_toReal_klDiv
+    (conditionalSpecialYLaw n p z hz) uniformBool
+    (FiniteMeasureSpace.probabilityMeasure_klDiv_ne_top_of_forall_toPMF_ne_zero
+      (conditionalSpecialYLaw n p z hz) uniformBool uniformBool_toPMF_ne_zero)
+
 /-- The sample-space event that the sampled `zVariable` value is good. -/
 def goodZEvent
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (γ : ℝ) : Set (HardSample n) :=
   {ω | goodZ n p γ (zVariable n p ω)}
+
+/-- For nonnegative thresholds, `goodZEvent` is the event that the fiber TV distance is below the
+chosen cutoff. -/
+theorem goodZEvent_eq_zDistance_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ} (hγ : 0 ≤ γ) :
+    goodZEvent n p γ = {ω | zDistance n p (zVariable n p ω) ≤ 2 * γ} := by
+  ext ω
+  constructor
+  · intro hω
+    exact zDistance_le_of_goodZ n p hγ hω
+  · intro hω
+    exact goodZ_of_zDistance_le n p hω
+
+/-- Markov's inequality converts an average bound on the `Z`-fiber TV distance into a lower bound
+on the probability of good `Z` values. -/
+theorem disjointCondMeasure_goodZEvent_lower_bound_of_average_zDistance_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ β : ℝ}
+    (hγ : 0 < γ)
+    (havg :
+      ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) ≤ β) :
+    1 - β / (2 * γ) ≤ (disjointCondMeasure n).real (goodZEvent n p γ) := by
+  let f : HardSample n → ℝ := fun ω => zDistance n p (zVariable n p ω)
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  have hmarkov :
+      (2 * γ) * μ.real {ω : HardSample n | 2 * γ ≤ f ω} ≤ ∫ ω, f ω ∂μ :=
+    mul_meas_ge_le_integral_of_nonneg
+      (μ := μ) (f := f)
+      (ae_of_all _ fun ω => zDistance_nonneg n p (zVariable n p ω))
+      Integrable.of_finite (2 * γ)
+  have hbad_le_average :
+      μ.real {ω : HardSample n | 2 * γ ≤ f ω} ≤ β / (2 * γ) := by
+    have hden : 0 < 2 * γ := by positivity
+    have hmarkov' :
+        μ.real {ω : HardSample n | 2 * γ ≤ f ω} * (2 * γ) ≤ ∫ ω, f ω ∂μ := by
+      simpa [mul_comm] using hmarkov
+    rw [le_div_iff₀ hden]
+    exact hmarkov'.trans havg
+  have hG : goodZEvent n p γ = {ω : HardSample n | f ω ≤ 2 * γ} := by
+    simpa [f] using goodZEvent_eq_zDistance_le n p hγ.le
+  have hcompl_le_bad :
+      μ.real (goodZEvent n p γ)ᶜ ≤ μ.real {ω : HardSample n | 2 * γ ≤ f ω} := by
+    exact measureReal_mono (by
+      intro ω hω
+      have hnot : ¬ f ω ≤ 2 * γ := by
+        simpa [hG] using hω
+      exact le_of_lt (lt_of_not_ge hnot)) (measure_ne_top _ _)
+  have hcompl_real :
+      μ.real (goodZEvent n p γ)ᶜ = 1 - μ.real (goodZEvent n p γ) := by
+    rw [measureReal_compl MeasurableSet.of_discrete, probReal_univ]
+  calc
+    1 - β / (2 * γ) ≤ 1 - μ.real (goodZEvent n p γ)ᶜ := by
+      linarith [hcompl_le_bad.trans hbad_le_average]
+    _ = μ.real (goodZEvent n p γ) := by
+      linarith
 
 /-- On a positive-mass `Z=z` fiber, the conditional `specialPair` singleton mass is the
 corresponding preimage probability under the fiber measure. -/
@@ -609,6 +1021,128 @@ theorem conditionalSpecialPairLaw_singleton
   rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
   rfl
+
+/-- Conditional probabilities under a `Z=z` fiber are computed by intersecting with the fiber and
+dividing by its mass. -/
+theorem zFiberMeasure_real_apply
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (S : Set (HardSample n)) :
+    (zFiberMeasure n p z).real S =
+      ((volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}))⁻¹ *
+        (volume : Measure (HardSample n)).real (((zVariable n p) ⁻¹' {z}) ∩ S) := by
+  rw [zFiberMeasure]
+  exact ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete _ S
+
+/-- On a positive-mass `Z=z` fiber, Alice's conditional special-bit singleton mass is the
+corresponding preimage probability under the fiber measure. -/
+theorem conditionalSpecialXLaw_singleton
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (b : Bool) :
+    ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool).real {b} =
+      (zFiberMeasure n p z).real ((specialX n) ⁻¹' {b}) := by
+  rw [conditionalSpecialXLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rfl
+
+/-- On a positive-mass `Z=z` fiber, Bob's conditional special-bit singleton mass is the
+corresponding preimage probability under the fiber measure. -/
+theorem conditionalSpecialYLaw_singleton
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (b : Bool) :
+    ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool).real {b} =
+      (zFiberMeasure n p z).real ((specialY n) ⁻¹' {b}) := by
+  rw [conditionalSpecialYLaw]
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rfl
+
+/-- To prove the conditional special-pair law factors, it suffices to prove singleton
+factorization for the four bit-pairs. -/
+theorem conditionalSpecialPairLaw_eq_prod_of_singleton_factorization
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hfactor : ∀ b : Bool × Bool,
+      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+          Measure (Bool × Bool)).real {b} =
+        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.1} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.2}) :
+    conditionalSpecialPairLaw n p z hz =
+      TVDistance.probabilityMeasureProd
+        (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz) := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [hfactor b]
+  rcases b with ⟨bx, bY⟩
+  rw [TVDistance.probabilityMeasureProd]
+  change
+    ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {bx} *
+      ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {bY} =
+      (((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).prod
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool) ({(bx, bY)})).toReal
+  rw [show ({(bx, bY)} : Set (Bool × Bool)) = ({bx} : Set Bool) ×ˢ ({bY} : Set Bool) by
+    ext b
+    simp [Prod.ext_iff]]
+  rw [Measure.prod_prod, ENNReal.toReal_mul]
+  rfl
+
+/-- Singleton factorization can be proved directly on the underlying `Z=z` fiber measure. -/
+theorem conditionalSpecialPairLaw_eq_prod_of_zFiberMeasure_factorization
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hfactor : ∀ b : Bool × Bool,
+      (zFiberMeasure n p z).real ((specialPair n) ⁻¹' {b}) =
+        (zFiberMeasure n p z).real ((specialX n) ⁻¹' {b.1}) *
+        (zFiberMeasure n p z).real ((specialY n) ⁻¹' {b.2})) :
+    conditionalSpecialPairLaw n p z hz =
+      TVDistance.probabilityMeasureProd
+        (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz) := by
+  refine conditionalSpecialPairLaw_eq_prod_of_singleton_factorization n p z hz ?_
+  intro b
+  rw [conditionalSpecialPairLaw_singleton, conditionalSpecialXLaw_singleton,
+    conditionalSpecialYLaw_singleton]
+  exact hfactor b
+
+/-- A cross-multiplied version of singleton factorization, phrased using the original hard
+distribution instead of conditional fiber probabilities. -/
+theorem conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hfactor : ∀ b : Bool × Bool,
+      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
+        (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2}))) :
+    conditionalSpecialPairLaw n p z hz =
+      TVDistance.probabilityMeasureProd
+        (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz) := by
+  refine conditionalSpecialPairLaw_eq_prod_of_zFiberMeasure_factorization n p z hz ?_
+  intro b
+  rw [zFiberMeasure_real_apply, zFiberMeasure_real_apply, zFiberMeasure_real_apply]
+  have hm :
+      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) ≠ 0 := by
+    rwa [MeasureTheory.measureReal_ne_zero_iff]
+  have h := hfactor b
+  field_simp [hm]
+  exact h
 
 /-- Intersecting with the defining `Z=z` fiber does not change probabilities under the
 corresponding fiber measure. -/
@@ -659,6 +1193,21 @@ theorem protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real
         (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
           (zFiberMeasure n p z).real (protocolErrorEvent n p) :=
   measureReal_eq_sum_zFiberMeasure_real n p (protocolErrorEvent n p)
+
+open Classical in
+/-- The mass of `goodZEvent` is the sum of the masses of the good `zVariable` fibers. -/
+theorem goodZEvent_measureReal_eq_sum_zFibers
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ : ℝ) :
+    (volume : Measure (HardSample n)).real (goodZEvent n p γ) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        if goodZ n p γ z then
+          (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z})
+        else 0 := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨(volume : Measure (HardSample n)), inferInstance⟩
+  simpa [goodZEvent, μ] using
+    (FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      μ (zVariable n p) (goodZ n p γ))
 
 /-- A good `z` gives the expected singleton-mass estimate for the conditional special-pair law. -/
 theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
@@ -794,6 +1343,242 @@ theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent_of_mem_goodZEven
       (zFiberMeasure n p (zVariable n p ω)).real (protocolErrorEvent n p) :=
   quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent_of_disjointCondMeasure n p hgood hz
 
+/-- Averaging the good-fiber error lower bound over all good `Z` fibers gives an unconditional
+error lower bound. -/
+theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ : ℝ) :
+    (volume : Measure (HardSample n)).real (goodZEvent n p γ) *
+        ((1 / 4 : ℝ) - 2 * γ) ≤
+      (volume : Measure (HardSample n)).real (protocolErrorEvent n p) := by
+  rw [protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real]
+  rw [goodZEvent_measureReal_eq_sum_zFibers]
+  rw [Finset.sum_mul]
+  apply Finset.sum_le_sum
+  intro z _
+  by_cases hgood : goodZ n p γ z
+  · by_cases hz0 : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) = 0
+    · have hz0_real :
+          (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) = 0 := by
+        simp [Measure.real, hz0]
+      simp [hgood, hz0_real]
+    · have hfiber_nonneg :
+          0 ≤ (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) :=
+        measureReal_nonneg
+      have herror :
+          (1 / 4 : ℝ) - 2 * γ ≤
+            (zFiberMeasure n p z).real (protocolErrorEvent n p) := by
+        rcases nonempty_of_measure_ne_zero hz0 with ⟨ω, hωmem⟩
+        have hω : zVariable n p ω = z := by
+          simpa using hωmem
+        have hzω :
+            (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {zVariable n p ω}) ≠ 0 := by
+          simpa [hω] using hz0
+        have hbound :=
+          quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent n p
+            (by simpa [hω] using hgood) hzω
+        simpa [hω] using hbound
+      have hmul := mul_le_mul_of_nonneg_left herror hfiber_nonneg
+      simpa [hgood] using hmul
+  · have hmul_nonneg :
+        0 ≤ (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+            (zFiberMeasure n p z).real (protocolErrorEvent n p) :=
+      mul_nonneg measureReal_nonneg measureReal_nonneg
+    simpa [hgood] using hmul_nonneg
+
+/-- The good-`Z` mass lower bound, translated from sample-space error to distributional error for
+the hard input distribution. -/
+theorem goodZEvent_mul_quarter_sub_two_mul_le_distributionalError
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ : ℝ) :
+    (volume : Measure (HardSample n)).real (goodZEvent n p γ) *
+        ((1 / 4 : ℝ) - 2 * γ) ≤
+      p.distributionalError (inputDist n) (disjointness n) := by
+  rw [distributionalError_inputDist_eq_protocolErrorEvent]
+  exact goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent n p γ
+
+/-- A future lower bound on the probability of good `Z` values immediately gives a lower bound on
+the protocol's distributional error. -/
+theorem goodZ_probability_lower_bound_mul_quarter_sub_two_mul_le_distributionalError
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ η : ℝ)
+    (hgood : η ≤ (volume : Measure (HardSample n)).real (goodZEvent n p γ))
+    (hquarter : 0 ≤ (1 / 4 : ℝ) - 2 * γ) :
+    η * ((1 / 4 : ℝ) - 2 * γ) ≤
+      p.distributionalError (inputDist n) (disjointness n) := by
+  exact (mul_le_mul_of_nonneg_right hgood hquarter).trans
+    (goodZEvent_mul_quarter_sub_two_mul_le_distributionalError n p γ)
+
+/-- A good-`Z` probability lower bound under the disjoint-conditioned distribution gives an
+unconditional good-`Z` probability lower bound, losing the hard distribution's `3 / 4` mass on
+disjoint inputs. -/
+theorem disjointCondMeasure_goodZEvent_mul_three_quarters_le_goodZEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ η : ℝ)
+    (hgood : η ≤ (disjointCondMeasure n).real (goodZEvent n p γ)) :
+    η * (3 / 4 : ℝ) ≤
+      (volume : Measure (HardSample n)).real (goodZEvent n p γ) := by
+  have hcond_inter :
+      (disjointCondMeasure n).real (goodZEvent n p γ) *
+          (volume : Measure (HardSample n)).real (disjointEvent n) =
+        (volume : Measure (HardSample n)).real
+          ((disjointEvent n) ∩ (goodZEvent n p γ)) := by
+    rw [disjointCondMeasure]
+    rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+    have hD : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+      simpa [Measure.real] using measureReal_disjointEvent n
+    rw [hD]
+    ring
+  have hmul :
+      η * (volume : Measure (HardSample n)).real (disjointEvent n) ≤
+        (disjointCondMeasure n).real (goodZEvent n p γ) *
+          (volume : Measure (HardSample n)).real (disjointEvent n) :=
+    mul_le_mul_of_nonneg_right hgood measureReal_nonneg
+  rw [hcond_inter] at hmul
+  have hD : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  rw [hD] at hmul
+  exact hmul.trans (measureReal_mono Set.inter_subset_right)
+
+/-- Combined form: a lower bound on good `Z` under the disjoint-conditioned distribution gives a
+distributional-error lower bound under the original hard input distribution. -/
+theorem disjointCondMeasure_goodZEvent_lower_bound_mul_error_per_goodZ_le_distributionalError
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (γ η : ℝ)
+    (hgood : η ≤ (disjointCondMeasure n).real (goodZEvent n p γ))
+    (hquarter : 0 ≤ (1 / 4 : ℝ) - 2 * γ) :
+    (η * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) ≤
+      p.distributionalError (inputDist n) (disjointness n) := by
+  exact goodZ_probability_lower_bound_mul_quarter_sub_two_mul_le_distributionalError
+    n p γ (η * (3 / 4 : ℝ))
+    (disjointCondMeasure_goodZEvent_mul_three_quarters_le_goodZEvent n p γ η hgood)
+    hquarter
+
+/-- Combined form: an average bound on the `Z`-fiber TV distance under the disjoint-conditioned
+measure gives a distributional-error lower bound. -/
+theorem average_zDistance_lower_bound_mul_error_per_goodZ_le_distributionalError
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ β : ℝ}
+    (hγ : 0 < γ)
+    (havg :
+      ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) ≤ β)
+    (hquarter : 0 ≤ (1 / 4 : ℝ) - 2 * γ) :
+    ((1 - β / (2 * γ)) * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) ≤
+      p.distributionalError (inputDist n) (disjointness n) := by
+  exact disjointCondMeasure_goodZEvent_lower_bound_mul_error_per_goodZ_le_distributionalError
+    n p γ (1 - β / (2 * γ))
+    (disjointCondMeasure_goodZEvent_lower_bound_of_average_zDistance_le n p hγ havg)
+    hquarter
+
+/-- If the information parameter is at most `1 / 16`, the good-fiber lower bound already forces
+error strictly larger than `1 / 32`. -/
+theorem disjointness_constant_error_expression_gt_one_thirtytwo
+    {γ : ℝ} (hγ_nonneg : 0 ≤ γ) (hγ_le : γ ≤ 1 / 16) :
+    ((1 - 4 * γ ^ 4) * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) > 1 / 32 := by
+  have hpow_le : γ ^ 4 ≤ (1 / 16 : ℝ) ^ 4 :=
+    pow_le_pow_left₀ hγ_nonneg hγ_le 4
+  have hpow : 4 * γ ^ 4 ≤ (1 / 2 : ℝ) := by
+    norm_num at hpow_le ⊢
+    linarith
+  have hgood_factor : (1 / 2 : ℝ) ≤ 1 - 4 * γ ^ 4 := by
+    linarith
+  have herror_factor : (1 / 8 : ℝ) ≤ (1 / 4 : ℝ) - 2 * γ := by
+    linarith
+  have hgood_mul :
+      (1 / 2 : ℝ) * (3 / 4 : ℝ) ≤ (1 - 4 * γ ^ 4) * (3 / 4 : ℝ) :=
+    mul_le_mul_of_nonneg_right hgood_factor (by norm_num)
+  have hgood_mul_nonneg : 0 ≤ (1 - 4 * γ ^ 4) * (3 / 4 : ℝ) := by
+    exact (show (0 : ℝ) ≤ (1 / 2) * (3 / 4) by norm_num).trans hgood_mul
+  have hmain :
+      ((1 / 2 : ℝ) * (3 / 4 : ℝ)) * (1 / 8 : ℝ) ≤
+        ((1 - 4 * γ ^ 4) * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) :=
+    mul_le_mul hgood_mul herror_factor (by norm_num) hgood_mul_nonneg
+  norm_num at hmain ⊢
+  linarith
+
+/-- A variant of the constant calculation for the Markov/Pinsker form where the average
+`zDistance` bound is `γ^2`. -/
+theorem disjointness_average_zDistance_error_expression_gt_one_thirtytwo
+    {γ : ℝ} (hγ_pos : 0 < γ) (hγ_le : γ ≤ 1 / 16) :
+    ((1 - γ ^ 2 / (2 * γ)) * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) >
+  1 / 32 := by
+  have hdiv : γ ^ 2 / (2 * γ) = γ / 2 := by
+    field_simp [hγ_pos.ne']
+  have hgood_factor : (1 / 2 : ℝ) ≤ 1 - γ ^ 2 / (2 * γ) := by
+    rw [hdiv]
+    linarith
+  have herror_factor : (1 / 8 : ℝ) ≤ (1 / 4 : ℝ) - 2 * γ := by
+    linarith
+  have hgood_mul :
+      (1 / 2 : ℝ) * (3 / 4 : ℝ) ≤ (1 - γ ^ 2 / (2 * γ)) * (3 / 4 : ℝ) :=
+    mul_le_mul_of_nonneg_right hgood_factor (by norm_num)
+  have hgood_mul_nonneg : 0 ≤ (1 - γ ^ 2 / (2 * γ)) * (3 / 4 : ℝ) := by
+    exact (show (0 : ℝ) ≤ (1 / 2) * (3 / 4) by norm_num).trans hgood_mul
+  have hmain :
+      ((1 / 2 : ℝ) * (3 / 4 : ℝ)) * (1 / 8 : ℝ) ≤
+        ((1 - γ ^ 2 / (2 * γ)) * (3 / 4 : ℝ)) * ((1 / 4 : ℝ) - 2 * γ) :=
+    mul_le_mul hgood_mul herror_factor (by norm_num) hgood_mul_nonneg
+  norm_num at hmain ⊢
+  linarith
+
+/-- Once Claim 6.21 supplies the good-`Z` probability lower bound, error at most `1 / 32`
+forces the information parameter to be bounded away from zero. -/
+theorem one_sixteenth_le_gamma_of_goodZ_lower_bound_of_error_le_one_thirtytwo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    (hγ_nonneg : 0 ≤ γ)
+    (hgood : 1 - 4 * γ ^ 4 ≤ (disjointCondMeasure n).real (goodZEvent n p γ))
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    (1 / 16 : ℝ) ≤ γ := by
+  by_contra hnot
+  have hγ_le : γ ≤ 1 / 16 := (lt_of_not_ge hnot).le
+  have hquarter : 0 ≤ (1 / 4 : ℝ) - 2 * γ := by
+    linarith
+  have hlower :=
+    disjointCondMeasure_goodZEvent_lower_bound_mul_error_per_goodZ_le_distributionalError
+      n p γ (1 - 4 * γ ^ 4) hgood hquarter
+  have hgt :=
+    disjointness_constant_error_expression_gt_one_thirtytwo hγ_nonneg hγ_le
+  linarith
+
+/-- If Pinsker supplies the average `zDistance` bound `≤ γ^2`, then error at most `1 / 32`
+forces the information parameter to be bounded away from zero. -/
+theorem one_sixteenth_le_gamma_of_average_zDistance_le_gamma_sq_of_error_le_one_thirtytwo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {γ : ℝ}
+    (hγ_pos : 0 < γ)
+    (havg :
+      ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) ≤ γ ^ 2)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    (1 / 16 : ℝ) ≤ γ := by
+  by_contra hnot
+  have hγ_le : γ ≤ 1 / 16 := (lt_of_not_ge hnot).le
+  have hquarter : 0 ≤ (1 / 4 : ℝ) - 2 * γ := by
+    linarith
+  have hlower :=
+    average_zDistance_lower_bound_mul_error_per_goodZ_le_distributionalError
+      n p hγ_pos havg hquarter
+  have hgt :=
+    disjointness_average_zDistance_error_expression_gt_one_thirtytwo hγ_pos hγ_le
+  linarith
+
+/-- Error at most `1 / 32` forces a concrete lower bound on the average `Z`-fiber TV distance. -/
+theorem one_over_1024_lt_average_zDistance_of_error_le_one_thirtytwo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    (1 / 1024 : ℝ) <
+      ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) := by
+  by_contra hnot
+  have havg :
+      ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) ≤
+        (1 / 32 : ℝ) ^ 2 := by
+    norm_num
+    exact le_of_not_gt hnot
+  have hgamma :=
+    one_sixteenth_le_gamma_of_average_zDistance_le_gamma_sq_of_error_le_one_thirtytwo
+      n p (γ := (1 / 32 : ℝ)) (by norm_num) havg herror
+  norm_num at hgamma
+
 /-- The transcript entropy is at most the protocol length in bits, for any ambient measure. -/
 theorem entropy_message_le_complexity_mul_log_two_of_measure
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -826,6 +1611,49 @@ noncomputable def secondInfoTerm
 noncomputable def specialInfo
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
   firstInfoTerm n p + secondInfoTerm n p
+
+/-- The first special-coordinate information term as a finite sum over its conditioning values. -/
+theorem firstInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointCondMeasure n).real ((firstConditioning n) ⁻¹' {c}) *
+          I[specialX n : message n p ;
+            (disjointCondMeasure n)[|firstConditioning n ← c]] := by
+  rw [firstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointCondMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    Measurable.of_discrete
+
+/-- The second special-coordinate information term as a finite sum over its conditioning values. -/
+theorem secondInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointCondMeasure n).real ((secondConditioning n) ⁻¹' {c}) *
+          I[specialY n : message n p ;
+            (disjointCondMeasure n)[|secondConditioning n ← c]] := by
+  rw [secondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointCondMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    Measurable.of_discrete
+
+/-- The total special-coordinate information as the sum of its two finite conditioning
+expansions. -/
+theorem specialInfo_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    specialInfo n p =
+      (∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointCondMeasure n).real ((firstConditioning n) ⁻¹' {c}) *
+          I[specialX n : message n p ;
+            (disjointCondMeasure n)[|firstConditioning n ← c]]) +
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointCondMeasure n).real ((secondConditioning n) ⁻¹' {c}) *
+          I[specialY n : message n p ;
+            (disjointCondMeasure n)[|secondConditioning n ← c]] := by
+  rw [specialInfo, firstInfoTerm_eq_sum_conditioning, secondInfoTerm_eq_sum_conditioning]
 
 /-- The first special-coordinate information term is bounded by the transcript length. -/
 theorem firstInfoTerm_le_complexity_mul_log_two
@@ -884,6 +1712,322 @@ theorem specialInfo_nonneg
   rw [specialInfo]
   linarith [firstInfoTerm_nonneg n p, secondInfoTerm_nonneg n p]
 
+/-- If Pinsker/chain-rule bounds the squared one-bit fiber distances by the two special
+information terms, then the product-law bridge controls the squared average `zDistance` by
+`specialInfo`. -/
+theorem average_zDistance_sq_le_specialInfo_of_prod_of_average_sq_le_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+      specialInfo n p := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hz_le :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ≤
+        (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_zDistance_le_integral_xDistance_add_integral_yDistance_of_prod n p hprod
+  have hx_jensen :
+      (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+    simpa [μ] using
+      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
+        (fun ω => xDistance n p (zVariable n p ω))
+  have hy_jensen :
+      (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+    simpa [μ] using
+      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
+        (fun ω => yDistance n p (zVariable n p ω))
+  have hx_sq_info :
+      2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        firstInfoTerm n p := by
+    nlinarith
+  have hy_sq_info :
+      2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        secondInfoTerm n p := by
+    nlinarith
+  have hz_nonneg :
+      0 ≤ ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => zDistance_nonneg n p (zVariable n p ω)
+  have hx_nonneg :
+      0 ≤ ∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => xDistance_nonneg n p (zVariable n p ω)
+  have hy_nonneg :
+      0 ≤ ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => yDistance_nonneg n p (zVariable n p ω)
+  have hz_sq_le_sum_sq :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
+    nlinarith
+  have hsum_sq :
+      ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 +
+          2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
+    nlinarith [
+      sq_nonneg
+        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) -
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n))]
+  rw [specialInfo]
+  nlinarith
+
+/-- Any lower bound on the special-coordinate information gives the intended linear
+communication lower bound once the averaged-coordinate information upper bound is available. -/
+theorem complexity_lower_bound_of_specialInfo_lower_bound_of_average_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    {δ : ℝ} (hδ : δ ≤ specialInfo n p) :
+    δ * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
+  have hinfo := hδ.trans hupper
+  have hn_pos : 0 < (n : ℝ) := by
+    exact_mod_cast n.pos
+  have hlog_pos : 0 < 2 * Real.log 2 := by
+    positivity
+  rw [div_le_iff₀ hlog_pos]
+  rw [le_div_iff₀ hn_pos] at hinfo
+  nlinarith
+
+/-- Error at most `1 / 32`, together with the future Pinsker/chain-rule estimate
+`(average zDistance)^2 ≤ specialInfo`, gives the concrete information lower bound. -/
+theorem one_over_1024_sq_lt_specialInfo_of_average_zDistance_sq_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (havg_info :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        specialInfo n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    (1 / 1024 : ℝ) ^ 2 < specialInfo n p := by
+  have havg_lt :=
+    one_over_1024_lt_average_zDistance_of_error_le_one_thirtytwo n p herror
+  have hsq_lt :
+      (1 / 1024 : ℝ) ^ 2 <
+        (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 :=
+    by nlinarith
+  exact hsq_lt.trans_le havg_info
+
+/-- Final deterministic lower-bound shell: once the Pinsker/chain-rule estimate bounds
+`(average zDistance)^2` by `specialInfo`, and Lemma 6.20 supplies the averaged-coordinate entropy
+upper bound, the protocol has linear communication complexity. -/
+theorem complexity_lower_bound_of_average_zDistance_sq_le_specialInfo_of_average_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (havg_info :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        specialInfo n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_specialInfo_lower_bound_of_average_info_upper n p hupper
+    (le_of_lt
+      (one_over_1024_sq_lt_specialInfo_of_average_zDistance_sq_le n p havg_info herror))
+
+/-- Deterministic lower-bound wrapper after the product-law, one-bit information/Pinsker
+estimates, and averaged-coordinate information upper bound have been proved. -/
+theorem complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_average_zDistance_sq_le_specialInfo_of_average_info_upper n p hupper
+    (average_zDistance_sq_le_specialInfo_of_prod_of_average_sq_le_info n p hprod hxinfo hyinfo)
+    herror
+
+/-- Variant of `complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper`
+where the product-law bridge is supplied as singleton factorization identities. -/
+theorem complexity_lower_bound_of_singleton_factorization_of_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hfactor : ∀ z
+      (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+      (b : Bool × Bool),
+      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+          Measure (Bool × Bool)).real {b} =
+        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.1} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.2})
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
+  refine complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
+    n p hupper ?_ hxinfo hyinfo herror
+  intro z hz
+  exact conditionalSpecialPairLaw_eq_prod_of_singleton_factorization n p z hz (hfactor z hz)
+
+/-- Variant of `complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper`
+where the product-law bridge is supplied in cross-multiplied volume form on the `Z=z` fibers. -/
+theorem complexity_lower_bound_of_fiber_volume_factorization_of_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hfactor : ∀ z
+      (_hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+      (b : Bool × Bool),
+      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
+        (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
+  refine complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
+    n p hupper ?_ hxinfo hyinfo herror
+  intro z hz
+  exact conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz (hfactor z hz)
+
+/-- Contrapositive form of the deterministic lower-bound wrapper: a protocol with communication
+below the linear threshold must have hard-distribution error strictly above `1 / 32`. -/
+theorem distributionalError_gt_one_thirtytwo_of_complexity_lt_linear_bound
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    {k : ℕ}
+    (hcomplexity : p.complexity ≤ k)
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2)) :
+    1 / 32 < p.distributionalError (inputDist n) (disjointness n) := by
+  by_contra hnot
+  have herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32 :=
+    le_of_not_gt hnot
+  have hlower :=
+    complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
+      n p hupper hprod hxinfo hyinfo herror
+  have hcomplexity_real : (p.complexity : ℝ) ≤ k := by
+    exact_mod_cast hcomplexity
+  linarith
+
+/-- Minimax wrapper for the fixed-error public-coin randomized lower bound. The remaining
+hypotheses are the per-deterministic-protocol information-theoretic estimates from the
+disjointness proof. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hprod : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
+  refine PublicCoin.minimax_lower_bound
+    (f := disjointness n) (ε := (1 / 32 : ℝ)) (n := k) (μ := inputDist n) ?_
+  intro p hp
+  exact distributionalError_gt_one_thirtytwo_of_complexity_lt_linear_bound
+    n p (hupper p) (hprod p) (hxinfo p) (hyinfo p) hp hk
+
+/-- Minimax wrapper where the product-law estimate is supplied as singleton factorization on each
+positive-mass `Z` fiber. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_singleton_factorization
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hfactor : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+      (b : Bool × Bool),
+      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+          Measure (Bool × Bool)).real {b} =
+        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.1} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.2})
+    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
+  refine publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
+    n hk hupper ?_ hxinfo hyinfo
+  intro p z hz
+  exact conditionalSpecialPairLaw_eq_prod_of_singleton_factorization n p z hz (hfactor p z hz)
+
+/-- Minimax wrapper where the product-law estimate is supplied in cross-multiplied volume form
+on each positive-mass `Z` fiber. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_fiber_volume_factorization
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hfactor : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      ∀ z (_hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+      (b : Bool × Bool),
+      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
+        (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
+          (volume : Measure (HardSample n)).real
+            (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})))
+    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
+  refine publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
+    n hk hupper ?_ hxinfo hyinfo
+  intro p z hz
+  exact conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz
+    (hfactor p z hz)
+
 /-- The generated input belongs to the transcript leaf of any deterministic protocol. -/
 theorem input_mem_transcript
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) (ω : HardSample n) :
@@ -922,6 +2066,65 @@ theorem run_eq_of_zVariable_eq
     (h : zVariable n p ω = zVariable n p ω') :
     p.run (X n ω) (Y n ω) = p.run (X n ω') (Y n ω') := by
   exact run_eq_of_message_eq n p (congrArg Prod.fst h)
+
+/-- If a sample has `Z=z`, its generated input lies in the transcript leaf `z.1`. -/
+theorem input_mem_leaf_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω : HardSample n}
+    (hω : zVariable n p ω = z) :
+    input n ω ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+  have hmsg : message n p ω = z.1 := by
+    simpa [zVariable] using congrArg Prod.fst hω
+  simpa [hmsg] using input_mem_transcript n p ω
+
+/-- Equal `Z` value fixes the special coordinate. -/
+theorem specialCoordinate_eq_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω : HardSample n}
+    (hω : zVariable n p ω = z) :
+    specialCoordinate n ω = z.2.1 := by
+  simpa [zVariable] using congrArg (fun z => z.2.1) hω
+
+/-- Equal `Z` value fixes Alice's bits before the special coordinate. -/
+theorem xBeforeSpecial_eq_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω : HardSample n}
+    (hω : zVariable n p ω = z) :
+    xBeforeSpecial n ω = z.2.2.1 := by
+  simpa [zVariable] using congrArg (fun z => z.2.2.1) hω
+
+/-- Equal `Z` value fixes Bob's bits after the special coordinate. -/
+theorem yAfterSpecial_eq_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω : HardSample n}
+    (hω : zVariable n p ω = z) :
+    yAfterSpecial n ω = z.2.2.2 := by
+  simpa [zVariable] using congrArg (fun z => z.2.2.2) hω
+
+/-- The transcript leaf component of `Z` is a rectangle: two samples in the same `Z` fiber also
+contain the two mixed input pairs in that leaf. -/
+theorem mixed_inputs_mem_leaf_of_zVariable_eq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω ω' : HardSample n}
+    (hω : zVariable n p ω = z)
+    (hω' : zVariable n p ω' = z) :
+    (X n ω', Y n ω) ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) ∧
+      (X n ω, Y n ω') ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+  have hrect :
+      Rectangle.IsRectangle (z.1 : Set (Set (Fin n) × Set (Fin n))) :=
+    Deterministic.Protocol.leafRectangles_isRectangle p (z.1 : Set (Set (Fin n) × Set (Fin n)))
+      z.1.2
+  have hωmem : (X n ω, Y n ω) ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+    simpa [input] using input_mem_leaf_of_zVariable_eq n p hω
+  have hω'mem : (X n ω', Y n ω') ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+    simpa [input] using input_mem_leaf_of_zVariable_eq n p hω'
+  exact (Rectangle.IsRectangle_iff _).mp hrect (X n ω) (X n ω') (Y n ω) (Y n ω')
+    hωmem hω'mem
 
 end HardSample
 

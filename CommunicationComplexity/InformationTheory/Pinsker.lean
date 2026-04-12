@@ -537,4 +537,15 @@ theorem pinsker_inequality
   · rw [InformationTheory.klDiv_of_not_ac h_ac]
     exact le_top
 
+/-- Real-valued Pinsker corollary, useful once the relevant KL divergence is known to be finite. -/
+theorem two_mul_tvDistance_sq_le_toReal_klDiv
+    {Ω : Type*} [MeasurableSpace Ω] (μ ν : ProbabilityMeasure Ω)
+    (hkl : InformationTheory.klDiv (μ : Measure Ω) (ν : Measure Ω) ≠ ∞) :
+    2 * tvDistance μ ν ^ 2 ≤
+      (InformationTheory.klDiv (μ : Measure Ω) (ν : Measure Ω)).toReal := by
+  have h :=
+    ENNReal.toReal_mono hkl (pinsker_inequality μ ν)
+  have hsq_nonneg : 0 ≤ tvDistance μ ν ^ 2 := sq_nonneg (tvDistance μ ν)
+  simpa [ENNReal.toReal_ofReal hsq_nonneg] using h
+
 end CommunicationComplexity

@@ -161,6 +161,20 @@ theorem FiniteMeasureSpace.probabilityMeasure_klDiv_eq_sum_log
   simp [Measure.toPMF_apply, Measure.real]
 
 open Classical in
+/-- On a finite space, KL divergence from `μ` to a probability measure with full support is
+finite. -/
+theorem FiniteMeasureSpace.probabilityMeasure_klDiv_ne_top_of_forall_toPMF_ne_zero
+    {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    (μ ν : ProbabilityMeasure Ω)
+    (hν : ∀ ω, (ν : Measure Ω).toPMF ω ≠ 0) :
+    InformationTheory.klDiv (μ : Measure Ω) (ν : Measure Ω) ≠ ∞ := by
+  rw [FiniteMeasureSpace.probabilityMeasure_klDiv_eq_sum_log μ ν]
+  rw [if_neg]
+  · exact ENNReal.ofReal_ne_top
+  · rintro ⟨ω, hνω, -⟩
+    exact hν ω hνω
+
+open Classical in
 /-- On a finite measurable space, the Kullback-Leibler divergence between PMFs is `∞` if some
 point has zero `q`-mass and nonzero `p`-mass; otherwise it is
 `∑ ω, p ω * log (p ω / q ω)`. -/

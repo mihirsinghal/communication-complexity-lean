@@ -154,22 +154,6 @@ private lemma boolSign_innerProduct_mul_eq_xorInput
   cases hx : x i <;> cases hy : y i <;> cases hz : z i <;>
     simp [xorInput, boolSign, hy, hz]
 
-/-- On the uniform distribution over `BoolInput n`, the square of an expectation is bounded by
-the expectation of the square. -/
-private lemma sq_integral_le_integral_sq
-    (f : BoolInput n → ℝ) :
-    (∫ x : BoolInput n, f x)^2 ≤ ∫ x : BoolInput n, (f x)^2 :=
-  ConvexOn.map_integral_le
-    (by simpa using (show ConvexOn ℝ Set.univ (fun x : ℝ => x ^ 2) from
-      Even.convexOn_pow (𝕜 := ℝ) (by decide : Even 2)))
-    (by simpa using
-      (show ContinuousOn (fun x : ℝ => x ^ 2) Set.univ from
-        (continuous_pow 2).continuousOn))
-    isClosed_univ
-    (Filter.Eventually.of_forall fun _ => Set.mem_univ _)
-    Integrable.of_finite
-    Integrable.of_finite
-
 /-- Summed orthogonality for Walsh characters. -/
 private lemma sum_boolSign_innerProduct_mul_eq_indicator
     (y z : BoolInput n) :
@@ -307,7 +291,7 @@ private lemma sq_discrepancy_prod_le
     (discrepancy (innerProduct n) (A ×ˢ B : Set (BoolInput n × BoolInput n)))^2 ≤
       (1 : ℝ) / 2 ^ n := by
   rw [discrepancy_prod_eq_integral]
-  apply le_trans (sq_integral_le_integral_sq _)
+  apply le_trans (FiniteProbabilitySpace.sq_integral_le_integral_sq _)
   refine le_trans ?_ (integral_sq_indicator_mul_boolSign_innerProduct_le B)
   apply MeasureTheory.integral_mono (Integrable.of_finite) (Integrable.of_finite)
   intro x
