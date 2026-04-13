@@ -277,6 +277,50 @@ theorem not_xBit_and_yBit_of_ne_special
   rw [xBit_of_ne_special n ω hi, yBit_of_ne_special n ω hi]
   exact DisjointCoordinate.not_xBit_and_yBit (ω.other i)
 
+/-- The disjoint coordinate with the given bits. On the invalid `(true, true)` input this chooses
+an arbitrary disjoint coordinate; the projection lemmas below assume that invalid case away. -/
+def coordinateOfBits (x y : Bool) : DisjointCoordinate :=
+  if x = true then DisjointCoordinate.leftOnly
+  else if y = true then DisjointCoordinate.rightOnly
+  else DisjointCoordinate.neither
+
+/-- `coordinateOfBits` preserves Alice's bit when the requested pair is disjoint. -/
+theorem coordinateOfBits_xBit {x y : Bool} (h : ¬(x = true ∧ y = true)) :
+    (coordinateOfBits x y).xBit = x := by
+  cases x <;> cases y <;> simp [coordinateOfBits] at h ⊢
+
+/-- `coordinateOfBits` preserves Bob's bit when the requested pair is disjoint. -/
+theorem coordinateOfBits_yBit {x y : Bool} (h : ¬(x = true ∧ y = true)) :
+    (coordinateOfBits x y).yBit = y := by
+  cases x <;> cases y <;> simp [coordinateOfBits] at h ⊢
+
+/-- `coordinateOfBits` reconstructs an existing disjoint coordinate from its two projections. -/
+theorem coordinateOfBits_xBit_yBit (c : DisjointCoordinate) :
+    coordinateOfBits c.xBit c.yBit = c := by
+  cases c <;> simp [coordinateOfBits]
+
+/-- Mix Alice's input from `ωX` with Bob's input from `ωY`. This is only intended to be used
+when the two samples agree on `T`, `X_{<T}`, and `Y_{>T}`; under those hypotheses the mixed
+coordinate requests are always disjoint. -/
+def mix (ωX ωY : HardSample n) : HardSample n where
+  T := ωX.T
+  xT := ωX.xT
+  yT := ωY.yT
+  other := fun i =>
+    if i = ωX.T then ωX.other i
+    else coordinateOfBits (xBit n ωX i) (yBit n ωY i)
+
+/-- Mixing a sample with itself recovers the original sample. -/
+theorem mix_self (ω : HardSample n) :
+    mix n ω ω = ω := by
+  rcases ω with ⟨T, xT, yT, other⟩
+  simp only [mix, xBit, yBit]
+  congr
+  funext i
+  by_cases hi : i = T
+  · simp [hi]
+  · simp [hi, coordinateOfBits_xBit_yBit]
+
 /-- The generated sets are disjoint exactly when the two special-coordinate bits do not both
 equal `true`. -/
 theorem disjoint_X_Y_iff (ω : HardSample n) :
@@ -466,6 +510,156 @@ def yAfterSpecial (ω : HardSample n) : Fin n → Bool :=
 /-- Bob's input bits except at the special coordinate, padded by `false` at `ω.T`. -/
 def yExceptSpecial (ω : HardSample n) : Fin n → Bool :=
   fun i => if i = ω.T then false else yBit n ω i
+
+/-- If two samples agree on the data contained in `Z`, then Alice's bit from the first sample and
+Bob's bit from the second sample are disjoint away from the special coordinate. -/
+theorem not_xBit_left_and_yBit_right_of_same_conditioning
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY)
+    {i : Fin n} (hi : i ≠ ωX.T) :
+    ¬(xBit n ωX i = true ∧ yBit n ωY i = true) := by
+  intro hbits
+  by_cases hlt : i < ωX.T
+  · have hltY : i < ωY.T := by
+      simpa [← hT] using hlt
+    have hx_eq : xBit n ωY i = xBit n ωX i := by
+      have hfun := congrFun hBefore i
+      simpa [xBeforeSpecial, hlt, hltY] using hfun.symm
+    exact not_xBit_and_yBit_of_ne_special n ωY (by simpa [← hT] using hi)
+      ⟨hx_eq.trans hbits.1, hbits.2⟩
+  · have hgt : ωX.T < i := lt_of_le_of_ne (le_of_not_gt hlt) hi.symm
+    have hgtY : ωY.T < i := by
+      simpa [← hT] using hgt
+    have hy_eq : yBit n ωX i = yBit n ωY i := by
+      have hfun := congrFun hAfter i
+      simpa [yAfterSpecial, hgt, hgtY] using hfun
+    exact not_xBit_and_yBit_of_ne_special n ωX hi
+      ⟨hbits.1, hy_eq.trans hbits.2⟩
+
+/-- The mixed sample has Alice's input bits from the first sample. -/
+theorem xBit_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY)
+    (i : Fin n) :
+    xBit n (mix n ωX ωY) i = xBit n ωX i := by
+  by_cases hi : i = ωX.T
+  · subst hi
+    simp [mix, xBit]
+  · have hdisj :=
+      not_xBit_left_and_yBit_right_of_same_conditioning n hT hBefore hAfter hi
+    have hdisj' :
+        ¬((ωX.other i).xBit = true ∧ yBit n ωY i = true) := by
+      simpa [xBit_of_ne_special n ωX hi] using hdisj
+    simp [mix, xBit, hi, coordinateOfBits_xBit hdisj']
+
+/-- The mixed sample has Bob's input bits from the second sample. -/
+theorem yBit_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY)
+    (i : Fin n) :
+    yBit n (mix n ωX ωY) i = yBit n ωY i := by
+  by_cases hi : i = ωX.T
+  · subst hi
+    simp [mix, yBit, hT]
+  · have hdisj :=
+      not_xBit_left_and_yBit_right_of_same_conditioning n hT hBefore hAfter hi
+    have hiy : i ≠ ωY.T := by
+      simpa [← hT] using hi
+    have hdisj' :
+        ¬(xBit n ωX i = true ∧ (ωY.other i).yBit = true) := by
+      simpa [yBit_of_ne_special n ωY hiy] using hdisj
+    simp [mix, yBit, hi, hiy, coordinateOfBits_yBit hdisj']
+
+/-- The mixed sample has Alice's full input from the first sample. -/
+theorem X_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    X n (mix n ωX ωY) = X n ωX := by
+  ext i
+  simp [X, xBit_mix n hT hBefore hAfter i]
+
+/-- The mixed sample has Bob's full input from the second sample. -/
+theorem Y_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    Y n (mix n ωX ωY) = Y n ωY := by
+  ext i
+  simp [Y, yBit_mix n hT hBefore hAfter i]
+
+/-- The mixed sample's generated input is the mixed input pair. -/
+theorem input_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    input n (mix n ωX ωY) = (X n ωX, Y n ωY) := by
+  rw [input, X_mix n hT hBefore hAfter, Y_mix n hT hBefore hAfter]
+
+/-- Mixing preserves Alice's before-`T` conditioning data from the first sample. -/
+theorem xBeforeSpecial_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    xBeforeSpecial n (mix n ωX ωY) = xBeforeSpecial n ωX := by
+  funext i
+  by_cases hlt : i < ωX.T
+  · simpa [xBeforeSpecial, mix, hlt] using xBit_mix n hT hBefore hAfter i
+  · simp [xBeforeSpecial, mix, hlt]
+
+/-- Mixing preserves Bob's after-`T` conditioning data from the second sample. -/
+theorem yAfterSpecial_mix
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    yAfterSpecial n (mix n ωX ωY) = yAfterSpecial n ωY := by
+  funext i
+  by_cases hlt : ωY.T < i
+  · simpa [yAfterSpecial, mix, hT, hlt] using yBit_mix n hT hBefore hAfter i
+  · simp [yAfterSpecial, mix, hT, hlt]
+
+/-- The mixed sample has Alice's special bit from the first sample. -/
+theorem specialX_mix (ωX ωY : HardSample n) :
+    specialX n (mix n ωX ωY) = specialX n ωX := by
+  simp [specialX, mix]
+
+/-- The mixed sample has Bob's special bit from the second sample. -/
+theorem specialY_mix (ωX ωY : HardSample n) :
+    specialY n (mix n ωX ωY) = specialY n ωY := by
+  simp [specialY, mix]
+
+/-- Swapping twice recovers the first sample. This is the involution behind the rectangle-counting
+argument for conditional independence on `Z` fibers. -/
+theorem mix_mix_swap
+    {ωX ωY : HardSample n}
+    (hT : ωX.T = ωY.T)
+    (hBefore : xBeforeSpecial n ωX = xBeforeSpecial n ωY)
+    (hAfter : yAfterSpecial n ωX = yAfterSpecial n ωY) :
+    mix n (mix n ωX ωY) (mix n ωY ωX) = ωX := by
+  simp only [mix]
+  congr
+  funext i
+  by_cases hi : i = ωX.T
+  · simp [hi]
+  · have hx := xBit_mix n hT hBefore hAfter i
+    have hy := yBit_mix n hT.symm hBefore.symm hAfter.symm i
+    simp only [hi, ↓reduceIte]
+    change coordinateOfBits (xBit n (mix n ωX ωY) i) (yBit n (mix n ωY ωX) i) =
+      ωX.other i
+    rw [hx, hy]
+    simp [xBit_of_ne_special n ωX hi, yBit_of_ne_special n ωX hi,
+      coordinateOfBits_xBit_yBit]
 
 /-- The conditioning variable appearing in the first information term of the textbook proof. -/
 def firstConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n → Bool) :=
@@ -2125,6 +2319,307 @@ theorem mixed_inputs_mem_leaf_of_zVariable_eq
     simpa [input] using input_mem_leaf_of_zVariable_eq n p hω'
   exact (Rectangle.IsRectangle_iff _).mp hrect (X n ω) (X n ω') (Y n ω) (Y n ω')
     hωmem hω'mem
+
+/-- Two samples in the same `Z` fiber have the same special coordinate. -/
+theorem specialCoordinate_eq_of_same_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω ω' : HardSample n}
+    (hω : zVariable n p ω = z)
+    (hω' : zVariable n p ω' = z) :
+    ω.T = ω'.T := by
+  have hTω := specialCoordinate_eq_of_zVariable_eq n p hω
+  have hTω' := specialCoordinate_eq_of_zVariable_eq n p hω'
+  simpa [specialCoordinate] using hTω.trans hTω'.symm
+
+/-- Two samples in the same `Z` fiber have the same `X_{<T}` conditioning data. -/
+theorem xBeforeSpecial_eq_of_same_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω ω' : HardSample n}
+    (hω : zVariable n p ω = z)
+    (hω' : zVariable n p ω' = z) :
+    xBeforeSpecial n ω = xBeforeSpecial n ω' := by
+  have hωx := xBeforeSpecial_eq_of_zVariable_eq n p hω
+  have hω'x := xBeforeSpecial_eq_of_zVariable_eq n p hω'
+  exact hωx.trans hω'x.symm
+
+/-- Two samples in the same `Z` fiber have the same `Y_{>T}` conditioning data. -/
+theorem yAfterSpecial_eq_of_same_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ω ω' : HardSample n}
+    (hω : zVariable n p ω = z)
+    (hω' : zVariable n p ω' = z) :
+    yAfterSpecial n ω = yAfterSpecial n ω' := by
+  have hωy := yAfterSpecial_eq_of_zVariable_eq n p hω
+  have hω'y := yAfterSpecial_eq_of_zVariable_eq n p hω'
+  exact hωy.trans hω'y.symm
+
+/-- The mixed sample of two samples in the same `Z` fiber remains in that `Z` fiber. -/
+theorem zVariable_mix_eq_of_same_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ωX ωY : HardSample n}
+    (hωX : zVariable n p ωX = z)
+    (hωY : zVariable n p ωY = z) :
+    zVariable n p (mix n ωX ωY) = z := by
+  have hT := specialCoordinate_eq_of_same_zVariable n p hωX hωY
+  have hBefore := xBeforeSpecial_eq_of_same_zVariable n p hωX hωY
+  have hAfter := yAfterSpecial_eq_of_same_zVariable n p hωX hωY
+  have hinput := input_mix n hT hBefore hAfter
+  have hleaf :
+      input n (mix n ωX ωY) ∈
+        (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+    have hmixed := mixed_inputs_mem_leaf_of_zVariable_eq n p hωX hωY
+    simpa [hinput] using hmixed.2
+  have hmessage : message n p (mix n ωX ωY) = z.1 := by
+    rw [message]
+    exact Deterministic.Protocol.transcript_eq_of_mem_leaf p z.1 hleaf
+  have hTz : specialCoordinate n (mix n ωX ωY) = z.2.1 := by
+    have hTωX := specialCoordinate_eq_of_zVariable_eq n p hωX
+    simpa [specialCoordinate, mix] using hTωX
+  have hBeforeZ : xBeforeSpecial n (mix n ωX ωY) = z.2.2.1 := by
+    rw [xBeforeSpecial_mix n hT hBefore hAfter]
+    exact xBeforeSpecial_eq_of_zVariable_eq n p hωX
+  have hAfterZ : yAfterSpecial n (mix n ωX ωY) = z.2.2.2 := by
+    rw [yAfterSpecial_mix n hT hBefore hAfter]
+    exact yAfterSpecial_eq_of_zVariable_eq n p hωY
+  ext <;> simp [zVariable, hmessage, hTz, hBeforeZ, hAfterZ]
+
+/-- If two samples are in a `Z=z` fiber, and the first has Alice special bit `bX` while the
+second has Bob special bit `bY`, then their mix is in the same fiber with special pair
+`(bX, bY)`. -/
+theorem mix_mem_fiber_inter_specialPair_of_mem_specialX_specialY
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ωX ωY : HardSample n} {bX bY : Bool}
+    (hωX : ωX ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {bX}))
+    (hωY : ωY ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {bY})) :
+    mix n ωX ωY ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {(bX, bY)}) := by
+  have hZX : zVariable n p ωX = z := by simpa using hωX.1
+  have hZY : zVariable n p ωY = z := by simpa using hωY.1
+  refine ⟨?_, ?_⟩
+  · simpa using zVariable_mix_eq_of_same_zVariable n p hZX hZY
+  · have hX : specialX n ωX = bX := by simpa using hωX.2
+    have hY : specialY n ωY = bY := by simpa using hωY.2
+    simp [specialPair, specialX_mix, specialY_mix, hX, hY]
+
+/-- The swapped mix of two samples in a `Z=z` fiber remains in that fiber. -/
+theorem mix_swap_mem_fiber_of_mem_specialX_specialY
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ωX ωY : HardSample n} {bX bY : Bool}
+    (hωX : ωX ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {bX}))
+    (hωY : ωY ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {bY})) :
+    mix n ωY ωX ∈ (zVariable n p) ⁻¹' {z} := by
+  have hZX : zVariable n p ωX = z := by simpa using hωX.1
+  have hZY : zVariable n p ωY = z := by simpa using hωY.1
+  simpa using zVariable_mix_eq_of_same_zVariable n p hZY hZX
+
+/-- If one sample in a fiber has special pair `b` and the other is just in the fiber, mixing with
+the special-pair sample on Alice's side lands in the fiber with Alice special bit `b.1`. -/
+theorem mix_mem_fiber_inter_specialX_of_mem_specialPair_fiber
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ωPair ω : HardSample n} {b : Bool × Bool}
+    (hωPair : ωPair ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b}))
+    (hω : ω ∈ (zVariable n p) ⁻¹' {z}) :
+    mix n ωPair ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1}) := by
+  have hZPair : zVariable n p ωPair = z := by simpa using hωPair.1
+  have hZω : zVariable n p ω = z := by simpa using hω
+  have hpair : specialPair n ωPair = b := by simpa using hωPair.2
+  refine ⟨?_, ?_⟩
+  · simpa using zVariable_mix_eq_of_same_zVariable n p hZPair hZω
+  · have hX : specialX n ωPair = b.1 := by
+      simpa [specialPair] using congrArg Prod.fst hpair
+    simp [specialX_mix, hX]
+
+/-- If one sample in a fiber has special pair `b` and the other is just in the fiber, mixing with
+the special-pair sample on Bob's side lands in the fiber with Bob special bit `b.2`. -/
+theorem mix_mem_fiber_inter_specialY_of_mem_fiber_specialPair
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
+    {ωPair ω : HardSample n} {b : Bool × Bool}
+    (hω : ω ∈ (zVariable n p) ⁻¹' {z})
+    (hωPair : ωPair ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) :
+    mix n ω ωPair ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2}) := by
+  have hZω : zVariable n p ω = z := by simpa using hω
+  have hZPair : zVariable n p ωPair = z := by simpa using hωPair.1
+  have hpair : specialPair n ωPair = b := by simpa using hωPair.2
+  refine ⟨?_, ?_⟩
+  · simpa using zVariable_mix_eq_of_same_zVariable n p hZω hZPair
+  · have hY : specialY n ωPair = b.2 := by
+      simpa [specialPair] using congrArg Prod.snd hpair
+    simp [specialY_mix, hY]
+
+open Classical in
+/-- The switching map `(ωX, ωY) ↦ (mix ωX ωY, mix ωY ωX)` gives the cardinal identity
+underlying conditional independence of `specialX` and `specialY` on a `Z=z` fiber. -/
+theorem card_fiber_inter_specialX_mul_card_fiber_inter_specialY
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (b : Bool × Bool) :
+    Fintype.card {ω : HardSample n //
+        ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})} *
+      Fintype.card {ω : HardSample n //
+        ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})} =
+    Fintype.card {ω : HardSample n //
+        ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})} *
+      Fintype.card {ω : HardSample n // ω ∈ (zVariable n p) ⁻¹' {z}} := by
+  let A := {ω : HardSample n //
+    ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})}
+  let B := {ω : HardSample n //
+    ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})}
+  let C := {ω : HardSample n //
+    ω ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})}
+  let D := {ω : HardSample n // ω ∈ (zVariable n p) ⁻¹' {z}}
+  have hcard : Fintype.card (A × B) = Fintype.card (C × D) := by
+    refine Fintype.card_congr
+      { toFun := ?toFun
+        invFun := ?invFun
+        left_inv := ?left_inv
+        right_inv := ?right_inv }
+    · intro ab
+      refine
+        (⟨mix n ab.1.1 ab.2.1,
+            mix_mem_fiber_inter_specialPair_of_mem_specialX_specialY n p ab.1.2 ab.2.2⟩,
+          ⟨mix n ab.2.1 ab.1.1,
+            mix_swap_mem_fiber_of_mem_specialX_specialY n p ab.1.2 ab.2.2⟩)
+    · intro cd
+      refine
+        (⟨mix n cd.1.1 cd.2.1,
+            mix_mem_fiber_inter_specialX_of_mem_specialPair_fiber n p cd.1.2 cd.2.2⟩,
+          ⟨mix n cd.2.1 cd.1.1,
+            mix_mem_fiber_inter_specialY_of_mem_fiber_specialPair n p cd.2.2 cd.1.2⟩)
+    · intro ab
+      apply Prod.ext
+      · apply Subtype.ext
+        have hZA : zVariable n p ab.1.1 = z := by simpa using ab.1.2.1
+        have hZB : zVariable n p ab.2.1 = z := by simpa using ab.2.2.1
+        exact mix_mix_swap n
+          (specialCoordinate_eq_of_same_zVariable n p hZA hZB)
+          (xBeforeSpecial_eq_of_same_zVariable n p hZA hZB)
+          (yAfterSpecial_eq_of_same_zVariable n p hZA hZB)
+      · apply Subtype.ext
+        have hZA : zVariable n p ab.1.1 = z := by simpa using ab.1.2.1
+        have hZB : zVariable n p ab.2.1 = z := by simpa using ab.2.2.1
+        exact mix_mix_swap n
+          (specialCoordinate_eq_of_same_zVariable n p hZB hZA)
+          (xBeforeSpecial_eq_of_same_zVariable n p hZB hZA)
+          (yAfterSpecial_eq_of_same_zVariable n p hZB hZA)
+    · intro cd
+      apply Prod.ext
+      · apply Subtype.ext
+        have hZC : zVariable n p cd.1.1 = z := by simpa using cd.1.2.1
+        have hZD : zVariable n p cd.2.1 = z := cd.2.2
+        exact mix_mix_swap n
+          (specialCoordinate_eq_of_same_zVariable n p hZC hZD)
+          (xBeforeSpecial_eq_of_same_zVariable n p hZC hZD)
+          (yAfterSpecial_eq_of_same_zVariable n p hZC hZD)
+      · apply Subtype.ext
+        have hZC : zVariable n p cd.1.1 = z := by simpa using cd.1.2.1
+        have hZD : zVariable n p cd.2.1 = z := cd.2.2
+        exact mix_mix_swap n
+          (specialCoordinate_eq_of_same_zVariable n p hZD hZC)
+          (xBeforeSpecial_eq_of_same_zVariable n p hZD hZC)
+          (yAfterSpecial_eq_of_same_zVariable n p hZD hZC)
+  simpa [A, B, C, D, Fintype.card_prod] using hcard
+
+open Classical in
+/-- Under the uniform hard-distribution measure, real measure is cardinality divided by the size
+of the sample space. -/
+theorem measureReal_eq_card_subtype_div (S : Set (HardSample n)) :
+    (volume : Measure (HardSample n)).real S =
+      (Fintype.card {ω : HardSample n // ω ∈ S} : ℝ) /
+        Fintype.card (HardSample n) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)) S).toReal = _
+  rw [uniformOn_univ_measureReal_eq_card_filter]
+  congr 1
+  exact_mod_cast (by simp [Fintype.card_subtype])
+
+set_option maxHeartbeats 800000 in
+-- The statement contains several dependent subtype cardinalities over protocol leaves; elaborating
+-- the local set abbreviations and the final `convert` needs more than the default budget.
+open Classical in
+/-- The rectangle switching identity, translated from cardinalities to the uniform
+hard-distribution measure. -/
+theorem fiber_volume_factorization
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (b : Bool × Bool) :
+    (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
+        (volume : Measure (HardSample n)).real
+          (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
+      (volume : Measure (HardSample n)).real
+          (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
+        (volume : Measure (HardSample n)).real
+          (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})) := by
+  let F : Set (HardSample n) := (zVariable n p) ⁻¹' {z}
+  let P : Set (HardSample n) := F ∩ ((specialPair n) ⁻¹' {b})
+  let X : Set (HardSample n) := F ∩ ((specialX n) ⁻¹' {b.1})
+  let Y : Set (HardSample n) := F ∩ ((specialY n) ⁻¹' {b.2})
+  change
+    (volume : Measure (HardSample n)).real F * (volume : Measure (HardSample n)).real P =
+      (volume : Measure (HardSample n)).real X * (volume : Measure (HardSample n)).real Y
+  rw [measureReal_eq_card_subtype_div n F, measureReal_eq_card_subtype_div n P,
+    measureReal_eq_card_subtype_div n X, measureReal_eq_card_subtype_div n Y]
+  have hcard := card_fiber_inter_specialX_mul_card_fiber_inter_specialY n p z b
+  have hcard_real :
+      (Fintype.card {ω : HardSample n // ω ∈ X} : ℝ) *
+        (Fintype.card {ω : HardSample n // ω ∈ Y} : ℝ) =
+      (Fintype.card {ω : HardSample n // ω ∈ P} : ℝ) *
+        (Fintype.card {ω : HardSample n // ω ∈ F} : ℝ) := by
+    dsimp only [F, P, X, Y]
+    exact_mod_cast hcard
+  have hN : (Fintype.card (HardSample n) : ℝ) ≠ 0 := by positivity
+  have hcard_real' :
+      (Fintype.card {ω : HardSample n // ω ∈ F} : ℝ) *
+        (Fintype.card {ω : HardSample n // ω ∈ P} : ℝ) =
+      (Fintype.card {ω : HardSample n // ω ∈ X} : ℝ) *
+        (Fintype.card {ω : HardSample n // ω ∈ Y} : ℝ) := by
+    rw [mul_comm, ← hcard_real]
+  field_simp [hN]
+  convert hcard_real'
+
+/-- Deterministic lower-bound wrapper after proving the product-law bridge by rectangle switching.
+The remaining hypotheses are the information estimates. -/
+theorem complexity_lower_bound_of_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
+  refine complexity_lower_bound_of_fiber_volume_factorization_of_info_upper
+    n p hupper ?_ hxinfo hyinfo herror
+  intro z _hz b
+  exact fiber_volume_factorization n p z b
+
+/-- Minimax wrapper after proving the product-law bridge by rectangle switching. The remaining
+hypotheses are the per-deterministic-protocol information estimates. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_info_upper
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
+  refine publicCoin_communicationComplexity_linear_lower_bound_of_fiber_volume_factorization
+    n hk hupper ?_ hxinfo hyinfo
+  intro p z _hz b
+  exact fiber_volume_factorization n p z b
 
 end HardSample
 
