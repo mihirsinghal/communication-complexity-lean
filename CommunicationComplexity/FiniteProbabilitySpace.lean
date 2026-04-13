@@ -247,6 +247,18 @@ theorem uniformOn_univ_measureReal_eq_card_filter
     Set.encard_eq_coe_toFinset_card]
   simp [ENat.toENNReal_coe, ENNReal.toReal_natCast]
 
+open Classical in
+/-- On a finite discrete type with the uniform measure on `Set.univ`, the real-valued measure of
+a set is the cardinality of the corresponding subtype divided by the size of the ambient type. -/
+theorem uniformOn_univ_measureReal_eq_card_subtype
+    {Ω : Type*} [Fintype Ω] [Nonempty Ω] [MeasurableSpace Ω]
+    [DiscreteMeasurableSpace Ω] (S : Set Ω) [Fintype {ω : Ω // ω ∈ S}] :
+    ((ProbabilityTheory.uniformOn Set.univ : Measure Ω) S).toReal =
+      (Fintype.card {ω : Ω // ω ∈ S} : ℝ) / Fintype.card Ω := by
+  rw [uniformOn_univ_measureReal_eq_card_filter]
+  congr 1
+  exact_mod_cast (by simp [Fintype.card_subtype])
+
 namespace FiniteProbabilitySpace
 
 /-- You usually won't need this theorem explicitly, because of the instance below. -/

@@ -151,6 +151,10 @@ def specialIntersect : Set (HardSample n) :=
 def specialBitsEvent (bx bY : Bool) : Set (HardSample n) :=
   {ω | ω.xT = bx ∧ ω.yT = bY}
 
+/-- The event that the special coordinate has a prescribed value. -/
+def specialCoordinateEvent (i : Fin n) : Set (HardSample n) :=
+  {ω | ω.T = i}
+
 /-- The event that both special-coordinate bits are zero. -/
 def specialZeroZero : Set (HardSample n) :=
   specialBitsEvent n false false
@@ -173,6 +177,11 @@ noncomputable instance specialIntersectFintype :
 noncomputable instance specialBitsEventFintype (bx bY : Bool) :
     Fintype {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} := by
   unfold specialBitsEvent
+  infer_instance
+
+noncomputable instance specialCoordinateEventFintype (i : Fin n) :
+    Fintype {ω : HardSample n // ω ∈ specialCoordinateEvent n i} := by
+  unfold specialCoordinateEvent
   infer_instance
 
 private def specialIntersectEquiv :
@@ -213,6 +222,24 @@ private def specialBitsEventEquiv (bx bY : Bool) :
     rcases p with ⟨T, other⟩
     rfl
 
+private def specialCoordinateEventEquiv (i : Fin n) :
+    {ω : HardSample n // ω ∈ specialCoordinateEvent n i} ≃
+      Bool × Bool × (Fin n → DisjointCoordinate) where
+  toFun ω := (ω.1.xT, ω.1.yT, ω.1.other)
+  invFun p :=
+    ⟨{ T := i
+       xT := p.1
+       yT := p.2.1
+       other := p.2.2 }, by simp [specialCoordinateEvent]⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    simp only [specialCoordinateEvent, Set.mem_setOf_eq] at hω
+    subst T
+    rfl
+  right_inv p := by
+    rcases p with ⟨xT, yT, other⟩
+    rfl
+
 @[simp] theorem card_specialIntersect :
     Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
       (n : ℕ) * 3 ^ (n : ℕ) := by
@@ -232,6 +259,17 @@ private def specialBitsEventEquiv (bx bY : Bool) :
       Fintype.card_congr (specialBitsEventEquiv n bx bY)
     _ = (n : ℕ) * 3 ^ (n : ℕ) := by
       simp [Fintype.card_prod, Fintype.card_pi]
+
+@[simp] theorem card_specialCoordinateEvent (i : Fin n) :
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
+      4 * 3 ^ (n : ℕ) := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
+        Fintype.card (Bool × Bool × (Fin n → DisjointCoordinate)) :=
+      Fintype.card_congr (specialCoordinateEventEquiv n i)
+    _ = 4 * 3 ^ (n : ℕ) := by
+      simp [Fintype.card_prod, Fintype.card_pi]
+      ring
 
 /-- The hard input distribution, as a probability measure on input pairs. -/
 noncomputable def inputProbabilityMeasure :
@@ -335,6 +373,52 @@ theorem disjoint_X_Y_iff (ω : HardSample n) :
       exact h ⟨by simpa [X] using hiX, by simpa [Y] using hiY⟩
     · exact not_xBit_and_yBit_of_ne_special n ω hi ⟨hiX, hiY⟩
 
+private def specialCoordinateEventInterDisjointEquiv (i : Fin n) :
+    {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ disjointEvent n} ≃
+      DisjointCoordinate × (Fin n → DisjointCoordinate) where
+  toFun ω :=
+    (coordinateOfBits ω.1.xT ω.1.yT, ω.1.other)
+  invFun p :=
+    ⟨{ T := i
+       xT := p.1.xBit
+       yT := p.1.yBit
+       other := p.2 },
+      by
+        constructor
+        · simp [specialCoordinateEvent]
+        · change Disjoint (X n { T := i, xT := p.1.xBit, yT := p.1.yBit, other := p.2 })
+            (Y n { T := i, xT := p.1.xBit, yT := p.1.yBit, other := p.2 })
+          rw [disjoint_X_Y_iff]
+          exact DisjointCoordinate.not_xBit_and_yBit p.1⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    rcases hω with ⟨hT, hdisj⟩
+    simp only [specialCoordinateEvent, Set.mem_setOf_eq] at hT
+    subst T
+    have hbits : ¬(xT = true ∧ yT = true) := by
+      change Disjoint (X n { T := i, xT := xT, yT := yT, other := other })
+        (Y n { T := i, xT := xT, yT := yT, other := other }) at hdisj
+      simpa [disjoint_X_Y_iff] using hdisj
+    simp [coordinateOfBits_xBit hbits, coordinateOfBits_yBit hbits]
+  right_inv p := by
+    rcases p with ⟨c, other⟩
+    simp [coordinateOfBits_xBit_yBit]
+
+noncomputable instance specialCoordinateEventInterDisjointFintype (i : Fin n) :
+    Fintype {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ disjointEvent n} :=
+  Fintype.ofEquiv (DisjointCoordinate × (Fin n → DisjointCoordinate))
+    (specialCoordinateEventInterDisjointEquiv n i).symm
+
+@[simp] theorem card_specialCoordinateEvent_inter_disjointEvent (i : Fin n) :
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ disjointEvent n} =
+      3 * 3 ^ (n : ℕ) := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ disjointEvent n} =
+        Fintype.card (DisjointCoordinate × (Fin n → DisjointCoordinate)) :=
+      Fintype.card_congr (specialCoordinateEventInterDisjointEquiv n i)
+    _ = 3 * 3 ^ (n : ℕ) := by
+      simp [Fintype.card_prod, Fintype.card_pi]
+
 /-- Under the hard distribution, the disjointness value is controlled by the two special bits. -/
 theorem disjointness_input_eq (ω : HardSample n) :
     disjointness n (X n ω) (Y n ω) =
@@ -393,6 +477,18 @@ theorem measureReal_specialBitsEvent (bx bY : Bool) :
   norm_num [Nat.cast_mul, Nat.cast_pow]
   field_simp [hn, hpow]
 
+open Classical in
+/-- Under the hard distribution, the special coordinate is uniform. -/
+theorem measureReal_specialCoordinateEvent (i : Fin n) :
+    (volume (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype, card_specialCoordinateEvent, card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+
 /-- The event `(X_T, Y_T) = (0, 0)` has probability `1/4`. -/
 theorem measureReal_specialZeroZero :
     (volume (specialZeroZero n)).toReal = (1 / 4 : ℝ) := by
@@ -431,6 +527,20 @@ theorem measureReal_disjointEvent :
     simpa [Measure.real] using measureReal_specialIntersect n]
   norm_num
 
+open Classical in
+/-- Under the hard distribution, `T = i` and disjointness have probability `3 / (4n)`. -/
+theorem measureReal_specialCoordinateEvent_inter_disjointEvent (i : Fin n) :
+    (volume (specialCoordinateEvent n i ∩ disjointEvent n)).toReal =
+      (3 / (4 * (n : ℝ)) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (specialCoordinateEvent n i ∩ disjointEvent n)).toReal = (3 / (4 * (n : ℝ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype, card_specialCoordinateEvent_inter_disjointEvent,
+    card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+
 /-- The disjoint event has positive measure under the hard distribution. -/
 theorem measure_disjointEvent_ne_zero :
     (volume : Measure (HardSample n)) (disjointEvent n) ≠ 0 := by
@@ -467,6 +577,26 @@ theorem disjointCondMeasure_measureReal_specialBitsEvent
   rw [hinter, hD, hbits_measure]
   norm_num
 
+/-- Under the disjoint-conditioned distribution, the special coordinate remains uniform. -/
+theorem disjointCondMeasure_measureReal_specialCoordinateEvent (i : Fin n) :
+    (disjointCondMeasure n).real (specialCoordinateEvent n i) =
+      (1 / (n : ℝ) : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hinter :
+      disjointEvent n ∩ specialCoordinateEvent n i =
+        specialCoordinateEvent n i ∩ disjointEvent n := by
+    rw [Set.inter_comm]
+  have hnum :
+      (volume : Measure (HardSample n)).real (specialCoordinateEvent n i ∩ disjointEvent n) =
+        (3 / (4 * (n : ℝ)) : ℝ) := by
+    simpa [Measure.real] using measureReal_specialCoordinateEvent_inter_disjointEvent n i
+  have hden : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  rw [hinter, hnum, hden]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  field_simp [hn]
+
 /-- Under the disjoint-conditioned distribution, `(X_T, Y_T) = (false, false)` has probability
 `1 / 3`. -/
 theorem disjointCondMeasure_measureReal_specialZeroZero :
@@ -478,6 +608,30 @@ theorem disjointCondMeasure_measureReal_specialZeroZero :
 def specialCoordinate (ω : HardSample n) : Fin n :=
   ω.T
 
+/-- The special-coordinate singleton event is the corresponding named event. -/
+theorem specialCoordinate_preimage_singleton (i : Fin n) :
+    (specialCoordinate n) ⁻¹' {i} = specialCoordinateEvent n i := by
+  ext ω
+  simp [specialCoordinate, specialCoordinateEvent]
+
+/-- Under the disjoint-conditioned distribution, preimages of special-coordinate singletons
+have the uniform mass. -/
+theorem disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton (i : Fin n) :
+    (disjointCondMeasure n).real ((specialCoordinate n) ⁻¹' {i}) =
+      (1 / (n : ℝ) : ℝ) := by
+  rw [specialCoordinate_preimage_singleton,
+    disjointCondMeasure_measureReal_specialCoordinateEvent]
+
+/-- Under the disjoint-conditioned distribution, integrating a function of the special coordinate
+is the uniform average over coordinates. -/
+theorem integral_specialCoordinate_disjointCondMeasure (f : Fin n → ℝ) :
+    (∫ ω, f (specialCoordinate n ω) ∂(disjointCondMeasure n)) =
+      (1 / (n : ℝ) : ℝ) * ∑ i : Fin n, f i := by
+  rw [FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n) (Z := specialCoordinate n) (f := f)]
+  simp_rw [disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton]
+  rw [Finset.mul_sum]
+
 /-- Alice's bit at the special coordinate. -/
 def specialX (ω : HardSample n) : Bool :=
   ω.xT
@@ -486,6 +640,16 @@ def specialX (ω : HardSample n) : Bool :=
 def specialY (ω : HardSample n) : Bool :=
   ω.yT
 
+/-- Alice's special bit is her full input bit at the special coordinate. -/
+theorem specialX_eq_xBit_specialCoordinate (ω : HardSample n) :
+    specialX n ω = xBit n ω (specialCoordinate n ω) := by
+  simp [specialX, specialCoordinate]
+
+/-- Bob's special bit is his full input bit at the special coordinate. -/
+theorem specialY_eq_yBit_specialCoordinate (ω : HardSample n) :
+    specialY n ω = yBit n ω (specialCoordinate n ω) := by
+  simp [specialY, specialCoordinate]
+
 /-- Alice's full input bit-vector. -/
 def xVector (ω : HardSample n) : Fin n → Bool :=
   xBit n ω
@@ -493,6 +657,18 @@ def xVector (ω : HardSample n) : Fin n → Bool :=
 /-- Bob's full input bit-vector. -/
 def yVector (ω : HardSample n) : Fin n → Bool :=
   yBit n ω
+
+/-- Alice's special bit is the value of `xVector` at the special coordinate. -/
+theorem specialX_eq_xVector_specialCoordinate (ω : HardSample n) :
+    specialX n ω = xVector n ω (specialCoordinate n ω) := by
+  rw [specialX_eq_xBit_specialCoordinate]
+  rfl
+
+/-- Bob's special bit is the value of `yVector` at the special coordinate. -/
+theorem specialY_eq_yVector_specialCoordinate (ω : HardSample n) :
+    specialY n ω = yVector n ω (specialCoordinate n ω) := by
+  rw [specialY_eq_yBit_specialCoordinate]
+  rfl
 
 /-- Alice's input bits before the special coordinate, padded by `false` elsewhere so that the
 codomain does not depend on `ω.T`. -/
@@ -510,6 +686,88 @@ def yAfterSpecial (ω : HardSample n) : Fin n → Bool :=
 /-- Bob's input bits except at the special coordinate, padded by `false` at `ω.T`. -/
 def yExceptSpecial (ω : HardSample n) : Fin n → Bool :=
   fun i => if i = ω.T then false else yBit n ω i
+
+/-- Alice's input bits before a fixed coordinate, padded by `false` elsewhere. -/
+def xBeforeCoordinate (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if j < i then xBit n ω j else false
+
+/-- Alice's input bits except at a fixed coordinate, padded by `false` there. -/
+def xExceptCoordinate (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if j = i then false else xBit n ω j
+
+/-- Bob's input bits after a fixed coordinate, padded by `false` elsewhere. -/
+def yAfterCoordinate (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if i < j then yBit n ω j else false
+
+/-- Bob's input bits except at a fixed coordinate, padded by `false` there. -/
+def yExceptCoordinate (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if j = i then false else yBit n ω j
+
+/-- Alice's full vector is recovered from the coordinate bit and the vector with that coordinate
+removed. -/
+theorem update_xExceptCoordinate (i : Fin n) (ω : HardSample n) :
+    Function.update (xExceptCoordinate n i ω) i (xVector n ω i) = xVector n ω := by
+  funext j
+  by_cases h : j = i
+  · subst h
+    simp [xVector]
+  · simp [Function.update, xExceptCoordinate, xVector, h]
+
+/-- Bob's full vector is recovered from the coordinate bit and the vector with that coordinate
+removed. -/
+theorem update_yExceptCoordinate (i : Fin n) (ω : HardSample n) :
+    Function.update (yExceptCoordinate n i ω) i (yVector n ω i) = yVector n ω := by
+  funext j
+  by_cases h : j = i
+  · subst h
+    simp [yVector]
+  · simp [Function.update, yExceptCoordinate, yVector, h]
+
+/-- Alice's full vector is recovered from the special bit and `xExceptSpecial`. -/
+theorem update_xExceptSpecial (ω : HardSample n) :
+    Function.update (xExceptSpecial n ω) (specialCoordinate n ω) (specialX n ω) =
+      xVector n ω := by
+  funext j
+  by_cases h : j = specialCoordinate n ω
+  · subst j
+    rw [Function.update_self]
+    simp [xVector, specialX, specialCoordinate]
+  · have hT : j ≠ ω.T := by simpa [specialCoordinate] using h
+    rw [Function.update_of_ne h]
+    simp [xExceptSpecial, xVector, hT]
+
+/-- Bob's full vector is recovered from the special bit and `yExceptSpecial`. -/
+theorem update_yExceptSpecial (ω : HardSample n) :
+    Function.update (yExceptSpecial n ω) (specialCoordinate n ω) (specialY n ω) =
+      yVector n ω := by
+  funext j
+  by_cases h : j = specialCoordinate n ω
+  · subst j
+    rw [Function.update_self]
+    simp [yVector, specialY, specialCoordinate]
+  · have hT : j ≠ ω.T := by simpa [specialCoordinate] using h
+    rw [Function.update_of_ne h]
+    simp [yExceptSpecial, yVector, hT]
+
+/-- The special-coordinate version of `xBeforeCoordinate`. -/
+theorem xBeforeSpecial_eq_xBeforeCoordinate (ω : HardSample n) :
+    xBeforeSpecial n ω = xBeforeCoordinate n (specialCoordinate n ω) ω :=
+  rfl
+
+/-- The special-coordinate version of `xExceptCoordinate`. -/
+theorem xExceptSpecial_eq_xExceptCoordinate (ω : HardSample n) :
+    xExceptSpecial n ω = xExceptCoordinate n (specialCoordinate n ω) ω :=
+  rfl
+
+/-- The special-coordinate version of `yAfterCoordinate`. -/
+theorem yAfterSpecial_eq_yAfterCoordinate (ω : HardSample n) :
+    yAfterSpecial n ω = yAfterCoordinate n (specialCoordinate n ω) ω :=
+  rfl
+
+/-- The special-coordinate version of `yExceptCoordinate`. -/
+theorem yExceptSpecial_eq_yExceptCoordinate (ω : HardSample n) :
+    yExceptSpecial n ω = yExceptCoordinate n (specialCoordinate n ω) ω :=
+  rfl
 
 /-- If two samples agree on the data contained in `Z`, then Alice's bit from the first sample and
 Bob's bit from the second sample are disjoint away from the special coordinate. -/
@@ -668,6 +926,26 @@ def firstConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n 
 /-- The conditioning variable appearing in the second information term of the textbook proof. -/
 def secondConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (specialCoordinate n ω, xExceptSpecial n ω, yAfterSpecial n ω)
+
+/-- The first conditioning variable with the coordinate supplied explicitly. -/
+def firstConditioningAt (i : Fin n) (ω : HardSample n) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (i, xBeforeCoordinate n i ω, yExceptCoordinate n i ω)
+
+/-- The second conditioning variable with the coordinate supplied explicitly. -/
+def secondConditioningAt (i : Fin n) (ω : HardSample n) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (i, xExceptCoordinate n i ω, yAfterCoordinate n i ω)
+
+/-- The first textbook conditioning variable is the explicit-coordinate version at `T`. -/
+theorem firstConditioning_eq_firstConditioningAt_specialCoordinate (ω : HardSample n) :
+    firstConditioning n ω = firstConditioningAt n (specialCoordinate n ω) ω :=
+  rfl
+
+/-- The second textbook conditioning variable is the explicit-coordinate version at `T`. -/
+theorem secondConditioning_eq_secondConditioningAt_specialCoordinate (ω : HardSample n) :
+    secondConditioning n ω = secondConditioningAt n (specialCoordinate n ω) ω :=
+  rfl
 
 /-- The special-coordinate bit-pair. -/
 def specialPair (ω : HardSample n) : Bool × Bool :=
@@ -1965,6 +2243,53 @@ theorem specialInfo_eq_sum_conditioning
           I[specialY n : message n p ;
             (disjointCondMeasure n)[|secondConditioning n ← c]] := by
   rw [specialInfo, firstInfoTerm_eq_sum_conditioning, secondInfoTerm_eq_sum_conditioning]
+
+/-- The first special-coordinate information term is bounded by the information in Alice's full
+input vector with the same conditioning. -/
+theorem firstInfoTerm_le_xVector_info_firstConditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n p ≤
+      I[xVector n : message n p | firstConditioning n ; disjointCondMeasure n] := by
+  rw [firstInfoTerm]
+  have hx : specialX n = fun ω => xVector n ω (specialCoordinate n ω) := by
+    funext ω
+    exact specialX_eq_xVector_specialCoordinate n ω
+  rw [hx]
+  simpa [firstConditioning] using
+    ProbabilityTheory.condMutualInfo_comp_left_le_of_comp_conditioning
+      (μ := disjointCondMeasure n)
+      (X := xVector n) (Y := message n p) (Z := firstConditioning n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (fun c x => x c.1)
+
+/-- The second special-coordinate information term is bounded by the information in Bob's full
+input vector with the same conditioning. -/
+theorem secondInfoTerm_le_yVector_info_secondConditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondInfoTerm n p ≤
+      I[yVector n : message n p | secondConditioning n ; disjointCondMeasure n] := by
+  rw [secondInfoTerm]
+  have hy : specialY n = fun ω => yVector n ω (specialCoordinate n ω) := by
+    funext ω
+    exact specialY_eq_yVector_specialCoordinate n ω
+  rw [hy]
+  simpa [secondConditioning] using
+    ProbabilityTheory.condMutualInfo_comp_left_le_of_comp_conditioning
+      (μ := disjointCondMeasure n)
+      (X := yVector n) (Y := message n p) (Z := secondConditioning n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (fun c y => y c.1)
+
+/-- The total special-coordinate information is bounded by the two full-vector information terms
+with the same textbook conditioning variables. -/
+theorem specialInfo_le_vector_info_conditioning_sum
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    specialInfo n p ≤
+      I[xVector n : message n p | firstConditioning n ; disjointCondMeasure n] +
+        I[yVector n : message n p | secondConditioning n ; disjointCondMeasure n] := by
+  rw [specialInfo]
+  linarith [firstInfoTerm_le_xVector_info_firstConditioning n p,
+    secondInfoTerm_le_yVector_info_secondConditioning n p]
 
 /-- The first special-coordinate information term is bounded by the transcript length. -/
 theorem firstInfoTerm_le_complexity_mul_log_two
