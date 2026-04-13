@@ -766,6 +766,19 @@ noncomputable instance disjointCondMeasure_isProbabilityMeasure :
   rw [disjointCondMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
 
+open Classical in
+/-- Conditioning on a subevent of disjointness is the same under the ambient hard distribution and
+under the hard distribution first conditioned on disjointness. -/
+theorem volume_cond_eq_disjointCondMeasure_cond_of_subset_disjointEvent
+    {A : Set (HardSample n)} (hA : A ⊆ disjointEvent n) :
+    (volume : Measure (HardSample n))[|A] = (disjointCondMeasure n)[|A] := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (volume : Measure (HardSample n))]
+  congr 1
+  ext ω
+  simp [hA]
+
 /-- Under the disjoint-conditioned distribution, the disjoint model is uniform. -/
 theorem disjointCondMeasure_measureReal_disjointModel_fiber
     (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
@@ -1611,6 +1624,18 @@ theorem specialY_eq_yVector_specialCoordinate (ω : HardSample n) :
   rw [specialY_eq_yBit_specialCoordinate]
   rfl
 
+/-- If Bob's special bit is `false`, then the generated inputs are disjoint. -/
+theorem mem_disjointEvent_of_specialY_eq_false
+    {ω : HardSample n} (hy : specialY n ω = false) :
+    ω ∈ disjointEvent n := by
+  change Disjoint (X n ω) (Y n ω)
+  rw [disjoint_X_Y_iff]
+  intro hbits
+  have hyT : ω.yT = false := by
+    simpa [specialY] using hy
+  rw [hyT] at hbits
+  simp at hbits
+
 /-- Alice's input bits before the special coordinate, padded by `false` elsewhere so that the
 codomain does not depend on `ω.T`. -/
 def xBeforeSpecial (ω : HardSample n) : Fin n → Bool :=
@@ -2364,6 +2389,328 @@ theorem uniformCoordinateAndVector_measureReal_firstConditioning_inter_specialX_
             (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
               {a})
   rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- The coordinate-vector part of the event `Y_T = false` together with a fixed Alice coarse
+conditioning value `(T, X_<T, Y_>T)`. -/
+def coordinateVectorAliceCoarseEvent
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Set (Fin n → DisjointCoordinate) :=
+  {coords |
+    coordinateXBefore n c.1 coords = c.2.1 ∧
+      coordinateYAfter n c.1 coords = c.2.2 ∧
+      coordinateYBit n c.1 coords = false}
+
+/-- The singleton coordinate block used to isolate the current coordinate. -/
+def coordinateSingletonBlock (i : Fin n)
+    (coords : Fin n → DisjointCoordinate) :
+    ({i} : Finset (Fin n)) → DisjointCoordinate :=
+  fun j => coords j
+
+/-- The coordinate block containing every coordinate except the current one. -/
+def coordinateRestBlock (i : Fin n)
+    (coords : Fin n → DisjointCoordinate) :
+    (Finset.univ.erase i) → DisjointCoordinate :=
+  fun j => coords j
+
+/-- The singleton-block event `Y_i = false`. -/
+def coordinateSingletonYFalseEvent (i : Fin n) :
+    Set (({i} : Finset (Fin n)) → DisjointCoordinate) :=
+  {block | (block ⟨i, by simp⟩).yBit = false}
+
+/-- The rest-block part of Alice's clean coarse-conditioning event. -/
+def coordinateRestAliceCoarseEvent
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Set ((Finset.univ.erase c.1) → DisjointCoordinate) :=
+  {rest |
+    (fun j => if hji : j < c.1 then
+        (rest ⟨j, by simp [hji.ne]⟩).xBit
+      else false) = c.2.1 ∧
+    (fun j => if hij : c.1 < j then
+        (rest ⟨j, by simp [hij.ne']⟩).yBit
+      else false) = c.2.2}
+
+/-- Alice's clean coarse event factors into the singleton coordinate event and a rest-coordinate
+event. -/
+theorem coordinateVectorAliceCoarseEvent_eq_singleton_inter_rest
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    coordinateVectorAliceCoarseEvent n c =
+      (coordinateSingletonBlock n c.1) ⁻¹' coordinateSingletonYFalseEvent n c.1 ∩
+        (coordinateRestBlock n c.1) ⁻¹' coordinateRestAliceCoarseEvent n c := by
+  rcases c with ⟨i, xBefore, yAfter⟩
+  ext coords
+  have hx :
+      (fun j => if hji : j < i then (coords j).xBit else false) =
+        coordinateXBefore n i coords := by
+    funext j
+    by_cases hji : j < i <;> simp [coordinateXBefore, hji]
+  have hy :
+      (fun j => if hij : i < j then (coords j).yBit else false) =
+        coordinateYAfter n i coords := by
+    funext j
+    by_cases hij : i < j <;> simp [coordinateYAfter, hij]
+  simp only [coordinateVectorAliceCoarseEvent, coordinateSingletonBlock,
+    coordinateSingletonYFalseEvent, coordinateRestBlock, coordinateRestAliceCoarseEvent,
+    Set.mem_setOf_eq, Set.mem_preimage, Set.mem_inter_iff]
+  rw [hx, hy]
+  simp [coordinateYBit, and_left_comm, and_comm]
+
+open Classical in
+/-- Under the uniform disjoint-coordinate-vector law, the current coordinate block is independent
+of all other coordinate blocks. -/
+theorem uniformDisjointCoordinateVector_indep_singletonBlock_restBlock
+    (i : Fin n) :
+    IndepFun (coordinateSingletonBlock n i) (coordinateRestBlock n i)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  refine (uniformDisjointCoordinateVector_iIndepFun n).indepFun_finset
+    ({i} : Finset (Fin n)) (Finset.univ.erase i) ?_ (fun _ => Measurable.of_discrete)
+  rw [Finset.disjoint_singleton_left]
+  simp
+
+open Classical in
+/-- After conditioning on Alice's clean coarse event with `Y_i = false`, the current Alice bit is
+independent of the earlier Bob bits. -/
+theorem uniformDisjointCoordinateVector_indep_coordinateXBit_coordinateYBefore_cond_aliceCoarseEvent
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    IndepFun (coordinateXBit n c.1) (coordinateYBefore n c.1)
+      (((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))[|coordinateVectorAliceCoarseEvent n c]) := by
+  rcases c with ⟨i, xBefore, yAfter⟩
+  rw [coordinateVectorAliceCoarseEvent_eq_singleton_inter_rest]
+  let leftX :
+      (({i} : Finset (Fin n)) → DisjointCoordinate) → Bool :=
+    fun block => (block ⟨i, by simp⟩).xBit
+  let restYBefore :
+      ((Finset.univ.erase i) → DisjointCoordinate) → (Fin n → Bool) :=
+    fun rest j => if hji : j < i then
+      (rest ⟨j, by simp [hji.ne]⟩).yBit
+    else false
+  have hcond :
+      IndepFun (coordinateSingletonBlock n i) (coordinateRestBlock n i)
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))[|
+            (coordinateSingletonBlock n i) ⁻¹' coordinateSingletonYFalseEvent n i ∩
+              (coordinateRestBlock n i) ⁻¹'
+                coordinateRestAliceCoarseEvent n (i, xBefore, yAfter)]) :=
+    (uniformDisjointCoordinateVector_indep_singletonBlock_restBlock n i).cond
+      MeasurableSet.of_discrete MeasurableSet.of_discrete
+      Measurable.of_discrete Measurable.of_discrete
+  have hcomp := hcond.comp
+    (Measurable.of_discrete (f := leftX))
+    (Measurable.of_discrete (f := restYBefore))
+  simpa [leftX, restYBefore, coordinateSingletonBlock, coordinateRestBlock,
+    coordinateXBit, coordinateYBefore] using hcomp
+
+/-- In `(T, coordinateVector)` form, the event `Y_T = false` and a fixed Alice coarse
+conditioning value is a coordinate singleton times a coordinate-vector event. -/
+theorem coordinateAndVectorSpecialYFalse_inter_coarseConditioning_preimage_singleton
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+        (coordinateAndVectorCoarseConditioning n) ⁻¹' {c} =
+      ({c.1} : Set (Fin n)) ×ˢ coordinateVectorAliceCoarseEvent n c := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xBefore, yAfter⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorSpecialY, coordinateAndVectorCoarseConditioning,
+      coordinateVectorAliceCoarseEvent, Prod.ext_iff, and_left_comm, and_comm]
+  · simp [coordinateAndVectorSpecialY, coordinateAndVectorCoarseConditioning,
+      coordinateVectorAliceCoarseEvent, Prod.ext_iff, hij]
+
+/-- Under product-uniform sampling, the clean Alice coarse event with `Y_T = false` has the
+expected `1 / n` factor from the random coordinate. -/
+theorem uniformCoordinateAndVector_measureReal_specialYFalse_inter_coarseConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+          (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (coordinateVectorAliceCoarseEvent n c) := by
+  rw [coordinateAndVectorSpecialYFalse_inter_coarseConditioning_preimage_singleton]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ coordinateVectorAliceCoarseEvent n c) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (coordinateVectorAliceCoarseEvent n c)
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- A clean coarse-conditioning fiber intersected with a fixed `(X_T, Y_<T)` value is a coordinate
+singleton times the corresponding vector event. -/
+theorem coordinateAndVectorSpecialYFalse_inter_coarseConditioning_inter_specialX_yBefore_preimage
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × (Fin n → Bool)) :
+    ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+        (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}) ∩
+        (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorYBefore n z)) ⁻¹'
+          {a} =
+      ({c.1} : Set (Fin n)) ×ˢ
+        (coordinateVectorAliceCoarseEvent n c ∩
+          (fun coords => (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords)) ⁻¹'
+            {a}) := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xBefore, yAfter⟩
+  rcases a with ⟨xBitValue, yBeforeValue⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorSpecialX, coordinateAndVectorSpecialY,
+      coordinateAndVectorYBefore, coordinateAndVectorCoarseConditioning,
+      coordinateVectorAliceCoarseEvent, Prod.ext_iff, and_left_comm, and_assoc, and_comm]
+  · simp [coordinateAndVectorSpecialX, coordinateAndVectorSpecialY,
+      coordinateAndVectorYBefore, coordinateAndVectorCoarseConditioning,
+      coordinateVectorAliceCoarseEvent, Prod.ext_iff, hij]
+
+/-- Under product-uniform sampling, a clean coarse fiber intersected with a fixed `(X_T, Y_<T)`
+value has the expected `1 / n` factor from the random coordinate. -/
+theorem
+    uniformCoordinateAndVector_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX_yBefore
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × (Fin n → Bool)) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        (((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+          (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}) ∩
+          (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorYBefore n z)) ⁻¹'
+            {a}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (coordinateVectorAliceCoarseEvent n c ∩
+            (fun coords => (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords)) ⁻¹'
+              {a}) := by
+  rw [coordinateAndVectorSpecialYFalse_inter_coarseConditioning_inter_specialX_yBefore_preimage]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ
+          (coordinateVectorAliceCoarseEvent n c ∩
+            (fun coords =>
+              (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords)) ⁻¹' {a})) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (coordinateVectorAliceCoarseEvent n c ∩
+            (fun coords =>
+              (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords)) ⁻¹' {a})
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- After conditioning on a clean coarse fiber with `Y_T = false`, the pair-space
+`(X_T, Y_<T)` law is the same as the fixed-coordinate vector law on the corresponding coarse
+event. -/
+theorem identDistrib_coarsePairSpecialYFalseFiber_fixedYBefore
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    IdentDistrib
+      (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorYBefore n z))
+      (fun coords => (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords))
+      (ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+          (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}))
+      (ProbabilityTheory.cond
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)))
+        (coordinateVectorAliceCoarseEvent n c)) := by
+  refine ⟨Measurable.of_discrete.aemeasurable, Measurable.of_discrete.aemeasurable, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro a
+  let μPair : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate)))
+  let μVec : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  change
+    ((Measure.map
+        (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorYBefore n z))
+        (ProbabilityTheory.cond μPair
+          ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+            (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}))) {a}).toReal =
+      ((Measure.map
+        (fun coords => (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords))
+        (ProbabilityTheory.cond μVec (coordinateVectorAliceCoarseEvent n c))) {a}).toReal
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  change
+    (ProbabilityTheory.cond μPair
+        ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+          (coordinateAndVectorCoarseConditioning n) ⁻¹' {c})).real
+      ((fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorYBefore n z)) ⁻¹'
+        {a}) =
+    (ProbabilityTheory.cond μVec (coordinateVectorAliceCoarseEvent n c)).real
+      ((fun coords => (coordinateXBit n c.1 coords, coordinateYBefore n c.1 coords)) ⁻¹'
+        {a})
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  dsimp only [μPair, μVec]
+  rw [uniformCoordinateAndVector_measureReal_specialYFalse_inter_coarseConditioning]
+  rw [uniformCoordinateAndVector_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX_yBefore]
+  have hn : (1 / (n : ℝ) : ℝ) ≠ 0 := by positivity
+  rw [mul_inv_rev, ← mul_assoc, inv_mul_cancel_right₀ hn]
+
+/-- On each clean coarse fiber with `Y_T = false`, the current Alice bit has zero mutual
+information with the earlier Bob bits. -/
+theorem mutualInfo_coarsePairSpecialYFalseFiber_specialX_yBefore_eq_zero
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    I[coordinateAndVectorSpecialX n : coordinateAndVectorYBefore n ;
+      ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+          (coordinateAndVectorCoarseConditioning n) ⁻¹' {c})] = 0 := by
+  have hident := identDistrib_coarsePairSpecialYFalseFiber_fixedYBefore n c
+  have hinfo :
+      I[coordinateAndVectorSpecialX n : coordinateAndVectorYBefore n ;
+        ProbabilityTheory.cond
+          (((uniformCoordinateAndVector n :
+            ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+            Measure (Fin n × (Fin n → DisjointCoordinate))))
+          ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+            (coordinateAndVectorCoarseConditioning n) ⁻¹' {c})] =
+        I[coordinateXBit n c.1 : coordinateYBefore n c.1 ;
+          ProbabilityTheory.cond
+            (((uniformDisjointCoordinateVector n :
+              ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+              Measure (Fin n → DisjointCoordinate)))
+            (coordinateVectorAliceCoarseEvent n c)] :=
+    ProbabilityTheory.IdentDistrib.mutualInfo_eq hident
+  have hvec :
+      I[coordinateXBit n c.1 : coordinateYBefore n c.1 ;
+        ProbabilityTheory.cond
+          (((uniformDisjointCoordinateVector n :
+            ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+            Measure (Fin n → DisjointCoordinate)))
+          (coordinateVectorAliceCoarseEvent n c)] = 0 :=
+    (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
+      (uniformDisjointCoordinateVector_indep_coordinateXBit_coordinateYBefore_cond_aliceCoarseEvent
+        n c)
+  exact hinfo.trans hvec
 
 /-- After conditioning on a first-conditioning fiber, the pair-space Alice bit/transcript law is
 the same as the corresponding fixed-coordinate law on coordinate vectors. -/
@@ -3363,6 +3710,43 @@ noncomputable def uniformCoordinateAndVectorSpecialYFalseMeasure :
       (coordinateAndVectorSpecialY n) ⁻¹' {false}]
   )
 
+open Classical in
+/-- The clean Alice coarse-conditioning fiber mass under `Y_T = false`, with the `3 / 2`
+scaling from `Pr[Y_T = false] = 2 / 3` made explicit. -/
+theorem uniformCoordinateAndVectorSpecialYFalse_measureReal_coarseConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (uniformCoordinateAndVectorSpecialYFalseMeasure n).real
+        ((coordinateAndVectorCoarseConditioning n) ⁻¹' {c}) =
+      (3 / 2 : ℝ) *
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))).real
+            ((coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+              (coordinateAndVectorCoarseConditioning n) ⁻¹' {c})) := by
+  rw [uniformCoordinateAndVectorSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [uniformCoordinateAndVector_measureReal_specialY_false]
+  ring
+
+open Classical in
+/-- Conditioning the clean `(T, coordinateVector)` law first on `Y_T = false` and then on a
+coarse value is the same as conditioning on the intersection of the two events. -/
+theorem uniformCoordinateAndVectorSpecialYFalse_cond_coarseConditioning_eq_cond_inter
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (uniformCoordinateAndVectorSpecialYFalseMeasure n)[|
+        coordinateAndVectorCoarseConditioning n ← c] =
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+          (coordinateAndVectorSpecialY n) ⁻¹' {false} ∩
+            (coordinateAndVectorCoarseConditioning n) ⁻¹' {c}]) := by
+  rw [uniformCoordinateAndVectorSpecialYFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete
+    (((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))))
+
 /-- The Alice-side extra-conditioning zero-information target can be computed on the clean
 coordinate-vector model conditioned on `Y_T = false`. -/
 theorem
@@ -3435,6 +3819,97 @@ theorem
       (firstConditioning_ae_eq_coordinateAndVectorFirstConditioning_disjointSpecialYFalse n)
       (coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialYFalse n)
   exact hactual.trans (by simpa [μY] using hprojected)
+
+/-- The clean coordinate-vector conditional independence target for Alice's extra `Y_<T` data. -/
+noncomputable def coordinateAndVectorYBeforeExtraInfo : ℝ :=
+  I[coordinateAndVectorSpecialX n : coordinateAndVectorYBefore n|
+    coordinateAndVectorCoarseConditioning n;uniformCoordinateAndVectorSpecialYFalseMeasure n]
+
+open Classical in
+/-- In the clean coordinate-vector model conditioned on `Y_T = false`, the current Alice bit is
+conditionally independent of the extra `Y_<T` data given the Claim 6.21 coarse conditioning. -/
+theorem coordinateAndVectorYBeforeExtraInfo_eq_zero :
+    coordinateAndVectorYBeforeExtraInfo n = 0 := by
+  rw [coordinateAndVectorYBeforeExtraInfo]
+  let μY : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    uniformCoordinateAndVectorSpecialYFalseMeasure n
+  haveI : IsProbabilityMeasure μY := by
+    simpa [μY, uniformCoordinateAndVectorSpecialYFalseMeasure] using
+      uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure n
+  apply (ProbabilityTheory.condMutualInfo_eq_zero
+    (μ := μY)
+    (X := coordinateAndVectorSpecialX n)
+    (Y := coordinateAndVectorYBefore n)
+    (Z := coordinateAndVectorCoarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete).mpr
+  rw [ProbabilityTheory.condIndepFun_iff, ae_iff_of_countable]
+  intro c _hc
+  dsimp only [μY]
+  rw [uniformCoordinateAndVectorSpecialYFalse_cond_coarseConditioning_eq_cond_inter]
+  exact (ProbabilityTheory.mutualInfo_eq_zero
+      Measurable.of_discrete Measurable.of_discrete).mp
+    (mutualInfo_coarsePairSpecialYFalseFiber_specialX_yBefore_eq_zero n c)
+
+/-- After the coarse Claim 6.21 data is conditioned on, Alice's fine textbook conditioning is a
+postprocessing of the extra `Y_<T` data. Thus the clean-coordinate extra-conditioning target is
+bounded by the corresponding target with `Y_<T` as the right variable. -/
+theorem coordinateAndVector_alice_extra_le_yBefore :
+    I[coordinateAndVectorSpecialX n : coordinateAndVectorFirstConditioning n|
+      coordinateAndVectorCoarseConditioning n;
+      uniformCoordinateAndVectorSpecialYFalseMeasure n] ≤
+      coordinateAndVectorYBeforeExtraInfo n := by
+  let μY : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    uniformCoordinateAndVectorSpecialYFalseMeasure n
+  haveI : IsProbabilityMeasure μY := by
+    simpa [μY, uniformCoordinateAndVectorSpecialYFalseMeasure] using
+      uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure n
+  have hfirst :
+      coordinateAndVectorFirstConditioning n =
+        fun z =>
+          firstConditioningFromCoarseAndYBefore n
+            (coordinateAndVectorCoarseConditioning n z)
+            (coordinateAndVectorYBefore n z) := by
+    funext z
+    exact coordinateAndVectorFirstConditioning_eq_fromCoarseAndYBefore n z
+  rw [coordinateAndVectorYBeforeExtraInfo]
+  rw [hfirst]
+  exact ProbabilityTheory.condMutualInfo_comp_right_le_of_comp_conditioning
+    (μ := μY)
+    (X := coordinateAndVectorSpecialX n)
+    (Y := coordinateAndVectorYBefore n)
+    (Z := coordinateAndVectorCoarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (fun c yBefore => firstConditioningFromCoarseAndYBefore n c yBefore)
+    Measurable.of_discrete
+
+/-- The hard-sample Alice extra-conditioning target is reduced to independence of `X_T` from the
+extra `Y_<T` data under the clean coordinate-vector conditioning. -/
+theorem condMutualInfo_alice_extra_le_coordinateAndVectorYBefore :
+    I[specialX n : firstConditioning n|coarseConditioning n;
+      disjointSpecialYFalseMeasure n] ≤
+      coordinateAndVectorYBeforeExtraInfo n := by
+  rw [condMutualInfo_alice_extra_eq_coordinate]
+  exact coordinateAndVector_alice_extra_le_yBefore n
+
+/-- It is enough to prove the clean coordinate-vector conditional independence of `X_T` from the
+extra `Y_<T` data. -/
+theorem condMutualInfo_alice_extra_eq_zero_of_coordinateAndVectorYBefore_eq_zero
+    (hzero : coordinateAndVectorYBeforeExtraInfo n = 0) :
+    I[specialX n : firstConditioning n|coarseConditioning n;
+      disjointSpecialYFalseMeasure n] = 0 := by
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  have hle0 :
+      I[specialX n : firstConditioning n|coarseConditioning n;
+        disjointSpecialYFalseMeasure n] ≤ 0 := by
+    simpa [hzero] using condMutualInfo_alice_extra_le_coordinateAndVectorYBefore n
+  have hnonneg :
+      0 ≤ I[specialX n : firstConditioning n|coarseConditioning n;
+        disjointSpecialYFalseMeasure n] :=
+    ProbabilityTheory.condMutualInfo_nonneg
+      (μ := disjointSpecialYFalseMeasure n)
+      (X := specialX n) (Y := firstConditioning n) (Z := coarseConditioning n)
+      Measurable.of_discrete Measurable.of_discrete
+  exact le_antisymm hle0 hnonneg
 
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
@@ -3965,6 +4440,23 @@ theorem firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_condMutualInfo_eq_zero
       Measurable.of_discrete hzero'
   simpa [firstCoarseInfoTerm, firstFineYFalseInfoTerm, hcoarse] using hle
 
+/-- Coarse-to-fine Alice information comparison reduced to the clean conditional independence of
+`X_T` from `Y_<T` given the Claim 6.21 coarse data. -/
+theorem firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_coordinateAndVectorYBefore_eq_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hzero : coordinateAndVectorYBeforeExtraInfo n = 0) :
+    firstCoarseInfoTerm n p ≤ firstFineYFalseInfoTerm n p :=
+  firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_condMutualInfo_eq_zero n p
+    (condMutualInfo_alice_extra_eq_zero_of_coordinateAndVectorYBefore_eq_zero n hzero)
+
+/-- Alice's coarse Claim 6.21 information term is bounded by the finer textbook information
+term after conditioning on `Y_T = false`. -/
+theorem firstCoarseInfoTerm_le_firstFineYFalseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstCoarseInfoTerm n p ≤ firstFineYFalseInfoTerm n p :=
+  firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_coordinateAndVectorYBefore_eq_zero n p
+    (coordinateAndVectorYBeforeExtraInfo_eq_zero n)
+
 /-- A `Z` fiber is the intersection of its transcript fiber and its coarse-conditioning fiber. -/
 theorem zVariable_preimage_singleton_eq_message_inter_coarseConditioning
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -4044,6 +4536,47 @@ theorem zFiberMeasure_isProbabilityMeasure
     IsProbabilityMeasure (zFiberMeasure n p z) := by
   rw [zFiberMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure hz
+
+open Classical in
+/-- Conditioning a `Z=z` fiber further on a special Bob-bit value is the same as conditioning the
+ambient hard distribution on the intersection of those two fiber events. -/
+theorem zFiberMeasure_cond_specialY_eq_volume_cond_inter
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (b : Bool) :
+    (zFiberMeasure n p z)[|(specialY n) ⁻¹' {b}] =
+      (volume : Measure (HardSample n))[|
+        ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b})] := by
+  rw [zFiberMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (volume : Measure (HardSample n))
+
+/-- The event `Z=z ∧ Y_T=false` is contained in the disjoint-input event. -/
+theorem zVariable_inter_specialYFalse_subset_disjointEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {false}) ⊆ disjointEvent n := by
+  intro ω hω
+  exact mem_disjointEvent_of_specialY_eq_false n (by simpa using hω.2)
+
+open Classical in
+/-- Conditioning a `Z=z` fiber further on `Y_T=false` agrees with conditioning the
+`D ∧ Y_T=false` measure on the same `Z` fiber. -/
+theorem zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}] =
+      (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] := by
+  rw [zFiberMeasure_cond_specialY_eq_volume_cond_inter]
+  rw [show ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {false}) =
+      ((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z}) by
+    ext ω
+    simp [and_comm]]
+  rw [disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter]
+  rw [← volume_cond_eq_disjointCondMeasure_cond_of_subset_disjointEvent n
+    (by
+      intro ω hω
+      exact mem_disjointEvent_of_specialY_eq_false n (by simpa using hω.1))]
 
 /-- Positive mass under the disjoint-conditioned measure implies positive mass under the
 original hard distribution. -/
@@ -4481,6 +5014,92 @@ theorem conditionalSpecialYLaw_singleton
   rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
   rfl
+
+open Classical in
+/-- A product special-pair law gives singleton factorization of the conditional bit laws on the
+same `Z` fiber. -/
+theorem conditionalSpecialPairLaw_singleton_factorization_of_eq_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hprod :
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (b : Bool × Bool) :
+    ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} =
+      ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {b.1} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.2} := by
+  rw [hprod]
+  rcases b with ⟨bX, bY⟩
+  rw [TVDistance.probabilityMeasureProd]
+  change
+    (((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).prod
+      ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool) ({(bX, bY)})).toReal =
+      ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {bX} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {bY}
+  rw [show ({(bX, bY)} : Set (Bool × Bool)) = ({bX} : Set Bool) ×ˢ ({bY} : Set Bool) by
+    ext b
+    simp [Prod.ext_iff]]
+  rw [Measure.prod_prod, ENNReal.toReal_mul]
+  rfl
+
+open Classical in
+/-- On a product-law `Z` fiber, conditioning on one Bob special-bit value does not change Alice's
+special-bit law. -/
+theorem conditionalSpecialXLaw_eq_cond_specialY_of_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hprod :
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (bY : Bool)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {bY}) ≠ 0) :
+    conditionalSpecialXLaw n p z hz =
+      ProbabilityMeasure.map
+        (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}],
+          ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+          ProbabilityMeasure (HardSample n))
+        (Measurable.of_discrete.aemeasurable (f := specialX n)) := by
+  let ν : ProbabilityMeasure (HardSample n) :=
+    ⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}],
+      ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩
+  change conditionalSpecialXLaw n p z hz =
+    ProbabilityMeasure.map ν (Measurable.of_discrete.aemeasurable (f := specialX n))
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro bX
+  rw [conditionalSpecialXLaw_singleton]
+  rw [Measure.real]
+  change ((zFiberMeasure n p z) ((specialX n) ⁻¹' {bX})).toReal =
+    (((ProbabilityMeasure.map ν
+      (Measurable.of_discrete.aemeasurable (f := specialX n)) : ProbabilityMeasure Bool) :
+      Measure Bool) {bX}).toReal
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  change (zFiberMeasure n p z).real ((specialX n) ⁻¹' {bX}) =
+    ((zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}]).real ((specialX n) ⁻¹' {bX})
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hpair :
+      ((specialY n) ⁻¹' {bY}) ∩ ((specialX n) ⁻¹' {bX}) =
+        (specialPair n) ⁻¹' {(bX, bY)} := by
+    ext ω
+    simp [specialPair, specialX, specialY, and_comm]
+  have hfactor :=
+    conditionalSpecialPairLaw_singleton_factorization_of_eq_prod n p z hz hprod (bX, bY)
+  rw [conditionalSpecialPairLaw_singleton, conditionalSpecialXLaw_singleton,
+    conditionalSpecialYLaw_singleton] at hfactor
+  rw [hpair, hfactor]
+  field_simp [hY]
 
 /-- Pulling a dual `Z` fiber intersected with a dual Alice-special-bit event back along
 hard-sample duality gives the corresponding original Bob-special-bit event. -/
@@ -5909,6 +6528,30 @@ theorem entropy_coordinateMessage_dualProtocol
       (dualProtocolLeafMap n p) (dualProtocolLeafMap_injective n p)
   exact hdual.trans (hrec.trans hinj)
 
+/-- Alice's fixed-coordinate chain-rule sum is the full Alice input-vector information term.
+This is the Alice half of Lemma 6.20 on the explicit uniform disjoint-coordinate-vector space. -/
+theorem fixedFirstInfoSum_eq_vectorFirstFullInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoSum n p = vectorFirstFullInfo n p := by
+  sorry
+
+/-- Alice's full input-vector information is bounded by the transcript entropy. -/
+theorem vectorFirstFullInfo_le_entropy_coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    vectorFirstFullInfo n p ≤
+      H[coordinateMessage n p ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  rw [vectorFirstFullInfo]
+  exact ProbabilityTheory.condMutualInfo_le_entropy_right
+    (μ := ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate)))
+    (X := disjointCoordinateXVector n) (Y := coordinateMessage n p)
+    (Z := disjointCoordinateYVector n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+
 /-- Alice's fixed-coordinate information sum is bounded by the transcript entropy. This is the
 first chain-rule/subadditivity input needed for the disjointness lower bound. -/
 theorem fixedFirstInfoSum_le_entropy_coordinateMessage
@@ -5918,7 +6561,8 @@ theorem fixedFirstInfoSum_le_entropy_coordinateMessage
         ((uniformDisjointCoordinateVector n :
           ProbabilityMeasure (Fin n → DisjointCoordinate)) :
           Measure (Fin n → DisjointCoordinate))] := by
-  sorry
+  rw [fixedFirstInfoSum_eq_vectorFirstFullInfo]
+  exact vectorFirstFullInfo_le_entropy_coordinateMessage n p
 
 /-- Bob's fixed-coordinate information sum is bounded by the transcript entropy. This is the
 second chain-rule/subadditivity input needed for the disjointness lower bound. -/
@@ -6128,64 +6772,6 @@ theorem specialInfo_nonneg
     0 ≤ specialInfo n p := by
   rw [specialInfo]
   linarith [firstInfoTerm_nonneg n p, secondInfoTerm_nonneg n p]
-
-/-- The remaining Alice KL-sum comparison for the corrected textbook route. The factor `3 / 2`
-comes from comparing the unconditional special-bit law on `Z` fibers with the information term
-conditioned on `Y_T = 0` inside the disjoint event. -/
-theorem sum_xFiberKL_le_three_halves_firstInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-      (3 / 2 : ℝ) * firstInfoTerm n p := by
-  sorry
-
-open Classical in
-/-- The dual-protocol Alice distance integral is the original protocol's Bob distance integral. -/
-theorem integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (∫ ω, (xDistance n (dualProtocol n p)
-        (zVariable n (dualProtocol n p) ω)) ^ 2 ∂(disjointCondMeasure n)) =
-      ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
-  let μ : Measure (HardSample n) := disjointCondMeasure n
-  let f : HardSample n → ℝ := fun ω =>
-    (xDistance n (dualProtocol n p) (zVariable n (dualProtocol n p) ω)) ^ 2
-  have hmap : (∫ ω, f ω ∂μ) = ∫ ω, f (dualHardSample n ω) ∂μ := by
-    have h :
-        (∫ ω, f ω ∂Measure.map (dualHardSample n) μ) =
-          ∫ ω, f (dualHardSample n ω) ∂μ :=
-      integral_map
-        (μ := μ) (φ := dualHardSample n)
-        Measurable.of_discrete.aemeasurable
-        Measurable.of_discrete.aestronglyMeasurable
-    rw [show Measure.map (dualHardSample n) μ = μ by
-      simpa [μ] using (disjointCondMeasure_measurePreserving_dualHardSample n).map_eq] at h
-    exact h
-  change (∫ ω, f ω ∂μ) = ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂μ
-  rw [hmap]
-  apply integral_congr_ae
-  filter_upwards with ω
-  simp [f, zVariable_dualProtocol_dualHardSample,
-    xDistance_dualProtocol_dualZValue_eq_yDistance]
-
-/-- Alice one-bit information estimate with the constant loss from the textbook conditioning
-comparison. -/
-theorem two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      (3 / 2 : ℝ) * firstInfoTerm n p :=
-  (two_mul_integral_xDistance_sq_le_sum_xFiberKL n p).trans
-    (sum_xFiberKL_le_three_halves_firstInfoTerm n p)
-
-/-- Bob one-bit information estimate with the constant loss from the textbook conditioning
-comparison. -/
-theorem two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      (3 / 2 : ℝ) * secondInfoTerm n p := by
-  have h := two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm n (dualProtocol n p)
-  rw [integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq,
-    firstInfoTerm_dualProtocol_eq_secondInfoTerm] at h
-  exact h
 
 /-- The textbook one-bit information estimates bound the squared averaged `Z`-fiber distance by
 `3 / 2` times the special-coordinate information. -/
@@ -6666,6 +7252,151 @@ theorem fiber_volume_factorization
     rw [mul_comm, ← hcard_real]
   field_simp [hN]
   convert hcard_real'
+
+open Classical in
+/-- Rectangle switching implies the textbook fiber identity
+`p(X_T | Z = z) = p(X_T | Z = z, Y_T = false)` whenever the latter conditioning event has positive
+mass. -/
+theorem conditionalSpecialXLaw_eq_cond_specialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    conditionalSpecialXLaw n p z hz =
+      ProbabilityMeasure.map
+        (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}],
+          ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+          ProbabilityMeasure (HardSample n))
+        (Measurable.of_discrete.aemeasurable (f := specialX n)) :=
+  conditionalSpecialXLaw_eq_cond_specialY_of_prod n p z hz
+    (conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz
+      (fun b => fiber_volume_factorization n p z b))
+    false hY
+
+open Classical in
+/-- After rectangle switching, Alice's `xFiberKL` can be computed by first conditioning on
+`Y_T = false` inside the `Z=z` fiber. -/
+theorem xFiberKL_eq_cond_specialYFalse_klDiv
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    xFiberKL n p z =
+      (InformationTheory.klDiv
+        ((ProbabilityMeasure.map
+          (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}],
+            ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+            ProbabilityMeasure (HardSample n))
+          (Measurable.of_discrete.aemeasurable (f := specialX n)) :
+          ProbabilityMeasure Bool) : Measure Bool)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [xFiberKL, dif_pos hz]
+  rw [conditionalSpecialXLaw_eq_cond_specialYFalse n p z hz hY]
+
+open Classical in
+/-- Alice's `xFiberKL` can be rewritten as KL for the special Alice bit under
+`D ∧ Y_T=false` conditioned on the same `Z=z` fiber. -/
+theorem xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    xFiberKL n p z =
+      (InformationTheory.klDiv
+        (Measure.map (specialX n)
+          ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [xFiberKL_eq_cond_specialYFalse_klDiv n p z hz hY]
+  change
+    (InformationTheory.klDiv
+      (Measure.map (specialX n)
+        ((zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}]))
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal =
+    (InformationTheory.klDiv
+      (Measure.map (specialX n)
+        ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
+  rw [zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zVariable]
+
+/-- Rectangle switching plus the KL chain-rule expansion bounds the averaged Alice `Z`-fiber KL
+cost by the coarse Claim 6.21 information term under the `D ∧ Y_T = false` law. -/
+theorem sum_xFiberKL_le_firstCoarseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+      firstCoarseInfoTerm n p := by
+  sorry
+
+/-- Passing from the disjoint-conditioned law to the `D ∧ Y_T = false` law costs the factor
+`3 / 2`, since `Pr_D[Y_T = false] = 2 / 3`. -/
+theorem firstFineYFalseInfoTerm_le_three_halves_firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstFineYFalseInfoTerm n p ≤ (3 / 2 : ℝ) * firstInfoTerm n p := by
+  sorry
+
+/-- The remaining Alice KL-sum comparison for the corrected textbook route. The factor `3 / 2`
+comes from comparing the unconditional special-bit law on `Z` fibers with the information term
+conditioned on `Y_T = 0` inside the disjoint event. -/
+theorem sum_xFiberKL_le_three_halves_firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+      (3 / 2 : ℝ) * firstInfoTerm n p := by
+  calc
+    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z)
+        ≤ firstCoarseInfoTerm n p := sum_xFiberKL_le_firstCoarseInfoTerm n p
+    _ ≤ firstFineYFalseInfoTerm n p := firstCoarseInfoTerm_le_firstFineYFalseInfoTerm n p
+    _ ≤ (3 / 2 : ℝ) * firstInfoTerm n p :=
+      firstFineYFalseInfoTerm_le_three_halves_firstInfoTerm n p
+
+open Classical in
+/-- The dual-protocol Alice distance integral is the original protocol's Bob distance integral. -/
+theorem integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, (xDistance n (dualProtocol n p)
+        (zVariable n (dualProtocol n p) ω)) ^ 2 ∂(disjointCondMeasure n)) =
+      ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let f : HardSample n → ℝ := fun ω =>
+    (xDistance n (dualProtocol n p) (zVariable n (dualProtocol n p) ω)) ^ 2
+  have hmap : (∫ ω, f ω ∂μ) = ∫ ω, f (dualHardSample n ω) ∂μ := by
+    have h :
+        (∫ ω, f ω ∂Measure.map (dualHardSample n) μ) =
+          ∫ ω, f (dualHardSample n ω) ∂μ :=
+      integral_map
+        (μ := μ) (φ := dualHardSample n)
+        Measurable.of_discrete.aemeasurable
+        Measurable.of_discrete.aestronglyMeasurable
+    rw [show Measure.map (dualHardSample n) μ = μ by
+      simpa [μ] using (disjointCondMeasure_measurePreserving_dualHardSample n).map_eq] at h
+    exact h
+  change (∫ ω, f ω ∂μ) = ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂μ
+  rw [hmap]
+  apply integral_congr_ae
+  filter_upwards with ω
+  simp [f, zVariable_dualProtocol_dualHardSample,
+    xDistance_dualProtocol_dualZValue_eq_yDistance]
+
+/-- Alice one-bit information estimate with the constant loss from the textbook conditioning
+comparison. -/
+theorem two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      (3 / 2 : ℝ) * firstInfoTerm n p :=
+  (two_mul_integral_xDistance_sq_le_sum_xFiberKL n p).trans
+    (sum_xFiberKL_le_three_halves_firstInfoTerm n p)
+
+/-- Bob one-bit information estimate with the constant loss from the textbook conditioning
+comparison. -/
+theorem two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      (3 / 2 : ℝ) * secondInfoTerm n p := by
+  have h := two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm n (dualProtocol n p)
+  rw [integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq,
+    firstInfoTerm_dualProtocol_eq_secondInfoTerm] at h
+  exact h
 
 /-- Deterministic lower-bound wrapper for the corrected `3 / 2` one-bit information route, after
 proving the product-law bridge by rectangle switching. -/

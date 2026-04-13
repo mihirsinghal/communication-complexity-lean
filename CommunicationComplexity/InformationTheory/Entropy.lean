@@ -114,6 +114,21 @@ theorem condMutualInfo_comp_left_le_of_comp_conditioning
         (f := fun zx => f zx.1 zx.2) (g := id) measurable_id
   exact hle.trans_eq hZX
 
+/-- Conditional data processing where the right-side postprocessing may depend on the
+conditioning value. -/
+theorem condMutualInfo_comp_right_le_of_comp_conditioning
+    {V : Type*} [MeasurableSpace V] [MeasurableSingletonClass V] [Countable V]
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (f : U → T → V) (hf : Measurable (Function.uncurry f)) :
+    I[X : (fun ω => f (Z ω) (Y ω)) | Z ; μ] ≤ I[X : Y | Z ; μ] := by
+  have hfZY : Measurable (fun ω => f (Z ω) (Y ω)) :=
+    hf.comp (hZ.prodMk hY)
+  rw [condMutualInfo_comm hX hfZY Z μ, condMutualInfo_comm hX hY Z μ]
+  exact condMutualInfo_comp_left_le_of_comp_conditioning
+    (μ := μ) (X := Y) (Y := X) (Z := Z)
+    hY hX hZ f
+
 variable {V : Type*} [MeasurableSpace V] [MeasurableSingletonClass V] [Countable V]
   {W : Ω → V}
 
