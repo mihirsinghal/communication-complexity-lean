@@ -170,6 +170,32 @@ theorem condMutualInfo_prod_right_eq_add
     condMutualInfo_comm hY hX Z μ,
     condMutualInfo_comm hW hX (fun ω => (Y ω, Z ω)) μ]
 
+/-- Chain rule for mutual information, splitting a pair on the right. -/
+theorem mutualInfo_prod_right_eq_add
+    (hX : Measurable X) (hY : Measurable Y) (hW : Measurable W)
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange W] :
+    I[X : (fun ω => (Y ω, W ω)) ; μ] =
+      I[X : Y ; μ] + I[X : W | Y ; μ] := by
+  have hswap :
+      H[X | (fun ω => (W ω, Y ω)) ; μ] =
+        H[X | (fun ω => (Y ω, W ω)) ; μ] := by
+    let swap : V × T → T × V := fun p => (p.2, p.1)
+    have hswap_meas : Measurable (swap ∘ fun ω => (W ω, Y ω)) := by
+      exact Measurable.of_discrete.comp (hW.prodMk hY)
+    have h :=
+      condEntropy_of_injective' μ hX (hW.prodMk hY) swap
+        (fun a b h => by
+          rcases a with ⟨aW, aY⟩
+          rcases b with ⟨bW, bY⟩
+          simp only [swap, Prod.mk.injEq] at h ⊢
+          exact ⟨h.2, h.1⟩)
+        hswap_meas
+    simpa [swap, Function.comp_def] using h.symm
+  rw [mutualInfo_eq_entropy_sub_condEntropy hX (hY.prodMk hW) μ,
+    mutualInfo_eq_entropy_sub_condEntropy hX hY μ,
+    condMutualInfo_eq' hX hW hY μ, hswap]
+  ring
+
 /-- Conditional entropy is unchanged when both variables are replaced by almost-everywhere equal
 variables. -/
 theorem condEntropy_congr_ae

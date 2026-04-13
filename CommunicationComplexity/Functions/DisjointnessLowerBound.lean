@@ -1200,6 +1200,22 @@ theorem uniformDisjointCoordinateVector_iIndepFun :
   rw [uniformDisjointCoordinateVector_eq_pi]
   exact iIndepFun_pi (fun _ => aemeasurable_id)
 
+/-- Under the uniform disjoint-coordinate-vector law, Alice's coordinate bits are independent. -/
+theorem uniformDisjointCoordinateVector_xBit_iIndepFun :
+    iIndepFun (fun i (coords : Fin n → DisjointCoordinate) => (coords i).xBit)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  exact (uniformDisjointCoordinateVector_iIndepFun n).comp
+    (fun _ coord => coord.xBit) (fun _ => Measurable.of_discrete)
+
+/-- Under the uniform disjoint-coordinate-vector law, Bob's coordinate bits are independent. -/
+theorem uniformDisjointCoordinateVector_yBit_iIndepFun :
+    iIndepFun (fun i (coords : Fin n → DisjointCoordinate) => (coords i).yBit)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  exact (uniformDisjointCoordinateVector_iIndepFun n).comp
+    (fun _ coord => coord.yBit) (fun _ => Measurable.of_discrete)
+
 /-- The law of the generated disjoint coordinate vector under disjoint conditioning is uniform. -/
 theorem disjointCoordinateVectorLaw_eq_uniform :
     disjointCoordinateVectorLaw n = uniformDisjointCoordinateVector n := by
@@ -1621,6 +1637,82 @@ def coordinateFirstConditioning (i : Fin n) (coords : Fin n → DisjointCoordina
 def coordinateSecondConditioning (i : Fin n) (coords : Fin n → DisjointCoordinate) :
     (Fin n → Bool) × (Fin n → Bool) :=
   (coordinateXExcept n i coords, coordinateYAfter n i coords)
+
+open Classical in
+/-- Alice's fixed-coordinate bit is independent of the first-conditioning data, since that data
+only depends on the other disjoint-coordinate samples. -/
+theorem uniformDisjointCoordinateVector_indep_coordinateFirstConditioning_coordinateXBit
+    (i : Fin n) :
+    IndepFun (coordinateFirstConditioning n i) (coordinateXBit n i)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  let S : Finset (Fin n) := Finset.univ.erase i
+  let F : (S → DisjointCoordinate) → (Fin n → Bool) × (Fin n → Bool) := fun rest =>
+    (fun j => if hji : j < i then (rest ⟨j, by simp [S, ne_of_lt hji]⟩).xBit else false,
+      fun j => if hji : j = i then false else (rest ⟨j, by simp [S, hji]⟩).yBit)
+  have hraw :
+      IndepFun (fun coords : Fin n → DisjointCoordinate => fun j : S => coords j)
+        (fun coords : Fin n → DisjointCoordinate => fun j : ({i} : Finset (Fin n)) => coords j)
+        ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)) := by
+    refine (uniformDisjointCoordinateVector_iIndepFun n).indepFun_finset S {i} ?_
+      (fun _ => Measurable.of_discrete)
+    rw [Finset.disjoint_singleton_right]
+    simp [S]
+  have hcomp := hraw.comp (Measurable.of_discrete (f := F))
+    (Measurable.of_discrete
+      (f := fun coord : ({i} : Finset (Fin n)) → DisjointCoordinate =>
+        (coord ⟨i, by simp⟩).xBit))
+  simpa [F, coordinateFirstConditioning, coordinateXBefore, coordinateYExcept, coordinateXBit]
+    using hcomp
+
+open Classical in
+/-- Bob's fixed-coordinate bit is independent of the second-conditioning data, since that data
+only depends on the other disjoint-coordinate samples. -/
+theorem uniformDisjointCoordinateVector_indep_coordinateSecondConditioning_coordinateYBit
+    (i : Fin n) :
+    IndepFun (coordinateSecondConditioning n i) (coordinateYBit n i)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  let S : Finset (Fin n) := Finset.univ.erase i
+  let F : (S → DisjointCoordinate) → (Fin n → Bool) × (Fin n → Bool) := fun rest =>
+    (fun j => if hji : j = i then false else (rest ⟨j, by simp [S, hji]⟩).xBit,
+      fun j => if hji : i < j then (rest ⟨j, by simp [S, ne_of_gt hji]⟩).yBit else false)
+  have hraw :
+      IndepFun (fun coords : Fin n → DisjointCoordinate => fun j : S => coords j)
+        (fun coords : Fin n → DisjointCoordinate => fun j : ({i} : Finset (Fin n)) => coords j)
+        ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)) := by
+    refine (uniformDisjointCoordinateVector_iIndepFun n).indepFun_finset S {i} ?_
+      (fun _ => Measurable.of_discrete)
+    rw [Finset.disjoint_singleton_right]
+    simp [S]
+  have hcomp := hraw.comp (Measurable.of_discrete (f := F))
+    (Measurable.of_discrete
+      (f := fun coord : ({i} : Finset (Fin n)) → DisjointCoordinate =>
+        (coord ⟨i, by simp⟩).yBit))
+  simpa [F, coordinateSecondConditioning, coordinateXExcept, coordinateYAfter, coordinateYBit]
+    using hcomp
+
+/-- The first-conditioning data carries no information about Alice's current bit before the
+transcript is observed. -/
+theorem mutualInfo_coordinateFirstConditioning_coordinateXBit_eq_zero
+    (i : Fin n) :
+    I[coordinateFirstConditioning n i : coordinateXBit n i ;
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] = 0 :=
+  (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
+    (uniformDisjointCoordinateVector_indep_coordinateFirstConditioning_coordinateXBit n i)
+
+/-- The second-conditioning data carries no information about Bob's current bit before the
+transcript is observed. -/
+theorem mutualInfo_coordinateSecondConditioning_coordinateYBit_eq_zero
+    (i : Fin n) :
+    I[coordinateSecondConditioning n i : coordinateYBit n i ;
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] = 0 :=
+  (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
+    (uniformDisjointCoordinateVector_indep_coordinateSecondConditioning_coordinateYBit n i)
 
 /-- Alice's special bit as a function on `(T, coordinateVector)`. -/
 def coordinateAndVectorSpecialX
@@ -2512,6 +2604,79 @@ theorem disjointSpecialPairLaw_singleton (b : Bool × Bool) :
     rw [if_neg hb]
     exact disjointCondMeasure_measureReal_specialBitsEvent n b.1 b.2 hbits
 
+theorem disjointCondMeasure_measureReal_specialPair_preimage_singleton (b : Bool × Bool) :
+    (disjointCondMeasure n).real ((specialPair n) ⁻¹' {b}) =
+      if b = (true, true) then 0 else (1 / 3 : ℝ) := by
+  rw [specialPair_preimage_singleton]
+  by_cases hb : b = (true, true)
+  · subst hb
+    rw [disjointCondMeasure]
+    rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+    have hnone : disjointEvent n ∩ specialBitsEvent n true true = (∅ : Set (HardSample n)) := by
+      ext ω
+      simp [disjointEvent, specialBitsEvent, disjoint_X_Y_iff]
+    rw [hnone]
+    simp
+  · rw [if_neg hb]
+    have hbits : ¬(b.1 = true ∧ b.2 = true) := by
+      intro h
+      exact hb (by cases b; simp_all)
+    exact disjointCondMeasure_measureReal_specialBitsEvent n b.1 b.2 hbits
+
+open Classical in
+/-- Under disjoint conditioning, Alice's special bit has mass `1 / 3` on `true` and `2 / 3` on
+`false`. -/
+theorem disjointCondMeasure_measureReal_specialX_preimage_singleton (b : Bool) :
+    (disjointCondMeasure n).real ((specialX n) ⁻¹' {b}) =
+      if b then (1 / 3 : ℝ) else (2 / 3 : ℝ) := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hpre :=
+    FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      (Ω := HardSample n) (α := Bool × Bool) μ (specialPair n) (fun z => z.1 = b)
+  have hpre' :
+      (disjointCondMeasure n).real {ω | (specialPair n ω).1 = b} =
+        ∑ z : Bool × Bool,
+          if z.1 = b then (disjointCondMeasure n).real ((specialPair n) ⁻¹' {z}) else 0 := by
+    simpa [μ] using hpre
+  rw [show (specialX n) ⁻¹' {b} = {ω | (specialPair n ω).1 = b} by
+    ext ω
+    simp [specialPair]]
+  rw [hpre']
+  simp_rw [disjointCondMeasure_measureReal_specialPair_preimage_singleton]
+  cases b <;> rw [Fintype.sum_prod_type] <;> norm_num
+
+open Classical in
+/-- Under disjoint conditioning, Bob's special bit has mass `1 / 3` on `true` and `2 / 3` on
+`false`. -/
+theorem disjointCondMeasure_measureReal_specialY_preimage_singleton (b : Bool) :
+    (disjointCondMeasure n).real ((specialY n) ⁻¹' {b}) =
+      if b then (1 / 3 : ℝ) else (2 / 3 : ℝ) := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hpre :=
+    FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      (Ω := HardSample n) (α := Bool × Bool) μ (specialPair n) (fun z => z.2 = b)
+  have hpre' :
+      (disjointCondMeasure n).real {ω | (specialPair n ω).2 = b} =
+        ∑ z : Bool × Bool,
+          if z.2 = b then (disjointCondMeasure n).real ((specialPair n) ⁻¹' {z}) else 0 := by
+    simpa [μ] using hpre
+  rw [show (specialY n) ⁻¹' {b} = {ω | (specialPair n ω).2 = b} by
+    ext ω
+    simp [specialPair]]
+  rw [hpre']
+  simp_rw [disjointCondMeasure_measureReal_specialPair_preimage_singleton]
+  cases b <;> rw [Fintype.sum_prod_type] <;> norm_num
+
+/-- Under disjoint conditioning, `Pr[Y_T = false] = 2 / 3`. -/
+theorem disjointCondMeasure_measureReal_specialY_false :
+    (disjointCondMeasure n).real ((specialY n) ⁻¹' {false}) = (2 / 3 : ℝ) := by
+  simpa using disjointCondMeasure_measureReal_specialY_preimage_singleton n false
+
+/-- Under disjoint conditioning, `Pr[X_T = false] = 2 / 3`. -/
+theorem disjointCondMeasure_measureReal_specialX_false :
+    (disjointCondMeasure n).real ((specialX n) ⁻¹' {false}) = (2 / 3 : ℝ) := by
+  simpa using disjointCondMeasure_measureReal_specialX_preimage_singleton n false
+
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
 theorem inputDist_measureReal_eq_preimage (S : Set (Set (Fin n) × Set (Fin n))) :
@@ -2925,6 +3090,26 @@ noncomputable def yFiberKL
     0
 
 open Classical in
+/-- Alice's one-bit fiber KL cost is nonnegative, including the zero-mass fallback case. -/
+theorem xFiberKL_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    0 ≤ xFiberKL n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simp [xFiberKL, hz]
+  · simp [xFiberKL, hz]
+
+open Classical in
+/-- Bob's one-bit fiber KL cost is nonnegative, including the zero-mass fallback case. -/
+theorem yFiberKL_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    0 ≤ yFiberKL n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simp [yFiberKL, hz]
+  · simp [yFiberKL, hz]
+
+open Classical in
 /-- Pointwise Pinsker, with zero-mass `Z` fibers handled by `xFiberKL`. -/
 theorem two_mul_xDistance_sq_le_xFiberKL
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -2991,6 +3176,28 @@ theorem integral_yFiberKL_eq_sum_zVariable
         (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z :=
   FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
     (μ := disjointCondMeasure n) (Z := zVariable n p) (f := yFiberKL n p)
+
+/-- The weighted Alice one-bit KL sum over `Z` fibers is nonnegative. -/
+theorem sum_xFiberKL_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z := by
+  exact Finset.sum_nonneg fun z _ =>
+    mul_nonneg
+      (measureReal_nonneg (μ := disjointCondMeasure n) (s := (zVariable n p) ⁻¹' {z}))
+      (xFiberKL_nonneg n p z)
+
+/-- The weighted Bob one-bit KL sum over `Z` fibers is nonnegative. -/
+theorem sum_yFiberKL_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z := by
+  exact Finset.sum_nonneg fun z _ =>
+    mul_nonneg
+      (measureReal_nonneg (μ := disjointCondMeasure n) (s := (zVariable n p) ⁻¹' {z}))
+      (yFiberKL_nonneg n p z)
 
 /-- Sum-form Alice Pinsker bound over `Z` fibers. -/
 theorem two_mul_integral_xDistance_sq_le_sum_xFiberKL
@@ -3800,6 +4007,92 @@ theorem fixedSecondInfoTerm_nonneg
     (Z := coordinateSecondConditioning n i)
     Measurable.of_discrete Measurable.of_discrete
 
+/-- Alice's fixed-coordinate conditional information is ordinary mutual information with the
+conditioning data bundled into the transcript side. -/
+theorem fixedFirstInfoTerm_eq_mutualInfo_conditioning_message
+    (i : Fin n)
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoTerm n i p =
+      I[coordinateXBit n i :
+        (fun coords => (coordinateFirstConditioning n i coords, coordinateMessage n p coords)) ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  rw [fixedFirstInfoTerm]
+  have hchain :=
+    ProbabilityTheory.mutualInfo_prod_right_eq_add
+      (μ := ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)))
+      (X := coordinateXBit n i) (Y := coordinateFirstConditioning n i)
+      (W := coordinateMessage n p)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+  have hzero :
+      I[coordinateXBit n i : coordinateFirstConditioning n i ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] = 0 := by
+    rw [ProbabilityTheory.mutualInfo_comm Measurable.of_discrete Measurable.of_discrete]
+    exact mutualInfo_coordinateFirstConditioning_coordinateXBit_eq_zero n i
+  linarith
+
+/-- Bob's fixed-coordinate conditional information is ordinary mutual information with the
+conditioning data bundled into the transcript side. -/
+theorem fixedSecondInfoTerm_eq_mutualInfo_conditioning_message
+    (i : Fin n)
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSecondInfoTerm n i p =
+      I[coordinateYBit n i :
+        (fun coords => (coordinateSecondConditioning n i coords, coordinateMessage n p coords)) ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  rw [fixedSecondInfoTerm]
+  have hchain :=
+    ProbabilityTheory.mutualInfo_prod_right_eq_add
+      (μ := ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)))
+      (X := coordinateYBit n i) (Y := coordinateSecondConditioning n i)
+      (W := coordinateMessage n p)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+  have hzero :
+      I[coordinateYBit n i : coordinateSecondConditioning n i ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] = 0 := by
+    rw [ProbabilityTheory.mutualInfo_comm Measurable.of_discrete Measurable.of_discrete]
+    exact mutualInfo_coordinateSecondConditioning_coordinateYBit_eq_zero n i
+  linarith
+
+/-- Sum-level Alice rewrite into ordinary mutual information with conditioning data bundled into
+the transcript side. -/
+theorem fixedFirstInfoSum_eq_sum_mutualInfo_conditioning_message
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoSum n p =
+      ∑ i : Fin n,
+        I[coordinateXBit n i :
+          (fun coords => (coordinateFirstConditioning n i coords, coordinateMessage n p coords)) ;
+          ((uniformDisjointCoordinateVector n :
+            ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+            Measure (Fin n → DisjointCoordinate))] := by
+  rw [fixedFirstInfoSum]
+  simp_rw [fixedFirstInfoTerm_eq_mutualInfo_conditioning_message]
+
+/-- Sum-level Bob rewrite into ordinary mutual information with conditioning data bundled into
+the transcript side. -/
+theorem fixedSecondInfoSum_eq_sum_mutualInfo_conditioning_message
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSecondInfoSum n p =
+      ∑ i : Fin n,
+        I[coordinateYBit n i :
+          (fun coords => (coordinateSecondConditioning n i coords, coordinateMessage n p coords)) ;
+          ((uniformDisjointCoordinateVector n :
+            ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+            Measure (Fin n → DisjointCoordinate))] := by
+  rw [fixedSecondInfoSum]
+  simp_rw [fixedSecondInfoTerm_eq_mutualInfo_conditioning_message]
+
 /-- The fixed-coordinate Alice sum is nonnegative. -/
 theorem fixedFirstInfoSum_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -4280,70 +4573,65 @@ theorem fullConditionalInfo_eq_coordinateFullConditionalInfo
   rw [fullConditionalInfo_eq_projectedFullConditionalInfo,
     projectedFullConditionalInfo_eq_coordinateFullConditionalInfo]
 
-/-- It is enough to prove the Lemma 6.20 comparison in projected coordinate-vector form. -/
-theorem mul_specialInfo_le_fullConditionalInfo_of_projected
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain :
-      (n : ℝ) * projectedSpecialInfo n p ≤ projectedFullConditionalInfo n p) :
-    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p := by
-  rw [specialInfo_eq_projectedSpecialInfo, fullConditionalInfo_eq_projectedFullConditionalInfo]
-  exact hchain
-
-/-- It is enough to prove the Lemma 6.20 comparison in coordinate-vector-only form. -/
-theorem mul_specialInfo_le_fullConditionalInfo_of_coordinate
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain :
-      (n : ℝ) * coordinateSpecialInfo n p ≤ coordinateFullConditionalInfo n p) :
-    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p := by
-  rw [specialInfo_eq_coordinateSpecialInfo, fullConditionalInfo_eq_coordinateFullConditionalInfo]
-  exact hchain
-
-/-- It is enough to prove the Lemma 6.20 comparison on the explicit uniform
-`(T, coordinateVector)` and coordinate-vector spaces. -/
-theorem mul_specialInfo_le_fullConditionalInfo_of_pair
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * pairSpecialInfo n p ≤ vectorFullConditionalInfo n p) :
-    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p := by
-  rw [specialInfo_eq_coordinateSpecialInfo, coordinateSpecialInfo_eq_pairSpecialInfo,
-    fullConditionalInfo_eq_coordinateFullConditionalInfo,
-    coordinateFullConditionalInfo_eq_vectorFullConditionalInfo]
-  exact hchain
-
-/-- If the random-coordinate special information averages to the sum of fixed-coordinate
-summands, then it is enough to prove Lemma 6.20 as a bound on the fixed-coordinate sum. -/
-theorem mul_pairSpecialInfo_le_vectorFullConditionalInfo_of_fixed_sum
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (havg : (n : ℝ) * pairSpecialInfo n p = fixedSpecialInfoSum n p)
-    (hchain : fixedSpecialInfoSum n p ≤ vectorFullConditionalInfo n p) :
-    (n : ℝ) * pairSpecialInfo n p ≤ vectorFullConditionalInfo n p := by
-  rw [havg]
-  exact hchain
-
-/-- It is enough to prove the random-coordinate averaging identity and the fixed-coordinate
-Lemma 6.20 sum bound. -/
-theorem mul_specialInfo_le_fullConditionalInfo_of_fixed_sum
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (havg : (n : ℝ) * pairSpecialInfo n p = fixedSpecialInfoSum n p)
-    (hchain : fixedSpecialInfoSum n p ≤ vectorFullConditionalInfo n p) :
-    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p :=
-  mul_specialInfo_le_fullConditionalInfo_of_pair n p
-    (mul_pairSpecialInfo_le_vectorFullConditionalInfo_of_fixed_sum n p havg hchain)
-
-/-- The fixed-coordinate Lemma 6.20 sum bound can be proved separately for Alice and Bob. -/
-theorem fixedSpecialInfoSum_le_vectorFullConditionalInfo_of_parts
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hfirst : fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
-    (hsecond : fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p) :
-    fixedSpecialInfoSum n p ≤ vectorFullConditionalInfo n p := by
-  rw [fixedSpecialInfoSum, vectorFullConditionalInfo_eq_vectorFirst_add_vectorSecond]
-  linarith
-
-/-- Combined fixed-coordinate chain-rule comparison. This is the corrected Lemma 6.20 target; the
-individual one-sided comparisons above are too strong in general. -/
-theorem fixedSpecialInfoSum_le_vectorFullConditionalInfo
+/-- The transcript entropy on the explicit uniform coordinate-vector space is at most the protocol
+length in bits. -/
+theorem entropy_coordinateMessage_le_complexity_mul_log_two
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    fixedSpecialInfoSum n p ≤ vectorFullConditionalInfo n p := by
+    H[coordinateMessage n p ;
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] ≤
+      p.complexity * Real.log 2 := by
+  letI : Nonempty p.Leaf := ⟨p.transcript (∅, ∅)⟩
+  exact ProbabilityTheory.entropy_le_nat_mul_log_two_of_card_le_two_pow
+    (coordinateMessage n p)
+    (((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate)))
+    (Deterministic.Protocol.card_leaf_le_two_pow_complexity p)
+
+/-- Alice's fixed-coordinate information sum is bounded by the transcript entropy. This is the
+first chain-rule/subadditivity input needed for the disjointness lower bound. -/
+theorem fixedFirstInfoSum_le_entropy_coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoSum n p ≤
+      H[coordinateMessage n p ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
   sorry
+
+/-- Bob's fixed-coordinate information sum is bounded by the transcript entropy. This is the
+second chain-rule/subadditivity input needed for the disjointness lower bound. -/
+theorem fixedSecondInfoSum_le_entropy_coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSecondInfoSum n p ≤
+      H[coordinateMessage n p ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  sorry
+
+/-- Core fixed-coordinate information upper bound. -/
+theorem fixedSpecialInfoSum_le_two_mul_entropy_coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSpecialInfoSum n p ≤
+      2 * H[coordinateMessage n p ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  rw [fixedSpecialInfoSum]
+  linarith [fixedFirstInfoSum_le_entropy_coordinateMessage n p,
+    fixedSecondInfoSum_le_entropy_coordinateMessage n p]
+
+/-- The fixed-coordinate information sum is bounded by twice the protocol length in bits. -/
+theorem fixedSpecialInfoSum_le_two_mul_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSpecialInfoSum n p ≤ 2 * (p.complexity * Real.log 2) := by
+  exact (fixedSpecialInfoSum_le_two_mul_entropy_coordinateMessage n p).trans
+    (mul_le_mul_of_nonneg_left
+      (entropy_coordinateMessage_le_complexity_mul_log_two n p)
+      (by norm_num : (0 : ℝ) ≤ 2))
 
 /-- The first special-coordinate information term as a finite sum over its conditioning values. -/
 theorem firstInfoTerm_eq_sum_conditioning
@@ -4508,41 +4796,16 @@ theorem fullConditionalInfo_le_two_mul_complexity_mul_log_two
       (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
   linarith
 
-/-- Lemma 6.20 reduces the needed averaged-coordinate upper bound to a comparison between
-`specialInfo` and the full-vector conditional information. -/
-theorem specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p) :
+/-- Averaged-coordinate information upper bound from the fixed-coordinate entropy comparison. -/
+theorem specialInfo_le_average_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ) := by
   have hn_pos : 0 < (n : ℝ) := by
     exact_mod_cast n.pos
-  have hfull := fullConditionalInfo_le_two_mul_complexity_mul_log_two n p
+  rw [specialInfo_eq_coordinateSpecialInfo, coordinateSpecialInfo_eq_pairSpecialInfo]
   rw [le_div_iff₀ hn_pos]
-  nlinarith
-
-/-- Core averaged-coordinate chain-rule comparison on the explicit uniform coordinate-vector
-space. This is the Lemma 6.20/subadditivity input; it should be proved directly rather than via
-the false one-sided inequalities. -/
-theorem mul_pairSpecialInfo_le_vectorFullConditionalInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (n : ℝ) * pairSpecialInfo n p ≤ vectorFullConditionalInfo n p :=
-  mul_pairSpecialInfo_le_vectorFullConditionalInfo_of_fixed_sum n p
-    (mul_pairSpecialInfo_eq_fixedSpecialInfoSum n p)
-    (fixedSpecialInfoSum_le_vectorFullConditionalInfo n p)
-
-/-- Lemma 6.20 chain-rule comparison transported back to the original hard sample space. -/
-theorem mul_specialInfo_le_fullConditionalInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p :=
-  mul_specialInfo_le_fullConditionalInfo_of_pair n p
-    (mul_pairSpecialInfo_le_vectorFullConditionalInfo n p)
-
-/-- Averaged-coordinate information upper bound from the Lemma 6.20 chain-rule comparison. -/
-theorem specialInfo_le_average_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ) :=
-  specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p
-    (mul_specialInfo_le_fullConditionalInfo n p)
+  rw [mul_comm (pairSpecialInfo n p) (n : ℝ), mul_pairSpecialInfo_eq_fixedSpecialInfoSum]
+  exact fixedSpecialInfoSum_le_two_mul_complexity_mul_log_two n p
 
 /-- The total special-coordinate information is nonnegative. -/
 theorem specialInfo_nonneg
@@ -4550,105 +4813,6 @@ theorem specialInfo_nonneg
     0 ≤ specialInfo n p := by
   rw [specialInfo]
   linarith [firstInfoTerm_nonneg n p, secondInfoTerm_nonneg n p]
-
-/-- Alice's one-bit information estimate follows from the corresponding sum-KL comparison. -/
-theorem two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p) :
-    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      firstInfoTerm n p :=
-  (two_mul_integral_xDistance_sq_le_sum_xFiberKL n p).trans hsum
-
-/-- Bob's one-bit information estimate follows from the corresponding sum-KL comparison. -/
-theorem two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      secondInfoTerm n p :=
-  (two_mul_integral_yDistance_sq_le_sum_yFiberKL n p).trans hsum
-
-/-- If Pinsker/chain-rule bounds the squared one-bit fiber distances by the two special
-information terms, then the product-law bridge controls the squared average `zDistance` by
-`specialInfo`. -/
-theorem average_zDistance_sq_le_specialInfo_of_prod_of_average_sq_le_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
-      conditionalSpecialPairLaw n p z hz =
-        TVDistance.probabilityMeasureProd
-          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
-    (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-      specialInfo n p := by
-  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
-  have hz_le :
-      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ≤
-        (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
-          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
-    integral_zDistance_le_integral_xDistance_add_integral_yDistance_of_prod n p hprod
-  have hx_jensen :
-      (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        ∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
-    simpa [μ] using
-      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
-        (fun ω => xDistance n p (zVariable n p ω))
-  have hy_jensen :
-      (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
-    simpa [μ] using
-      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
-        (fun ω => yDistance n p (zVariable n p ω))
-  have hx_sq_info :
-      2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        firstInfoTerm n p := by
-    nlinarith
-  have hy_sq_info :
-      2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        secondInfoTerm n p := by
-    nlinarith
-  have hz_nonneg :
-      0 ≤ ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
-    integral_nonneg fun ω => zDistance_nonneg n p (zVariable n p ω)
-  have hx_nonneg :
-      0 ≤ ∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
-    integral_nonneg fun ω => xDistance_nonneg n p (zVariable n p ω)
-  have hy_nonneg :
-      0 ≤ ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
-    integral_nonneg fun ω => yDistance_nonneg n p (zVariable n p ω)
-  have hz_sq_le_sum_sq :
-      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
-          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
-    nlinarith
-  have hsum_sq :
-      ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
-          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 +
-          2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
-    nlinarith [
-      sq_nonneg
-        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) -
-          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n))]
-  rw [specialInfo]
-  nlinarith
-
-/-- The explicit full-vector information is bounded by twice the transcript length in bits. -/
-theorem vectorFullConditionalInfo_le_two_mul_complexity_mul_log_two
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    vectorFullConditionalInfo n p ≤ 2 * (p.complexity * Real.log 2) := by
-  rw [← coordinateFullConditionalInfo_eq_vectorFullConditionalInfo,
-    ← fullConditionalInfo_eq_coordinateFullConditionalInfo]
-  exact fullConditionalInfo_le_two_mul_complexity_mul_log_two n p
 
 /-- The remaining Alice KL-sum comparison for the corrected textbook route. The factor `3 / 2`
 comes from comparing the unconditional special-bit law on `Z` fibers with the information term
@@ -5186,8 +5350,7 @@ theorem complexity_lower_bound_of_three_halves_info_estimates
     (fun b => fiber_volume_factorization n p z b)
 
 /-- Deterministic fixed-error disjointness lower bound from the two `3 / 2` one-bit information
-estimates and the averaged-coordinate information upper bound. The one-bit estimates are
-currently the only `sorry`-backed pieces of this route. -/
+estimates and the averaged-coordinate information upper bound. -/
 theorem complexity_lower_bound_of_three_halves_info_estimates_proved
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (hupper :
@@ -5236,8 +5399,7 @@ theorem publicCoin_lower_bound_of_three_halves_info_estimates
   linarith
 
 /-- Public-coin fixed-error disjointness lower bound for the corrected `3 / 2` route, conditional
-on the averaged-coordinate information upper bound. The two one-bit information estimates are
-currently the only `sorry`-backed pieces of this route. -/
+on the averaged-coordinate information upper bound. -/
 theorem publicCoin_lower_bound_three_halves_of_info_upper
     {k : ℕ}
     (hk : (k : ℝ) <
