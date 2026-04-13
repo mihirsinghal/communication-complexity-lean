@@ -12,6 +12,32 @@ namespace Deterministic.Protocol
 
 variable {X Y α : Type*}
 
+/-- Swap the two coordinates in a protocol leaf rectangle. -/
+def swapInputSet (R : Set (X × Y)) : Set (Y × X) :=
+  {yx | (yx.2, yx.1) ∈ R}
+
+@[simp]
+theorem mem_swapInputSet (R : Set (X × Y)) (yx : Y × X) :
+    yx ∈ swapInputSet R ↔ (yx.2, yx.1) ∈ R :=
+  Iff.rfl
+
+@[simp]
+theorem swapInputSet_swapInputSet (R : Set (X × Y)) :
+    swapInputSet (swapInputSet R) = R := by
+  ext xy
+  rfl
+
+/-- Pull a protocol input set back along maps on Alice's and Bob's inputs. -/
+def preimageInputSet (fX : X' → X) (fY : Y' → Y) (R : Set (X × Y)) :
+    Set (X' × Y') :=
+  {xy | (fX xy.1, fY xy.2) ∈ R}
+
+@[simp]
+theorem mem_preimageInputSet (fX : X' → X) (fY : Y' → Y) (R : Set (X × Y))
+    (xy : X' × Y') :
+    xy ∈ preimageInputSet fX fY R ↔ (fX xy.1, fY xy.2) ∈ R :=
+  Iff.rfl
+
 -- Internal: leaf rectangles relative to a constraint A × B.
 private def leafRectanglesAux (p : Protocol X Y α) (A : Set X) (B : Set Y) :
     Set (Set (X × Y)) :=
@@ -25,6 +51,71 @@ private def leafRectanglesAux (p : Protocol X Y α) (A : Set X) (B : Set Y) :
 /-- The set of rectangles induced by protocol leaves over all inputs `X × Y`. -/
 def leafRectangles (p : Protocol X Y α) : Set (Set (X × Y)) :=
   leafRectanglesAux p Set.univ Set.univ
+
+private theorem swapInputSet_mem_leafRectanglesAux_swap
+    (p : Protocol X Y α) (A : Set X) (B : Set Y) {R : Set (X × Y)}
+    (hR : R ∈ leafRectanglesAux p A B) :
+    swapInputSet R ∈ leafRectanglesAux p.swap B A := by
+  induction p generalizing A B with
+  | output val =>
+      simp only [leafRectanglesAux, Set.mem_singleton_iff] at hR ⊢
+      subst hR
+      ext yx
+      simp [swapInputSet, and_comm]
+  | alice f P ih =>
+      simp only [leafRectanglesAux, Set.mem_union] at hR ⊢
+      rcases hR with hR | hR
+      · exact Or.inl (ih false (A ∩ {x | f x = false}) B hR)
+      · exact Or.inr (ih true (A ∩ {x | f x = true}) B hR)
+  | bob f P ih =>
+      simp only [leafRectanglesAux, Set.mem_union] at hR ⊢
+      rcases hR with hR | hR
+      · exact Or.inl (ih false A (B ∩ {y | f y = false}) hR)
+      · exact Or.inr (ih true A (B ∩ {y | f y = true}) hR)
+
+/-- Swapping Alice and Bob sends protocol leaf rectangles to protocol leaf rectangles. -/
+theorem swapInputSet_mem_leafRectangles_swap
+    (p : Protocol X Y α) {R : Set (X × Y)}
+    (hR : R ∈ p.leafRectangles) :
+    swapInputSet R ∈ p.swap.leafRectangles :=
+  swapInputSet_mem_leafRectanglesAux_swap p Set.univ Set.univ hR
+
+private theorem preimageInputSet_mem_leafRectanglesAux_comap
+    (p : Protocol X Y α) (A : Set X) (B : Set Y) {R : Set (X × Y)}
+    (fX : X' → X) (fY : Y' → Y)
+    (hR : R ∈ leafRectanglesAux p A B) :
+    preimageInputSet fX fY R ∈
+      leafRectanglesAux (p.comap fX fY) (fX ⁻¹' A) (fY ⁻¹' B) := by
+  induction p generalizing A B with
+  | output val =>
+      simp only [leafRectanglesAux, Set.mem_singleton_iff] at hR ⊢
+      subst hR
+      ext xy
+      simp [preimageInputSet]
+  | alice f P ih =>
+      simp only [leafRectanglesAux, Set.mem_union] at hR ⊢
+      rcases hR with hR | hR
+      · refine Or.inl ?_
+        exact ih false (A ∩ {x | f x = false}) B hR
+      · refine Or.inr ?_
+        exact ih true (A ∩ {x | f x = true}) B hR
+  | bob f P ih =>
+      simp only [leafRectanglesAux, Set.mem_union] at hR ⊢
+      rcases hR with hR | hR
+      · refine Or.inl ?_
+        exact ih false A (B ∩ {y | f y = false}) hR
+      · refine Or.inr ?_
+        exact ih true A (B ∩ {y | f y = true}) hR
+
+/-- Pulling back along `Protocol.comap` sends protocol leaf rectangles to protocol leaf
+rectangles. -/
+theorem preimageInputSet_mem_leafRectangles_comap
+    (p : Protocol X Y α) {R : Set (X × Y)}
+    (fX : X' → X) (fY : Y' → Y)
+    (hR : R ∈ p.leafRectangles) :
+    preimageInputSet fX fY R ∈ (p.comap fX fY).leafRectangles := by
+  simpa [leafRectangles] using
+    preimageInputSet_mem_leafRectanglesAux_comap p Set.univ Set.univ fX fY hR
 
 private lemma aux_isRectangle (p : Protocol X Y α) (A : Set X) (B : Set Y)
     (R : Set (X × Y)) (hR : R ∈ leafRectanglesAux p A B) : Rectangle.IsRectangle R := by

@@ -16,6 +16,28 @@ noncomputable instance leafFintype (p : Protocol X Y α) : Fintype p.Leaf :=
 
 instance leafMeasurableSpace (p : Protocol X Y α) : MeasurableSpace p.Leaf := ⊤
 
+open Classical in
+/-- Swapping Alice and Bob gives an equivalence between the transcript alphabets. -/
+noncomputable def leafSwap (p : Protocol X Y α) : p.Leaf ≃ p.swap.Leaf where
+  toFun R :=
+    ⟨swapInputSet R.1, swapInputSet_mem_leafRectangles_swap p R.2⟩
+  invFun R :=
+    ⟨swapInputSet R.1, by
+      have h := swapInputSet_mem_leafRectangles_swap p.swap R.2
+      simpa using h⟩
+  left_inv R := by
+    apply Subtype.ext
+    simp
+  right_inv R := by
+    apply Subtype.ext
+    simp
+
+/-- Pull a transcript leaf back along maps on Alice's and Bob's inputs. -/
+def leafComap (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
+    p.Leaf → (p.comap fX fY).Leaf :=
+  fun R => ⟨preimageInputSet fX fY R.1,
+    preimageInputSet_mem_leafRectangles_comap p fX fY R.2⟩
+
 private theorem exists_leaf_containing (p : Protocol X Y α) (xy : X × Y) :
     ∃ R : p.Leaf, xy ∈ (R : Set (X × Y)) := by
   have hcover : xy ∈ ⋃₀ p.leafRectangles := by
@@ -71,6 +93,33 @@ theorem card_leaf_le_two_pow_complexity (p : Protocol X Y α) :
     Fintype.card p.Leaf ≤ 2 ^ p.complexity := by
   rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
   exact leafRectangles_card p
+
+/-- Swapping a protocol sends the transcript of `(x, y)` to the swapped transcript leaf of
+`(y, x)`. -/
+theorem leafSwap_transcript (p : Protocol X Y α) (x : X) (y : Y) :
+    leafSwap p (p.transcript (x, y)) = p.swap.transcript (y, x) := by
+  symm
+  apply transcript_eq_of_mem_leaf p.swap
+  change (y, x) ∈ swapInputSet ((p.transcript (x, y) : p.Leaf) : Set (X × Y))
+  simp [mem_transcript]
+
+/-- Set-level version of `leafSwap_transcript`. -/
+theorem swapInputSet_transcript (p : Protocol X Y α) (x : X) (y : Y) :
+    swapInputSet ((p.transcript (x, y) : p.Leaf) : Set (X × Y)) =
+      ((p.swap.transcript (y, x) : p.swap.Leaf) : Set (Y × X)) := by
+  exact congrArg Subtype.val (leafSwap_transcript p x y)
+
+/-- Pulling back a protocol sends the transcript of the mapped input to the transcript of the
+original input under the pulled-back protocol. -/
+theorem leafComap_transcript (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
+    (x' : X') (y' : Y') :
+    leafComap p fX fY (p.transcript (fX x', fY y')) =
+      (p.comap fX fY).transcript (x', y') := by
+  symm
+  apply transcript_eq_of_mem_leaf (p.comap fX fY)
+  change (x', y') ∈
+    preimageInputSet fX fY ((p.transcript (fX x', fY y') : p.Leaf) : Set (X × Y))
+  simp [mem_transcript]
 
 end Deterministic.Protocol
 

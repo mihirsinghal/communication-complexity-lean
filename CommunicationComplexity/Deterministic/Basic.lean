@@ -55,6 +55,12 @@ theorem swap_complexity (p : Protocol X Y α) :
     p.swap.complexity = p.complexity := by
   induction p <;> simp [swap, complexity, *]
 
+/-- Swapping Alice and Bob twice returns the original protocol. -/
+@[simp]
+theorem swap_swap (p : Protocol X Y α) :
+    p.swap.swap = p := by
+  induction p <;> simp [swap, *]
+
 /-- An alice protocol on `X × Y` can be converted into a bob protocol on `Y × X`
 with the same run behavior (up to argument swap) and complexity.
 Useful for reducing the bob case to the alice case in inductive proofs. -/

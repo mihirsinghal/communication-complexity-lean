@@ -322,6 +322,48 @@ theorem IdentDistrib.condMutualInfo_eq
     IdentDistrib.condEntropy_eq hY hZ hY' hZ' hYZ,
     IdentDistrib.condEntropy_eq (hX.prodMk hY) hZ (hX'.prodMk hY') hZ' hXYZ]
 
+/-- Conditional mutual information is unchanged by injective recodings of the right variable
+and the conditioning variable. -/
+theorem condMutualInfo_comp_right_conditioning_of_injective
+    {V W : Type*} [MeasurableSpace V] [MeasurableSpace W]
+    [MeasurableSingletonClass V] [MeasurableSingletonClass W]
+    [Countable V] [Countable W]
+    {f : T → V} {g : U → W}
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (hfmeas : Measurable f) (hgmeas : Measurable g)
+    (hfinj : Function.Injective f) (hginj : Function.Injective g) :
+    I[X : f ∘ Y | g ∘ Z ; μ] = I[X : Y | Z ; μ] := by
+  have hY' : Measurable (f ∘ Y) := hfmeas.comp hY
+  have hZ' : Measurable (g ∘ Z) := hgmeas.comp hZ
+  rw [_root_.ProbabilityTheory.condMutualInfo_eq (μ := μ) hX hY' hZ',
+    _root_.ProbabilityTheory.condMutualInfo_eq (μ := μ) hX hY hZ]
+  have hXcond :
+      H[X | g ∘ Z ; μ] = H[X | Z ; μ] :=
+    condEntropy_of_injective' μ hX hZ g hginj hZ'
+  have hYcond :
+      H[f ∘ Y | g ∘ Z ; μ] = H[Y | Z ; μ] := by
+    rw [condEntropy_comp_of_injective μ hY f hfinj]
+    exact condEntropy_of_injective' μ hY hZ g hginj hZ'
+  have hpaircond :
+      H[(fun ω => (X ω, (f ∘ Y) ω)) | g ∘ Z ; μ] =
+        H[(fun ω => (X ω, Y ω)) | Z ; μ] := by
+    have hrec :
+        H[(fun ω => (X ω, (f ∘ Y) ω)) | g ∘ Z ; μ] =
+          H[(fun ω => (X ω, Y ω)) | g ∘ Z ; μ] := by
+      change
+        H[(fun p : S × T => (p.1, f p.2)) ∘ (fun ω => (X ω, Y ω)) |
+            g ∘ Z ; μ] =
+          H[(fun ω => (X ω, Y ω)) | g ∘ Z ; μ]
+      exact condEntropy_comp_of_injective μ (hX.prodMk hY)
+        (fun p : S × T => (p.1, f p.2))
+        (by
+          intro a b h
+          exact Prod.ext (Prod.ext_iff.mp h).1 (hfinj (Prod.ext_iff.mp h).2))
+    rw [hrec]
+    exact condEntropy_of_injective' μ (hX.prodMk hY) hZ g hginj hZ'
+  rw [hXcond, hYcond, hpaircond]
+
 variable {A B : Type*} [MeasurableSpace A] [MeasurableSpace B]
 
 /-- If `(X, Y)` and `(X', Y')` have the same joint law, then conditioning on the same measurable

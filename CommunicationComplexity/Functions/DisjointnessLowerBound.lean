@@ -3,6 +3,7 @@ import CommunicationComplexity.Deterministic.Transcript
 import CommunicationComplexity.InformationTheory.Entropy
 import CommunicationComplexity.InformationTheory.Pinsker
 import CommunicationComplexity.PublicCoin.Minimax
+import Mathlib.Data.Fin.Rev
 import Mathlib.Probability.UniformOn
 
 namespace CommunicationComplexity
@@ -76,6 +77,27 @@ def yBit : DisjointCoordinate → Bool
 theorem not_xBit_and_yBit (c : DisjointCoordinate) :
     ¬(xBit c = true ∧ yBit c = true) := by
   cases c <;> simp
+
+/-- Swap Alice's and Bob's sides in a disjoint coordinate. -/
+def swap : DisjointCoordinate → DisjointCoordinate
+  | neither => neither
+  | leftOnly => rightOnly
+  | rightOnly => leftOnly
+
+/-- Swapping sides twice recovers the original disjoint coordinate. -/
+theorem swap_swap (c : DisjointCoordinate) :
+    swap (swap c) = c := by
+  cases c <;> rfl
+
+/-- After swapping a disjoint coordinate, Alice sees Bob's original bit. -/
+theorem xBit_swap (c : DisjointCoordinate) :
+    xBit (swap c) = yBit c := by
+  cases c <;> rfl
+
+/-- After swapping a disjoint coordinate, Bob sees Alice's original bit. -/
+theorem yBit_swap (c : DisjointCoordinate) :
+    yBit (swap c) = xBit c := by
+  cases c <;> rfl
 
 end DisjointCoordinate
 
@@ -1057,7 +1079,7 @@ theorem specialX_eq_false_of_mem_disjointEvent_of_specialY_eq_true
     exact hdisj ⟨by simpa [specialX] using hx, by simpa [specialY] using hy⟩
 
 /-- On disjoint samples, Alice's special bit being `true` forces Bob's special bit to be
-`false`. This is the zero-information branch in the Bob-side conditioning decomposition. -/
+`false`. -/
 theorem specialY_eq_false_of_mem_disjointEvent_of_specialX_eq_true
     {ω : HardSample n} (hω : ω ∈ disjointEvent n) (hx : specialX n ω = true) :
     specialY n ω = false := by
@@ -1124,6 +1146,16 @@ def disjointCoordinateYSet (coords : Fin n → DisjointCoordinate) : Set (Fin n)
 def disjointCoordinateInput
     (coords : Fin n → DisjointCoordinate) : Set (Fin n) × Set (Fin n) :=
   (disjointCoordinateXSet n coords, disjointCoordinateYSet n coords)
+
+/-- Reverse the coordinate order of a subset of coordinates. -/
+def reverseSet (S : Set (Fin n)) : Set (Fin n) :=
+  {i | Fin.rev i ∈ S}
+
+/-- Reversing a coordinate set twice recovers it. -/
+theorem reverseSet_reverseSet (S : Set (Fin n)) :
+    reverseSet n (reverseSet n S) = S := by
+  ext i
+  simp [reverseSet]
 
 /-- The uniform law on generated disjoint coordinate vectors. -/
 noncomputable def uniformDisjointCoordinateVector :
@@ -1247,7 +1279,7 @@ theorem disjointCoordinateVectorLaw_eq_uniform :
   rw [MeasureTheory.ext_iff_measureReal_singleton]
   intro coords
   rw [disjointCoordinateVectorLaw]
-  rw [Measure.real]
+  repeat rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
   rw [← Measure.real]
   change (disjointCondMeasure n).real ((disjointCoordinateVector n) ⁻¹' {coords}) =
@@ -1469,7 +1501,7 @@ theorem coordinateAndVectorLaw_eq_uniform :
   rw [MeasureTheory.ext_iff_measureReal_singleton]
   intro z
   rw [coordinateAndVectorLaw]
-  rw [Measure.real]
+  repeat rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
   rw [← Measure.real]
   rcases z with ⟨i, coords⟩
@@ -1660,6 +1692,185 @@ def coordinateXBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
 def coordinateYBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
   (coords i).yBit
 
+/-- Reverse the coordinate order of a boolean vector. -/
+def reverseBoolVector (v : Fin n → Bool) : Fin n → Bool :=
+  v ∘ Fin.rev
+
+/-- Reversing a boolean vector twice recovers it. -/
+theorem reverseBoolVector_reverseBoolVector (v : Fin n → Bool) :
+    reverseBoolVector n (reverseBoolVector n v) = v := by
+  funext i
+  simp [reverseBoolVector]
+
+/-- The coordinate-vector dual swaps Alice/Bob and reverses coordinate order. -/
+def dualCoordinateVector (coords : Fin n → DisjointCoordinate) :
+    Fin n → DisjointCoordinate :=
+  fun i => DisjointCoordinate.swap (coords (Fin.rev i))
+
+/-- Dualizing coordinate vectors twice recovers the original vector. -/
+theorem dualCoordinateVector_dualCoordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    dualCoordinateVector n (dualCoordinateVector n coords) = coords := by
+  funext i
+  simp [dualCoordinateVector, DisjointCoordinate.swap_swap]
+
+/-- A measure-preserving self-map leaves every random variable identically distributed with its
+pullback along that map. -/
+theorem identDistrib_self_comp_measurePreserving
+    {Ω α : Type*} [MeasurableSpace Ω] [MeasurableSpace α]
+    {μ : Measure Ω} {T : Ω → Ω} (hT : MeasurePreserving T μ μ)
+    (F : Ω → α) (hF : Measurable F) :
+    IdentDistrib F (F ∘ T) μ μ := by
+  refine ⟨hF.aemeasurable, (hF.comp hT.measurable).aemeasurable, ?_⟩
+  nth_rw 1 [← hT.map_eq]
+  rw [Measure.map_map hF hT.measurable]
+
+/-- The preimage of a singleton under coordinate-vector duality is the dual singleton. -/
+theorem dualCoordinateVector_preimage_singleton
+    (coords : Fin n → DisjointCoordinate) :
+    (dualCoordinateVector n) ⁻¹' ({coords} : Set (Fin n → DisjointCoordinate)) =
+      {dualCoordinateVector n coords} := by
+  ext coords'
+  constructor
+  · intro h
+    have h' : dualCoordinateVector n coords' = coords := by
+      simpa using h
+    have h'' := congrArg (dualCoordinateVector n) h'
+    simpa [dualCoordinateVector_dualCoordinateVector] using h''
+  · intro h
+    have h' : coords' = dualCoordinateVector n coords := by
+      simpa using h
+    rw [h']
+    simp [dualCoordinateVector_dualCoordinateVector]
+
+/-- Coordinate-vector duality preserves the uniform disjoint-coordinate-vector law. -/
+theorem uniformDisjointCoordinateVector_measurePreserving_dualCoordinateVector :
+    MeasurePreserving (dualCoordinateVector n)
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  refine ⟨Measurable.of_discrete, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro coords
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  rw [dualCoordinateVector_preimage_singleton]
+  rw [uniformDisjointCoordinateVector_singleton, uniformDisjointCoordinateVector_singleton]
+
+/-- Alice's bit in the dual coordinate vector is Bob's original bit at the reversed coordinate. -/
+theorem coordinateXBit_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateXBit n i (dualCoordinateVector n coords) =
+      coordinateYBit n (Fin.rev i) coords := by
+  simp [coordinateXBit, coordinateYBit, dualCoordinateVector, DisjointCoordinate.xBit_swap]
+
+/-- Bob's bit in the dual coordinate vector is Alice's original bit at the reversed coordinate. -/
+theorem coordinateYBit_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateYBit n i (dualCoordinateVector n coords) =
+      coordinateXBit n (Fin.rev i) coords := by
+  have h := coordinateXBit_dualCoordinateVector n (Fin.rev i) (dualCoordinateVector n coords)
+  simpa [dualCoordinateVector_dualCoordinateVector] using h.symm
+
+/-- The dual coordinate vector swaps Alice/Bob input sets and reverses coordinate order. -/
+theorem disjointCoordinateXSet_dualCoordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    disjointCoordinateXSet n (dualCoordinateVector n coords) =
+      reverseSet n (disjointCoordinateYSet n coords) := by
+  ext i
+  change coordinateXBit n i (dualCoordinateVector n coords) = true ↔
+    coordinateYBit n (Fin.rev i) coords = true
+  rw [coordinateXBit_dualCoordinateVector]
+
+/-- The dual coordinate vector swaps Bob/Alice input sets and reverses coordinate order. -/
+theorem disjointCoordinateYSet_dualCoordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    disjointCoordinateYSet n (dualCoordinateVector n coords) =
+      reverseSet n (disjointCoordinateXSet n coords) := by
+  have h := disjointCoordinateXSet_dualCoordinateVector n (dualCoordinateVector n coords)
+  have hdual := congrArg (reverseSet n) h
+  simpa [dualCoordinateVector_dualCoordinateVector, reverseSet_reverseSet] using hdual.symm
+
+/-- The input generated from the dual vector is the reversed, swapped original input. -/
+theorem disjointCoordinateInput_dualCoordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    disjointCoordinateInput n (dualCoordinateVector n coords) =
+      (reverseSet n (disjointCoordinateYSet n coords),
+        reverseSet n (disjointCoordinateXSet n coords)) := by
+  rw [disjointCoordinateInput, disjointCoordinateXSet_dualCoordinateVector,
+    disjointCoordinateYSet_dualCoordinateVector]
+
+/-- The protocol dual swaps Alice/Bob and reverses both coordinate sets. -/
+def dualProtocol
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool :=
+  p.swap.comap (reverseSet n) (reverseSet n)
+
+/-- Dualizing a protocol preserves its communication complexity. -/
+theorem dualProtocol_complexity
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (dualProtocol n p).complexity = p.complexity := by
+  simp [dualProtocol]
+
+/-- On dual coordinate-vector inputs, the dual protocol has the same output as the original
+protocol on the original coordinate-vector inputs. -/
+theorem dualProtocol_run_dualCoordinateVector
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (coords : Fin n → DisjointCoordinate) :
+    (dualProtocol n p).run
+        (disjointCoordinateXSet n (dualCoordinateVector n coords))
+        (disjointCoordinateYSet n (dualCoordinateVector n coords)) =
+      p.run (disjointCoordinateXSet n coords) (disjointCoordinateYSet n coords) := by
+  rw [dualProtocol]
+  rw [Deterministic.Protocol.comap_run, Deterministic.Protocol.swap_run]
+  rw [disjointCoordinateXSet_dualCoordinateVector, disjointCoordinateYSet_dualCoordinateVector,
+    reverseSet_reverseSet, reverseSet_reverseSet]
+
+/-- The leaf-level map induced by protocol duality. -/
+noncomputable def dualProtocolLeafMap
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    p.Leaf → (dualProtocol n p).Leaf :=
+  fun leaf =>
+    Deterministic.Protocol.leafComap p.swap (reverseSet n) (reverseSet n)
+      (Deterministic.Protocol.leafSwap p leaf)
+
+/-- The coordinate-vector transcript of the dual protocol is the original transcript transported
+through protocol swap and coordinate-set reversal. -/
+theorem coordinateMessage_dualProtocol_dualCoordinateVector
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (coords : Fin n → DisjointCoordinate) :
+    coordinateMessage n (dualProtocol n p) (dualCoordinateVector n coords) =
+      dualProtocolLeafMap n p (coordinateMessage n p coords) := by
+  change (p.swap.comap (reverseSet n) (reverseSet n)).transcript
+      (disjointCoordinateInput n (dualCoordinateVector n coords)) =
+    dualProtocolLeafMap n p (p.transcript (disjointCoordinateInput n coords))
+  rw [disjointCoordinateInput_dualCoordinateVector]
+  rw [← Deterministic.Protocol.leafComap_transcript p.swap (reverseSet n) (reverseSet n)
+    (reverseSet n (disjointCoordinateYSet n coords))
+    (reverseSet n (disjointCoordinateXSet n coords))]
+  rw [reverseSet_reverseSet, reverseSet_reverseSet]
+  rw [← Deterministic.Protocol.leafSwap_transcript p]
+  rfl
+
+/-- The leaf-level map induced by protocol duality is injective. -/
+theorem dualProtocolLeafMap_injective
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    Function.Injective (dualProtocolLeafMap n p) := by
+  intro R S h
+  apply (Deterministic.Protocol.leafSwap p).injective
+  apply Subtype.ext
+  have hset := congrArg Subtype.val h
+  ext yx
+  have hmem := congrArg
+    (fun A : Set (Set (Fin n) × Set (Fin n)) =>
+      (reverseSet n yx.1, reverseSet n yx.2) ∈ A) hset
+  simpa [dualProtocolLeafMap, Deterministic.Protocol.leafComap,
+    Deterministic.Protocol.preimageInputSet, reverseSet_reverseSet] using hmem
+
 /-- Alice's projected special bit is the fixed-coordinate Alice bit at `T`. -/
 theorem projectedSpecialX_eq_coordinateXBit (ω : HardSample n) :
     projectedSpecialX n ω =
@@ -1681,6 +1892,135 @@ def coordinateFirstConditioning (i : Fin n) (coords : Fin n → DisjointCoordina
 def coordinateSecondConditioning (i : Fin n) (coords : Fin n → DisjointCoordinate) :
     (Fin n → Bool) × (Fin n → Bool) :=
   (coordinateXExcept n i coords, coordinateYAfter n i coords)
+
+/-- Swap the two boolean-vector components and reverse their coordinate order. -/
+def dualFixedConditioningValue
+    (c : (Fin n → Bool) × (Fin n → Bool)) : (Fin n → Bool) × (Fin n → Bool) :=
+  (reverseBoolVector n c.2, reverseBoolVector n c.1)
+
+/-- Dualizing a fixed-conditioning value twice recovers it. -/
+theorem dualFixedConditioningValue_dualFixedConditioningValue
+    (c : (Fin n → Bool) × (Fin n → Bool)) :
+    dualFixedConditioningValue n (dualFixedConditioningValue n c) = c := by
+  rcases c with ⟨a, b⟩
+  simp [dualFixedConditioningValue, reverseBoolVector_reverseBoolVector]
+
+/-- The fixed-conditioning value duality is injective. -/
+theorem dualFixedConditioningValue_injective :
+    Function.Injective (dualFixedConditioningValue n) := by
+  intro a b h
+  have hdual := congrArg (dualFixedConditioningValue n) h
+  simpa [dualFixedConditioningValue_dualFixedConditioningValue] using hdual
+
+/-- Alice's before-coordinate vector in the dual is Bob's after-coordinate vector in reverse
+order. -/
+theorem coordinateXBefore_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateXBefore n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateYAfter n i coords) := by
+  funext j
+  change
+    (if j < Fin.rev i then coordinateXBit n j (dualCoordinateVector n coords) else false) =
+      (if i < Fin.rev j then coordinateYBit n (Fin.rev j) coords else false)
+  rw [coordinateXBit_dualCoordinateVector]
+  by_cases h : j < Fin.rev i
+  · have h' : i < Fin.rev j := (Fin.lt_rev_iff).1 h
+    simp [h, h']
+  · have h' : ¬i < Fin.rev j := by
+      intro hij
+      exact h ((Fin.lt_rev_iff).2 hij)
+    simp [h, h']
+
+/-- Bob's after-coordinate vector in the dual is Alice's before-coordinate vector in reverse
+order. -/
+theorem coordinateYAfter_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateYAfter n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateXBefore n i coords) := by
+  have h := coordinateXBefore_dualCoordinateVector n (Fin.rev i) (dualCoordinateVector n coords)
+  have hdual := congrArg (reverseBoolVector n) h
+  simpa [dualCoordinateVector_dualCoordinateVector,
+    reverseBoolVector_reverseBoolVector] using hdual.symm
+
+/-- Bob's before-coordinate vector in the dual is Alice's after-coordinate vector in reverse
+order. -/
+theorem coordinateYBefore_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateYBefore n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateXAfter n i coords) := by
+  funext j
+  change
+    (if j < Fin.rev i then coordinateYBit n j (dualCoordinateVector n coords) else false) =
+      (if i < Fin.rev j then coordinateXBit n (Fin.rev j) coords else false)
+  rw [coordinateYBit_dualCoordinateVector]
+  by_cases h : j < Fin.rev i
+  · have h' : i < Fin.rev j := (Fin.lt_rev_iff).1 h
+    simp [h, h']
+  · have h' : ¬i < Fin.rev j := by
+      intro hij
+      exact h ((Fin.lt_rev_iff).2 hij)
+    simp [h, h']
+
+/-- Alice's after-coordinate vector in the dual is Bob's before-coordinate vector in reverse
+order. -/
+theorem coordinateXAfter_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateXAfter n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateYBefore n i coords) := by
+  have h := coordinateYBefore_dualCoordinateVector n (Fin.rev i) (dualCoordinateVector n coords)
+  have hdual := congrArg (reverseBoolVector n) h
+  simpa [dualCoordinateVector_dualCoordinateVector,
+    reverseBoolVector_reverseBoolVector] using hdual.symm
+
+/-- Alice's except-coordinate vector in the dual is Bob's except-coordinate vector in reverse
+order. -/
+theorem coordinateXExcept_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateXExcept n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateYExcept n i coords) := by
+  funext j
+  change
+    (if j = Fin.rev i then false else coordinateXBit n j (dualCoordinateVector n coords)) =
+      (if Fin.rev j = i then false else coordinateYBit n (Fin.rev j) coords)
+  rw [coordinateXBit_dualCoordinateVector]
+  by_cases h : j = Fin.rev i
+  · simp [h]
+  · have h' : Fin.rev j ≠ i := by
+      intro hj
+      apply h
+      have hrev := congrArg Fin.rev hj
+      simpa using hrev
+    simp [h, h']
+
+/-- Bob's except-coordinate vector in the dual is Alice's except-coordinate vector in reverse
+order. -/
+theorem coordinateYExcept_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateYExcept n (Fin.rev i) (dualCoordinateVector n coords) =
+      reverseBoolVector n (coordinateXExcept n i coords) := by
+  have h := coordinateXExcept_dualCoordinateVector n (Fin.rev i) (dualCoordinateVector n coords)
+  have hdual := congrArg (reverseBoolVector n) h
+  simpa [dualCoordinateVector_dualCoordinateVector,
+    reverseBoolVector_reverseBoolVector] using hdual.symm
+
+/-- Alice's fixed conditioning for the dual vector is the dual of Bob's fixed conditioning. -/
+theorem coordinateFirstConditioning_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateFirstConditioning n (Fin.rev i) (dualCoordinateVector n coords) =
+      dualFixedConditioningValue n (coordinateSecondConditioning n i coords) := by
+  rw [coordinateFirstConditioning, coordinateSecondConditioning, dualFixedConditioningValue,
+    coordinateXBefore_dualCoordinateVector, coordinateYExcept_dualCoordinateVector]
+
+/-- Bob's fixed conditioning for the dual vector is the dual of Alice's fixed conditioning. -/
+theorem coordinateSecondConditioning_dualCoordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    coordinateSecondConditioning n (Fin.rev i) (dualCoordinateVector n coords) =
+      dualFixedConditioningValue n (coordinateFirstConditioning n i coords) := by
+  have h :=
+    coordinateFirstConditioning_dualCoordinateVector n (Fin.rev i) (dualCoordinateVector n coords)
+  have hdual := congrArg (dualFixedConditioningValue n) h
+  simpa [dualCoordinateVector_dualCoordinateVector,
+    dualFixedConditioningValue_dualFixedConditioningValue] using hdual.symm
 
 open Classical in
 /-- Alice's fixed-coordinate bit is independent of the first-conditioning data, since that data
@@ -1710,34 +2050,6 @@ theorem uniformDisjointCoordinateVector_indep_coordinateFirstConditioning_coordi
   simpa [F, coordinateFirstConditioning, coordinateXBefore, coordinateYExcept, coordinateXBit]
     using hcomp
 
-open Classical in
-/-- Bob's fixed-coordinate bit is independent of the second-conditioning data, since that data
-only depends on the other disjoint-coordinate samples. -/
-theorem uniformDisjointCoordinateVector_indep_coordinateSecondConditioning_coordinateYBit
-    (i : Fin n) :
-    IndepFun (coordinateSecondConditioning n i) (coordinateYBit n i)
-      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate)) := by
-  let S : Finset (Fin n) := Finset.univ.erase i
-  let F : (S → DisjointCoordinate) → (Fin n → Bool) × (Fin n → Bool) := fun rest =>
-    (fun j => if hji : j = i then false else (rest ⟨j, by simp [S, hji]⟩).xBit,
-      fun j => if hji : i < j then (rest ⟨j, by simp [S, ne_of_gt hji]⟩).yBit else false)
-  have hraw :
-      IndepFun (fun coords : Fin n → DisjointCoordinate => fun j : S => coords j)
-        (fun coords : Fin n → DisjointCoordinate => fun j : ({i} : Finset (Fin n)) => coords j)
-        ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)) := by
-    refine (uniformDisjointCoordinateVector_iIndepFun n).indepFun_finset S {i} ?_
-      (fun _ => Measurable.of_discrete)
-    rw [Finset.disjoint_singleton_right]
-    simp [S]
-  have hcomp := hraw.comp (Measurable.of_discrete (f := F))
-    (Measurable.of_discrete
-      (f := fun coord : ({i} : Finset (Fin n)) → DisjointCoordinate =>
-        (coord ⟨i, by simp⟩).yBit))
-  simpa [F, coordinateSecondConditioning, coordinateXExcept, coordinateYAfter, coordinateYBit]
-    using hcomp
-
 /-- The first-conditioning data carries no information about Alice's current bit before the
 transcript is observed. -/
 theorem mutualInfo_coordinateFirstConditioning_coordinateXBit_eq_zero
@@ -1747,16 +2059,6 @@ theorem mutualInfo_coordinateFirstConditioning_coordinateXBit_eq_zero
         Measure (Fin n → DisjointCoordinate))] = 0 :=
   (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
     (uniformDisjointCoordinateVector_indep_coordinateFirstConditioning_coordinateXBit n i)
-
-/-- The second-conditioning data carries no information about Bob's current bit before the
-transcript is observed. -/
-theorem mutualInfo_coordinateSecondConditioning_coordinateYBit_eq_zero
-    (i : Fin n) :
-    I[coordinateSecondConditioning n i : coordinateYBit n i ;
-      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate))] = 0 :=
-  (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
-    (uniformDisjointCoordinateVector_indep_coordinateSecondConditioning_coordinateYBit n i)
 
 /-- Alice's special bit as a function on `(T, coordinateVector)`. -/
 def coordinateAndVectorSpecialX
@@ -1806,6 +2108,156 @@ def coordinateAndVectorXAfter
     (z : Fin n × (Fin n → DisjointCoordinate)) : Fin n → Bool :=
   coordinateXAfter n z.1 z.2
 
+/-- Dualize a `(T, conditioning)` value by reversing the coordinate and swapping/reversing the
+two vector components. -/
+def dualConditioningValue
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (Fin.rev c.1, reverseBoolVector n c.2.2, reverseBoolVector n c.2.1)
+
+/-- Dualizing a `(T, conditioning)` value twice recovers it. -/
+theorem dualConditioningValue_dualConditioningValue
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    dualConditioningValue n (dualConditioningValue n c) = c := by
+  rcases c with ⟨i, a, b⟩
+  simp [dualConditioningValue, reverseBoolVector_reverseBoolVector]
+
+/-- The pair-space conditioning value duality is injective. -/
+theorem dualConditioningValue_injective :
+    Function.Injective (dualConditioningValue n) := by
+  intro a b h
+  have hdual := congrArg (dualConditioningValue n) h
+  simpa [dualConditioningValue_dualConditioningValue] using hdual
+
+/-- Dualize the clean `(T, coordinateVector)` space. -/
+def dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    Fin n × (Fin n → DisjointCoordinate) :=
+  (Fin.rev z.1, dualCoordinateVector n z.2)
+
+/-- Dualizing the clean `(T, coordinateVector)` space twice recovers the original value. -/
+theorem dualCoordinateAndVector_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    dualCoordinateAndVector n (dualCoordinateAndVector n z) = z := by
+  rcases z with ⟨i, coords⟩
+  simp [dualCoordinateAndVector, dualCoordinateVector_dualCoordinateVector]
+
+/-- The preimage of a singleton under pair-space duality is the dual singleton. -/
+theorem dualCoordinateAndVector_preimage_singleton
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    (dualCoordinateAndVector n) ⁻¹' ({z} :
+        Set (Fin n × (Fin n → DisjointCoordinate))) =
+      {dualCoordinateAndVector n z} := by
+  ext z'
+  constructor
+  · intro h
+    have h' : dualCoordinateAndVector n z' = z := by
+      simpa using h
+    have h'' := congrArg (dualCoordinateAndVector n) h'
+    simpa [dualCoordinateAndVector_dualCoordinateAndVector] using h''
+  · intro h
+    have h' : z' = dualCoordinateAndVector n z := by
+      simpa using h
+    rw [h']
+    simp [dualCoordinateAndVector_dualCoordinateAndVector]
+
+/-- Pair-space duality preserves the uniform `(T, coordinateVector)` law. -/
+theorem uniformCoordinateAndVector_measurePreserving_dualCoordinateAndVector :
+    MeasurePreserving (dualCoordinateAndVector n)
+      ((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))
+      ((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+  refine ⟨Measurable.of_discrete, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro z
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  rw [dualCoordinateAndVector_preimage_singleton]
+  rw [uniformCoordinateAndVector_singleton, uniformCoordinateAndVector_singleton]
+
+/-- The pair-space transcript of the dual protocol is the original transcript with the leaf
+alphabet recoded by protocol duality. -/
+theorem coordinateAndVectorMessage_dualProtocol_dualCoordinateAndVector
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorMessage n (dualProtocol n p) (dualCoordinateAndVector n z) =
+      dualProtocolLeafMap n p (coordinateAndVectorMessage n p z) := by
+  rcases z with ⟨i, coords⟩
+  simp [coordinateAndVectorMessage, dualCoordinateAndVector,
+    coordinateMessage_dualProtocol_dualCoordinateVector]
+
+/-- Alice's special bit in the dual clean model is Bob's original special bit. -/
+theorem coordinateAndVectorSpecialX_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorSpecialX n (dualCoordinateAndVector n z) =
+      coordinateAndVectorSpecialY n z := by
+  rcases z with ⟨i, coords⟩
+  simp [dualCoordinateAndVector, coordinateAndVectorSpecialX, coordinateAndVectorSpecialY,
+    coordinateXBit_dualCoordinateVector]
+
+/-- Bob's special bit in the dual clean model is Alice's original special bit. -/
+theorem coordinateAndVectorSpecialY_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorSpecialY n (dualCoordinateAndVector n z) =
+      coordinateAndVectorSpecialX n z := by
+  have h := coordinateAndVectorSpecialX_dualCoordinateAndVector n (dualCoordinateAndVector n z)
+  simpa [dualCoordinateAndVector_dualCoordinateAndVector] using h.symm
+
+/-- Alice's pair-space conditioning in the dual is Bob's original conditioning under the value
+duality. -/
+theorem coordinateAndVectorFirstConditioning_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorFirstConditioning n (dualCoordinateAndVector n z) =
+      dualConditioningValue n (coordinateAndVectorSecondConditioning n z) := by
+  rcases z with ⟨i, coords⟩
+  simp [dualCoordinateAndVector, dualConditioningValue, coordinateAndVectorFirstConditioning,
+    coordinateAndVectorSecondConditioning, coordinateFirstConditioning_dualCoordinateVector,
+    dualFixedConditioningValue]
+
+/-- Bob's pair-space conditioning in the dual is Alice's original conditioning under the value
+duality. -/
+theorem coordinateAndVectorSecondConditioning_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorSecondConditioning n (dualCoordinateAndVector n z) =
+      dualConditioningValue n (coordinateAndVectorFirstConditioning n z) := by
+  have h := coordinateAndVectorFirstConditioning_dualCoordinateAndVector n
+    (dualCoordinateAndVector n z)
+  have hdual := congrArg (dualConditioningValue n) h
+  simpa [dualCoordinateAndVector_dualCoordinateAndVector,
+    dualConditioningValue_dualConditioningValue] using hdual.symm
+
+/-- The pair-space coarse conditioning is self-dual up to the value duality. -/
+theorem coordinateAndVectorCoarseConditioning_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorCoarseConditioning n (dualCoordinateAndVector n z) =
+      dualConditioningValue n (coordinateAndVectorCoarseConditioning n z) := by
+  rcases z with ⟨i, coords⟩
+  simp [dualCoordinateAndVector, dualConditioningValue, coordinateAndVectorCoarseConditioning,
+    coordinateXBefore_dualCoordinateVector, coordinateYAfter_dualCoordinateVector]
+
+/-- The Alice-side extra `Y_<T` data in the dual is Bob's extra `X_>T` data in reverse order. -/
+theorem coordinateAndVectorYBefore_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorYBefore n (dualCoordinateAndVector n z) =
+      reverseBoolVector n (coordinateAndVectorXAfter n z) := by
+  rcases z with ⟨i, coords⟩
+  simp [dualCoordinateAndVector, coordinateAndVectorYBefore, coordinateAndVectorXAfter,
+    coordinateYBefore_dualCoordinateVector]
+
+/-- The Bob-side extra `X_>T` data in the dual is Alice's extra `Y_<T` data in reverse order. -/
+theorem coordinateAndVectorXAfter_dualCoordinateAndVector
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorXAfter n (dualCoordinateAndVector n z) =
+      reverseBoolVector n (coordinateAndVectorYBefore n z) := by
+  have h := coordinateAndVectorYBefore_dualCoordinateAndVector n (dualCoordinateAndVector n z)
+  have hdual := congrArg (reverseBoolVector n) h
+  simpa [dualCoordinateAndVector_dualCoordinateAndVector,
+    reverseBoolVector_reverseBoolVector] using hdual.symm
+
 /-- A first-conditioning fiber in `(T, coordinateVector)` form is a coordinate singleton times
 the corresponding fixed-coordinate vector fiber. -/
 theorem coordinateAndVectorFirstConditioning_preimage_singleton
@@ -1820,21 +2272,6 @@ theorem coordinateAndVectorFirstConditioning_preimage_singleton
   · subst hij
     simp [coordinateAndVectorFirstConditioning, Prod.ext_iff]
   · simp [coordinateAndVectorFirstConditioning, Prod.ext_iff, hij]
-
-/-- A second-conditioning fiber in `(T, coordinateVector)` form is a coordinate singleton times
-the corresponding fixed-coordinate vector fiber. -/
-theorem coordinateAndVectorSecondConditioning_preimage_singleton
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    (coordinateAndVectorSecondConditioning n) ⁻¹' {c} =
-      ({c.1} : Set (Fin n)) ×ˢ
-        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
-  ext z
-  rcases z with ⟨i, coords⟩
-  rcases c with ⟨j, xExcept, yAfter⟩
-  by_cases hij : i = j
-  · subst hij
-    simp [coordinateAndVectorSecondConditioning, Prod.ext_iff]
-  · simp [coordinateAndVectorSecondConditioning, Prod.ext_iff, hij]
 
 /-- Under product-uniform sampling, first-conditioning fibers have the expected `1 / n` factor
 from the random coordinate. -/
@@ -1865,35 +2302,6 @@ theorem uniformCoordinateAndVector_measureReal_firstConditioning_fiber
           ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})
   rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
 
-/-- Under product-uniform sampling, second-conditioning fibers have the expected `1 / n` factor
-from the random coordinate. -/
-theorem uniformCoordinateAndVector_measureReal_secondConditioning_fiber
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    ((uniformCoordinateAndVector n :
-      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-      Measure (Fin n × (Fin n → DisjointCoordinate))).real
-        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) =
-      (1 / (n : ℝ) : ℝ) *
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)).real
-          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
-  rw [coordinateAndVectorSecondConditioning_preimage_singleton]
-  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
-  change
-    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
-      ((uniformDisjointCoordinateVector n :
-        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate))).real
-        (({c.1} : Set (Fin n)) ×ˢ
-          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) =
-      (1 / (n : ℝ) : ℝ) *
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)).real
-          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})
-  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
-
 /-- Intersecting a first-conditioning fiber with a pair-side Alice bit/transcript event is the
 coordinate singleton times the corresponding fixed-coordinate vector event. -/
 theorem coordinateAndVectorFirstConditioning_inter_specialX_message_preimage
@@ -1916,30 +2324,6 @@ theorem coordinateAndVectorFirstConditioning_inter_specialX_message_preimage
     simp [coordinateAndVectorFirstConditioning, coordinateAndVectorSpecialX,
       coordinateAndVectorMessage, Prod.ext_iff]
   · simp [coordinateAndVectorFirstConditioning, coordinateAndVectorSpecialX,
-      coordinateAndVectorMessage, Prod.ext_iff, hij]
-
-/-- Intersecting a second-conditioning fiber with a pair-side Bob bit/transcript event is the
-coordinate singleton times the corresponding fixed-coordinate vector event. -/
-theorem coordinateAndVectorSecondConditioning_inter_specialY_message_preimage
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
-    (a : Bool × p.Leaf) :
-    (coordinateAndVectorSecondConditioning n) ⁻¹' {c} ∩
-        (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
-          {a} =
-      ({c.1} : Set (Fin n)) ×ˢ
-        (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
-          (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
-            {a}) := by
-  ext z
-  rcases z with ⟨i, coords⟩
-  rcases c with ⟨j, xExcept, yAfter⟩
-  rcases a with ⟨b, leaf⟩
-  by_cases hij : i = j
-  · subst hij
-    simp [coordinateAndVectorSecondConditioning, coordinateAndVectorSpecialY,
-      coordinateAndVectorMessage, Prod.ext_iff]
-  · simp [coordinateAndVectorSecondConditioning, coordinateAndVectorSpecialY,
       coordinateAndVectorMessage, Prod.ext_iff, hij]
 
 /-- Under product-uniform sampling, a first-conditioning fiber intersected with an Alice
@@ -1978,45 +2362,6 @@ theorem uniformCoordinateAndVector_measureReal_firstConditioning_inter_specialX_
           Measure (Fin n → DisjointCoordinate)).real
           (((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
             (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
-              {a})
-  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
-
-/-- Under product-uniform sampling, a second-conditioning fiber intersected with a Bob
-bit/transcript event has the expected `1 / n` factor from the random coordinate. -/
-theorem uniformCoordinateAndVector_measureReal_secondConditioning_inter_specialY_message
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
-    (a : Bool × p.Leaf) :
-    ((uniformCoordinateAndVector n :
-      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-      Measure (Fin n × (Fin n → DisjointCoordinate))).real
-        (((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) ∩
-          (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
-            {a}) =
-      (1 / (n : ℝ) : ℝ) *
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)).real
-          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
-            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
-              {a}) := by
-  rw [coordinateAndVectorSecondConditioning_inter_specialY_message_preimage]
-  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
-  change
-    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
-      ((uniformDisjointCoordinateVector n :
-        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate))).real
-        (({c.1} : Set (Fin n)) ×ˢ
-          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
-            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
-              {a})) =
-      (1 / (n : ℝ) : ℝ) *
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)).real
-          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
-            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
               {a})
   rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
 
@@ -2077,63 +2422,6 @@ theorem identDistrib_firstPairFiber_fixed
   have hn : (1 / (n : ℝ) : ℝ) ≠ 0 := by positivity
   rw [mul_inv_rev, ← mul_assoc, inv_mul_cancel_right₀ hn]
 
-/-- After conditioning on a second-conditioning fiber, the pair-space Bob bit/transcript law is
-the same as the corresponding fixed-coordinate law on coordinate vectors. -/
-theorem identDistrib_secondPairFiber_fixed
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    IdentDistrib
-      (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z))
-      (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords))
-      (ProbabilityTheory.cond
-        (((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))))
-        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}))
-      (ProbabilityTheory.cond
-        (((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)))
-        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) := by
-  refine ⟨Measurable.of_discrete.aemeasurable, Measurable.of_discrete.aemeasurable, ?_⟩
-  rw [MeasureTheory.ext_iff_measureReal_singleton]
-  intro a
-  let μPair : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
-    ((uniformCoordinateAndVector n :
-      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-      Measure (Fin n × (Fin n → DisjointCoordinate)))
-  let μVec : Measure (Fin n → DisjointCoordinate) :=
-    ((uniformDisjointCoordinateVector n :
-      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-      Measure (Fin n → DisjointCoordinate))
-  change
-    ((Measure.map
-        (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z))
-        (ProbabilityTheory.cond μPair
-          ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}))) {a}).toReal =
-      ((Measure.map
-        (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords))
-        (ProbabilityTheory.cond μVec
-          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}))) {a}).toReal
-  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
-  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
-  change
-    (ProbabilityTheory.cond μPair
-        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})).real
-      ((fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
-        {a}) =
-    (ProbabilityTheory.cond μVec
-        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})).real
-      ((fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
-        {a})
-  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
-  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
-  dsimp only [μPair, μVec]
-  rw [uniformCoordinateAndVector_measureReal_secondConditioning_fiber]
-  rw [uniformCoordinateAndVector_measureReal_secondConditioning_inter_specialY_message]
-  have hn : (1 / (n : ℝ) : ℝ) ≠ 0 := by positivity
-  rw [mul_inv_rev, ← mul_assoc, inv_mul_cancel_right₀ hn]
-
 /-- The Alice bit/transcript mutual information on a first-conditioning pair-space fiber equals
 the corresponding fixed-coordinate mutual information. -/
 theorem mutualInfo_firstPairFiber_fixed
@@ -2153,26 +2441,6 @@ theorem mutualInfo_firstPairFiber_fixed
         ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})] :=
   ProbabilityTheory.IdentDistrib.mutualInfo_eq
     (identDistrib_firstPairFiber_fixed n p c)
-
-/-- The Bob bit/transcript mutual information on a second-conditioning pair-space fiber equals
-the corresponding fixed-coordinate mutual information. -/
-theorem mutualInfo_secondPairFiber_fixed
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    I[coordinateAndVectorSpecialY n : coordinateAndVectorMessage n p ;
-      ProbabilityTheory.cond
-        (((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))))
-        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})] =
-    I[coordinateYBit n c.1 : coordinateMessage n p ;
-      ProbabilityTheory.cond
-        (((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)))
-        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})] :=
-  ProbabilityTheory.IdentDistrib.mutualInfo_eq
-    (identDistrib_secondPairFiber_fixed n p c)
 
 /-- Alice's full vector is recovered from the coordinate bit and the vector with that coordinate
 removed. -/
@@ -2540,26 +2808,12 @@ def coarseFromFirstConditioning
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (c.1, c.2.1, fun i => if c.1 < i then c.2.2 i else false)
 
-/-- Extract the Claim 6.21 coarse conditioning data from Bob's finer textbook conditioning
-`(T, X_≠T, Y_>T)`. -/
-def coarseFromSecondConditioning
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
-  (c.1, fun i => if i < c.1 then c.2.1 i else false, c.2.2)
-
 /-- Rebuild Alice's finer textbook conditioning from the Claim 6.21 coarse conditioning plus
 Bob's bits before the special coordinate. -/
 def firstConditioningFromCoarseAndYBefore
     (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) (yb : Fin n → Bool) :
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (c.1, c.2.1, fun i => if i < c.1 then yb i else c.2.2 i)
-
-/-- Rebuild Bob's finer textbook conditioning from the Claim 6.21 coarse conditioning plus
-Alice's bits after the special coordinate. -/
-def secondConditioningFromCoarseAndXAfter
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) (xa : Fin n → Bool) :
-    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
-  (c.1, fun i => if c.1 < i then xa i else c.2.1 i, c.2.2)
 
 /-- Alice's finer textbook conditioning determines the coarse Claim 6.21 conditioning. -/
 theorem coarseConditioning_eq_coarseFromFirstConditioning (ω : HardSample n) :
@@ -2573,19 +2827,6 @@ theorem coarseConditioning_eq_coarseFromFirstConditioning (ω : HardSample n) :
     simp [yAfterSpecial, yExceptSpecial, specialCoordinate, h', hne]
   · have h' : ¬ω.T < i := by simpa [specialCoordinate] using h
     simp [yAfterSpecial, specialCoordinate, h']
-
-/-- Bob's finer textbook conditioning determines the coarse Claim 6.21 conditioning. -/
-theorem coarseConditioning_eq_coarseFromSecondConditioning (ω : HardSample n) :
-    coarseConditioning n ω = coarseFromSecondConditioning n (secondConditioning n ω) := by
-  rw [coarseConditioning, coarseFromSecondConditioning, secondConditioning]
-  congr
-  funext i
-  by_cases h : i < specialCoordinate n ω
-  · have h' : i < ω.T := by simpa [specialCoordinate] using h
-    have hne : i ≠ ω.T := ne_of_lt h'
-    simp [xBeforeSpecial, xExceptSpecial, specialCoordinate, h', hne]
-  · have h' : ¬i < ω.T := by simpa [specialCoordinate] using h
-    simp [xBeforeSpecial, specialCoordinate, h']
 
 /-- Alice's finer textbook conditioning is coarse Claim 6.21 conditioning plus Bob's bits before
 the special coordinate. -/
@@ -2604,24 +2845,6 @@ theorem firstConditioning_eq_firstConditioningFromCoarseAndYBefore (ω : HardSam
       simp [yExceptSpecial, yAfterSpecial, specialCoordinate, hlt, hgt, hne]
     · have heq : i = ω.T := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
       simp [yExceptSpecial, yAfterSpecial, specialCoordinate, heq]
-
-/-- Bob's finer textbook conditioning is coarse Claim 6.21 conditioning plus Alice's bits after
-the special coordinate. -/
-theorem secondConditioning_eq_secondConditioningFromCoarseAndXAfter (ω : HardSample n) :
-    secondConditioning n ω =
-      secondConditioningFromCoarseAndXAfter n
-        (coarseConditioning n ω) (xAfterSpecial n ω) := by
-  rw [secondConditioning, secondConditioningFromCoarseAndXAfter, coarseConditioning]
-  congr
-  funext i
-  by_cases hgt : ω.T < i
-  · have hne : i ≠ ω.T := ne_of_gt hgt
-    simp [xExceptSpecial, xAfterSpecial, specialCoordinate, hgt, hne]
-  · by_cases hlt : i < ω.T
-    · have hne : i ≠ ω.T := ne_of_lt hlt
-      simp [xExceptSpecial, xBeforeSpecial, specialCoordinate, hgt, hlt, hne]
-    · have heq : i = ω.T := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
-      simp [xExceptSpecial, xBeforeSpecial, specialCoordinate, heq]
 
 /-- Alice's coordinate-vector textbook conditioning is the coarse conditioning plus the extra
 `Y_<T` data. -/
@@ -2645,29 +2868,6 @@ theorem coordinateAndVectorFirstConditioning_eq_fromCoarseAndYBefore
       simp [coordinateYExcept, coordinateYAfter, hlt, hgt, hne]
     · have heq : j = i := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
       simp [coordinateYExcept, coordinateYAfter, heq]
-
-/-- Bob's coordinate-vector textbook conditioning is the coarse conditioning plus the extra
-`X_>T` data. -/
-theorem coordinateAndVectorSecondConditioning_eq_fromCoarseAndXAfter
-    (z : Fin n × (Fin n → DisjointCoordinate)) :
-    coordinateAndVectorSecondConditioning n z =
-      secondConditioningFromCoarseAndXAfter n
-        (coordinateAndVectorCoarseConditioning n z)
-        (coordinateAndVectorXAfter n z) := by
-  rcases z with ⟨i, coords⟩
-  rw [coordinateAndVectorSecondConditioning, secondConditioningFromCoarseAndXAfter,
-    coordinateAndVectorCoarseConditioning, coordinateAndVectorXAfter,
-    coordinateSecondConditioning]
-  congr
-  funext j
-  by_cases hgt : i < j
-  · have hne : j ≠ i := ne_of_gt hgt
-    simp [coordinateXExcept, coordinateXAfter, hgt, hne]
-  · by_cases hlt : j < i
-    · have hne : j ≠ i := ne_of_lt hlt
-      simp [coordinateXExcept, coordinateXBefore, hgt, hlt, hne]
-    · have heq : j = i := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
-      simp [coordinateXExcept, coordinateXBefore, heq]
 
 /-- The first conditioning variable with the coordinate supplied explicitly. -/
 def firstConditioningAt (i : Fin n) (ω : HardSample n) :
@@ -2969,12 +3169,6 @@ noncomputable def disjointSpecialYFalseMeasure : Measure (HardSample n) :=
   (disjointCondMeasure n)[|(specialY n) ⁻¹' {false}]
 
 open Classical in
-/-- The disjoint-conditioned hard distribution, further conditioned on Alice's special bit being
-`false`. This is the Bob-side conditioning used in the Claim 6.21 Pinsker step. -/
-noncomputable def disjointSpecialXFalseMeasure : Measure (HardSample n) :=
-  (disjointCondMeasure n)[|(specialX n) ⁻¹' {false}]
-
-open Classical in
 /-- Conditioning the disjoint law on `Y_T = false` gives a probability measure. -/
 theorem disjointSpecialYFalseMeasure_isProbabilityMeasure :
     IsProbabilityMeasure (disjointSpecialYFalseMeasure n) := by
@@ -2984,16 +3178,6 @@ theorem disjointSpecialYFalseMeasure_isProbabilityMeasure :
   rw [disjointCondMeasure_measureReal_specialY_false]
   norm_num
 
-open Classical in
-/-- Conditioning the disjoint law on `X_T = false` gives a probability measure. -/
-theorem disjointSpecialXFalseMeasure_isProbabilityMeasure :
-    IsProbabilityMeasure (disjointSpecialXFalseMeasure n) := by
-  rw [disjointSpecialXFalseMeasure]
-  apply ProbabilityTheory.cond_isProbabilityMeasure
-  rw [← MeasureTheory.measureReal_ne_zero_iff]
-  rw [disjointCondMeasure_measureReal_specialX_false]
-  norm_num
-
 /-- Almost-everywhere identities under the disjoint-conditioned law remain true after further
 conditioning on `Y_T = false`. -/
 theorem ae_eq_of_disjointSpecialYFalse
@@ -3001,15 +3185,6 @@ theorem ae_eq_of_disjointSpecialYFalse
     (h : f =ᵐ[disjointCondMeasure n] g) :
     f =ᵐ[disjointSpecialYFalseMeasure n] g := by
   rw [disjointSpecialYFalseMeasure]
-  exact cond_absolutelyContinuous.ae_le h
-
-/-- Almost-everywhere identities under the disjoint-conditioned law remain true after further
-conditioning on `X_T = false`. -/
-theorem ae_eq_of_disjointSpecialXFalse
-    {α : Type*} {f g : HardSample n → α}
-    (h : f =ᵐ[disjointCondMeasure n] g) :
-    f =ᵐ[disjointSpecialXFalseMeasure n] g := by
-  rw [disjointSpecialXFalseMeasure]
   exact cond_absolutelyContinuous.ae_le h
 
 /-- Under the Alice-side one-bit conditioning, `X_T` is a.e. the coordinate-vector projection. -/
@@ -3039,33 +3214,6 @@ theorem coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointS
     simpa [projectedCoarseConditioning, specialCoordinate]
       using coarseConditioning_ae_eq_projectedCoarseConditioning n)
 
-/-- Under the Bob-side one-bit conditioning, `Y_T` is a.e. the coordinate-vector projection. -/
-theorem specialY_ae_eq_coordinateAndVectorSpecialY_disjointSpecialXFalse :
-    specialY n =ᵐ[disjointSpecialXFalseMeasure n]
-      fun ω => coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω) := by
-  exact ae_eq_of_disjointSpecialXFalse n (by
-    simpa [projectedSpecialY, coordinateAndVectorSpecialY, coordinateYBit, specialCoordinate]
-      using specialY_ae_eq_projectedSpecialY n)
-
-/-- Under the Bob-side one-bit conditioning, the fine textbook conditioning is a.e. the
-coordinate-vector version. -/
-theorem secondConditioning_ae_eq_coordinateAndVectorSecondConditioning_disjointSpecialXFalse :
-    secondConditioning n =ᵐ[disjointSpecialXFalseMeasure n]
-      fun ω => coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω) := by
-  exact ae_eq_of_disjointSpecialXFalse n (by
-    simpa [projectedSecondConditioning, coordinateAndVectorSecondConditioning,
-      coordinateSecondConditioning, specialCoordinate]
-      using secondConditioning_ae_eq_projectedSecondConditioning n)
-
-/-- Under the Bob-side one-bit conditioning, the coarse Claim 6.21 conditioning is a.e. the
-coordinate-vector version. -/
-theorem coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialXFalse :
-    coarseConditioning n =ᵐ[disjointSpecialXFalseMeasure n]
-      fun ω => coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω) := by
-  exact ae_eq_of_disjointSpecialXFalse n (by
-    simpa [projectedCoarseConditioning, specialCoordinate]
-      using coarseConditioning_ae_eq_projectedCoarseConditioning n)
-
 open Classical in
 /-- Given disjointness and `Y_T = false`, Alice's special bit is uniform. -/
 theorem disjointSpecialYFalseMeasure_measureReal_specialX_singleton (b : Bool) :
@@ -3079,21 +3227,6 @@ theorem disjointSpecialYFalseMeasure_measureReal_specialX_singleton (b : Bool) :
     cases b <;> simp [specialPair, and_comm]
   rw [hInter, disjointCondMeasure_measureReal_specialPair_preimage_singleton,
     disjointCondMeasure_measureReal_specialY_false]
-  cases b <;> norm_num
-
-open Classical in
-/-- Given disjointness and `X_T = false`, Bob's special bit is uniform. -/
-theorem disjointSpecialXFalseMeasure_measureReal_specialY_singleton (b : Bool) :
-    (disjointSpecialXFalseMeasure n).real ((specialY n) ⁻¹' {b}) = (1 / 2 : ℝ) := by
-  rw [disjointSpecialXFalseMeasure]
-  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
-  have hInter :
-      ((specialX n) ⁻¹' {false}) ∩ ((specialY n) ⁻¹' {b}) =
-        (specialPair n) ⁻¹' {(false, b)} := by
-    ext ω
-    cases b <;> simp [specialPair]
-  rw [hInter, disjointCondMeasure_measureReal_specialPair_preimage_singleton,
-    disjointCondMeasure_measureReal_specialX_false]
   cases b <;> norm_num
 
 open Classical in
@@ -3113,25 +3246,6 @@ theorem disjointSpecialYFalseMeasure_specialX_law_eq_uniformBool :
   change (disjointSpecialYFalseMeasure n).real ((specialX n) ⁻¹' {b}) =
     ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b}
   rw [disjointSpecialYFalseMeasure_measureReal_specialX_singleton,
-    uniformBool_singleton]
-
-open Classical in
-/-- Under the Bob-side Claim 6.21 conditioning, `Y_T` has the uniform one-bit law. -/
-theorem disjointSpecialXFalseMeasure_specialY_law_eq_uniformBool :
-    ProbabilityMeasure.map
-      (⟨disjointSpecialXFalseMeasure n, disjointSpecialXFalseMeasure_isProbabilityMeasure n⟩ :
-        ProbabilityMeasure (HardSample n))
-      (Measurable.of_discrete.aemeasurable (f := specialY n)) =
-      uniformBool := by
-  apply ProbabilityMeasure.toMeasure_injective
-  rw [MeasureTheory.ext_iff_measureReal_singleton]
-  intro b
-  rw [Measure.real]
-  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
-  rw [← Measure.real]
-  change (disjointSpecialXFalseMeasure n).real ((specialY n) ⁻¹' {b}) =
-    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b}
-  rw [disjointSpecialXFalseMeasure_measureReal_specialY_singleton,
     uniformBool_singleton]
 
 /-- Conditioning on `Y_T = false` in the hard sample space is identified with conditioning the
@@ -3192,64 +3306,6 @@ theorem identDistrib_coordinateAndVector_disjointSpecialYFalse :
       (Measurable.of_discrete (f := coordinateAndVectorSpecialY n))
       hpair
 
-/-- Conditioning on `X_T = false` in the hard sample space is identified with conditioning the
-clean `(T, coordinateVector)` model on the corresponding projected event. -/
-theorem identDistrib_coordinateAndVector_disjointSpecialXFalse :
-    IdentDistrib (fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω)) id
-      (disjointSpecialXFalseMeasure n)
-      (((uniformCoordinateAndVector n :
-        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
-          (coordinateAndVectorSpecialX n) ⁻¹' {false}]) := by
-  have hbase := identDistrib_coordinateAndVector_uniform n
-  have hpairProjected :
-      IdentDistrib
-        (fun ω : HardSample n =>
-          ((ω.T, disjointCoordinateVector n ω), projectedSpecialX n ω))
-        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
-          (id z, coordinateAndVectorSpecialX n z))
-        (disjointCondMeasure n)
-        ((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
-    simpa [Function.comp_def, specialCoordinate, projectedSpecialX,
-      coordinateAndVectorSpecialX, coordinateXBit] using
-      hbase.comp (Measurable.of_discrete
-        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
-          (z, coordinateAndVectorSpecialX n z)))
-  have hae :
-      (fun ω : HardSample n =>
-          ((ω.T, disjointCoordinateVector n ω), specialX n ω)) =ᵐ[disjointCondMeasure n]
-        (fun ω : HardSample n =>
-          ((ω.T, disjointCoordinateVector n ω), projectedSpecialX n ω)) := by
-    filter_upwards [specialX_ae_eq_projectedSpecialX n] with ω hω
-    simp [hω]
-  have hpair :
-      IdentDistrib
-        (fun ω : HardSample n =>
-          ((ω.T, disjointCoordinateVector n ω), specialX n ω))
-        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
-          (id z, coordinateAndVectorSpecialX n z))
-        (disjointCondMeasure n)
-        ((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))) :=
-    (IdentDistrib.of_ae_eq Measurable.of_discrete.aemeasurable hae).trans hpairProjected
-  simpa [disjointSpecialXFalseMeasure] using
-    ProbabilityTheory.IdentDistrib.cond_of_pair
-      (X := fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω))
-      (Y := specialX n)
-      (X' := id)
-      (Y' := coordinateAndVectorSpecialX n)
-      (μ := disjointCondMeasure n)
-      (μ' := ((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))))
-      (MeasurableSet.singleton false)
-      (Measurable.of_discrete (f := specialX n))
-      (Measurable.of_discrete (f := coordinateAndVectorSpecialX n))
-      hpair
-
 /-- In the clean `(T, coordinateVector)` model, the projected event `Y_T = false` has mass
 `2 / 3`. -/
 theorem uniformCoordinateAndVector_measureReal_specialY_false :
@@ -3286,42 +3342,6 @@ theorem uniformCoordinateAndVector_measureReal_specialY_false :
     rw [hω]
   rw [hreal, hreal_projected, disjointCondMeasure_measureReal_specialY_false]
 
-/-- In the clean `(T, coordinateVector)` model, the projected event `X_T = false` has mass
-`2 / 3`. -/
-theorem uniformCoordinateAndVector_measureReal_specialX_false :
-    (((uniformCoordinateAndVector n :
-      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-      Measure (Fin n × (Fin n → DisjointCoordinate))).real
-        ((coordinateAndVectorSpecialX n) ⁻¹' {false})) = (2 / 3 : ℝ) := by
-  have hbase := identDistrib_coordinateAndVector_uniform n
-  have hdist :
-      IdentDistrib (projectedSpecialX n) (coordinateAndVectorSpecialX n)
-        (disjointCondMeasure n)
-        ((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
-    simpa [Function.comp_def, specialCoordinate, projectedSpecialX,
-      coordinateAndVectorSpecialX, coordinateXBit] using
-      hbase.comp (Measurable.of_discrete (f := coordinateAndVectorSpecialX n))
-  have hmeasure :=
-    hdist.measure_mem_eq (MeasurableSet.singleton false)
-  have hreal :
-      (((uniformCoordinateAndVector n :
-        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-        Measure (Fin n × (Fin n → DisjointCoordinate))).real
-          ((coordinateAndVectorSpecialX n) ⁻¹' {false})) =
-        (disjointCondMeasure n).real ((projectedSpecialX n) ⁻¹' {false}) := by
-    simp [Measure.real, hmeasure]
-  have hreal_projected :
-      (disjointCondMeasure n).real ((projectedSpecialX n) ⁻¹' {false}) =
-        (disjointCondMeasure n).real ((specialX n) ⁻¹' {false}) := by
-    apply MeasureTheory.measureReal_congr
-    filter_upwards [specialX_ae_eq_projectedSpecialX n] with ω hω
-    apply propext
-    change projectedSpecialX n ω = false ↔ specialX n ω = false
-    rw [hω]
-  rw [hreal, hreal_projected, disjointCondMeasure_measureReal_specialX_false]
-
 /-- The clean coordinate-vector model conditioned on `Y_T = false` is a probability measure. -/
 theorem uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure :
     IsProbabilityMeasure
@@ -3334,18 +3354,6 @@ theorem uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure :
   rw [uniformCoordinateAndVector_measureReal_specialY_false]
   norm_num
 
-/-- The clean coordinate-vector model conditioned on `X_T = false` is a probability measure. -/
-theorem uniformCoordinateAndVector_specialXFalse_isProbabilityMeasure :
-    IsProbabilityMeasure
-      (((uniformCoordinateAndVector n :
-        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
-          (coordinateAndVectorSpecialX n) ⁻¹' {false}]) := by
-  apply ProbabilityTheory.cond_isProbabilityMeasure
-  rw [← MeasureTheory.measureReal_ne_zero_iff]
-  rw [uniformCoordinateAndVector_measureReal_specialX_false]
-  norm_num
-
 /-- The clean coordinate-vector model conditioned on `Y_T = false`. -/
 noncomputable def uniformCoordinateAndVectorSpecialYFalseMeasure :
     Measure (Fin n × (Fin n → DisjointCoordinate)) :=
@@ -3353,15 +3361,6 @@ noncomputable def uniformCoordinateAndVectorSpecialYFalseMeasure :
     ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
     Measure (Fin n × (Fin n → DisjointCoordinate)))[|
       (coordinateAndVectorSpecialY n) ⁻¹' {false}]
-  )
-
-/-- The clean coordinate-vector model conditioned on `X_T = false`. -/
-noncomputable def uniformCoordinateAndVectorSpecialXFalseMeasure :
-    Measure (Fin n × (Fin n → DisjointCoordinate)) :=
-  (((uniformCoordinateAndVector n :
-    ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-    Measure (Fin n × (Fin n → DisjointCoordinate)))[|
-      (coordinateAndVectorSpecialX n) ⁻¹' {false}]
   )
 
 /-- The Alice-side extra-conditioning zero-information target can be computed on the clean
@@ -3436,79 +3435,6 @@ theorem
       (firstConditioning_ae_eq_coordinateAndVectorFirstConditioning_disjointSpecialYFalse n)
       (coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialYFalse n)
   exact hactual.trans (by simpa [μY] using hprojected)
-
-/-- The Bob-side extra-conditioning zero-information target can be computed on the clean
-coordinate-vector model conditioned on `X_T = false`. -/
-theorem
-    condMutualInfo_bob_extra_eq_coordinate :
-    I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
-      I[coordinateAndVectorSpecialY n : coordinateAndVectorSecondConditioning n|
-        coordinateAndVectorCoarseConditioning n;
-        uniformCoordinateAndVectorSpecialXFalseMeasure n] := by
-  let μX : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
-    uniformCoordinateAndVectorSpecialXFalseMeasure n
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  haveI : IsProbabilityMeasure μX := by
-    simpa [μX, uniformCoordinateAndVectorSpecialXFalseMeasure] using
-      uniformCoordinateAndVector_specialXFalse_isProbabilityMeasure n
-  have hcoord := identDistrib_coordinateAndVector_disjointSpecialXFalse n
-  have hXYZ :
-      IdentDistrib
-        (fun ω : HardSample n =>
-          (coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω),
-            coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω),
-            coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω)))
-        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
-          (coordinateAndVectorSpecialY n z,
-            coordinateAndVectorSecondConditioning n z,
-            coordinateAndVectorCoarseConditioning n z))
-        (disjointSpecialXFalseMeasure n)
-        μX := by
-    simpa [μX, Function.comp_def] using
-      hcoord.comp (Measurable.of_discrete
-        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
-          (coordinateAndVectorSpecialY n z,
-            coordinateAndVectorSecondConditioning n z,
-            coordinateAndVectorCoarseConditioning n z)))
-  have hprojected :
-      I[(fun ω : HardSample n =>
-          coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω)) :
-        (fun ω : HardSample n =>
-          coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))|
-        (fun ω : HardSample n =>
-          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
-        disjointSpecialXFalseMeasure n] =
-      I[coordinateAndVectorSpecialY n : coordinateAndVectorSecondConditioning n|
-        coordinateAndVectorCoarseConditioning n;μX] :=
-    ProbabilityTheory.IdentDistrib.condMutualInfo_eq
-      (μ := disjointSpecialXFalseMeasure n) (μ' := μX)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      hXYZ
-  have hactual :
-      I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
-      I[(fun ω : HardSample n =>
-          coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω)) :
-        (fun ω : HardSample n =>
-          coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))|
-        (fun ω : HardSample n =>
-          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
-        disjointSpecialXFalseMeasure n] :=
-    ProbabilityTheory.condMutualInfo_congr_ae
-      (μ := disjointSpecialXFalseMeasure n)
-      (X := specialY n) (Y := secondConditioning n) (Z := coarseConditioning n)
-      (X' := fun ω : HardSample n =>
-        coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω))
-      (Y' := fun ω : HardSample n =>
-        coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))
-      (Z' := fun ω : HardSample n =>
-        coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω))
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      (specialY_ae_eq_coordinateAndVectorSpecialY_disjointSpecialXFalse n)
-      (secondConditioning_ae_eq_coordinateAndVectorSecondConditioning_disjointSpecialXFalse n)
-      (coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialXFalse n)
-  exact hactual.trans (by simpa [μX] using hprojected)
 
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
@@ -3637,27 +3563,327 @@ theorem coarseConditioning_eq_snd_zVariable
     coarseConditioning n ω = (zVariable n p ω).2 :=
   rfl
 
+/-- Dualize the hard sample space by swapping Alice/Bob and reversing coordinate order. -/
+def dualHardSample (ω : HardSample n) : HardSample n where
+  T := Fin.rev ω.T
+  xT := ω.yT
+  yT := ω.xT
+  other := fun i => DisjointCoordinate.swap (ω.other (Fin.rev i))
+
+/-- Dualizing a hard sample twice recovers the original sample. -/
+theorem dualHardSample_dualHardSample (ω : HardSample n) :
+    dualHardSample n (dualHardSample n ω) = ω := by
+  rcases ω with ⟨T, xT, yT, other⟩
+  simp [dualHardSample, DisjointCoordinate.swap_swap]
+
+/-- The preimage of a singleton under hard-sample duality is the dual singleton. -/
+theorem dualHardSample_preimage_singleton (ω : HardSample n) :
+    (dualHardSample n) ⁻¹' ({ω} : Set (HardSample n)) =
+      {dualHardSample n ω} := by
+  ext ω'
+  constructor
+  · intro h
+    have h' : dualHardSample n ω' = ω := by
+      simpa using h
+    have h'' := congrArg (dualHardSample n) h'
+    simpa [dualHardSample_dualHardSample] using h''
+  · intro h
+    have h' : ω' = dualHardSample n ω := by
+      simpa using h
+    rw [h']
+    simp [dualHardSample_dualHardSample]
+
+/-- The uniform hard-sample measure gives the same mass to a sample and its dual. -/
+theorem volume_measureReal_singleton_dualHardSample (ω : HardSample n) :
+    (volume : Measure (HardSample n)).real ({dualHardSample n ω} : Set (HardSample n)) =
+      (volume : Measure (HardSample n)).real ({ω} : Set (HardSample n)) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)).real
+      ({dualHardSample n ω} : Set (HardSample n))) =
+    ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)).real
+      ({ω} : Set (HardSample n)))
+  repeat rw [Measure.real]
+  rw [uniformOn_univ_measureReal_eq_card_subtype,
+    uniformOn_univ_measureReal_eq_card_subtype]
+  simp
+
+/-- Hard-sample duality preserves the uniform hard-sample measure. -/
+theorem volume_measurePreserving_dualHardSample :
+    MeasurePreserving (dualHardSample n)
+      (volume : Measure (HardSample n)) (volume : Measure (HardSample n)) := by
+  refine ⟨Measurable.of_discrete, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro ω
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real, dualHardSample_preimage_singleton,
+    volume_measureReal_singleton_dualHardSample]
+
+/-- Alice's bit in the dual hard sample is Bob's original bit at the reversed coordinate. -/
+theorem xBit_dualHardSample (ω : HardSample n) (i : Fin n) :
+    xBit n (dualHardSample n ω) i = yBit n ω (Fin.rev i) := by
+  by_cases hi : i = Fin.rev ω.T
+  · subst i
+    simp [dualHardSample, xBit, yBit]
+  · have hrev : Fin.rev i ≠ ω.T := by
+      intro h
+      apply hi
+      have h' := congrArg Fin.rev h
+      simpa using h'
+    simp [dualHardSample, xBit, yBit, hi, hrev, DisjointCoordinate.xBit_swap]
+
+/-- Bob's bit in the dual hard sample is Alice's original bit at the reversed coordinate. -/
+theorem yBit_dualHardSample (ω : HardSample n) (i : Fin n) :
+    yBit n (dualHardSample n ω) i = xBit n ω (Fin.rev i) := by
+  have h := xBit_dualHardSample n (dualHardSample n ω) (Fin.rev i)
+  simpa [dualHardSample_dualHardSample] using h.symm
+
+/-- Dual hard samples swap Alice's input with Bob's input and reverse coordinates. -/
+theorem X_dualHardSample (ω : HardSample n) :
+    X n (dualHardSample n ω) = reverseSet n (Y n ω) := by
+  ext i
+  simp [X, Y, reverseSet, xBit_dualHardSample]
+
+/-- Dual hard samples swap Bob's input with Alice's input and reverse coordinates. -/
+theorem Y_dualHardSample (ω : HardSample n) :
+    Y n (dualHardSample n ω) = reverseSet n (X n ω) := by
+  have h := X_dualHardSample n (dualHardSample n ω)
+  have hdual := congrArg (reverseSet n) h
+  simpa [dualHardSample_dualHardSample, reverseSet_reverseSet] using hdual.symm
+
+/-- The generated input of a dual hard sample is the reversed, swapped original input. -/
+theorem input_dualHardSample (ω : HardSample n) :
+    input n (dualHardSample n ω) = (reverseSet n (Y n ω), reverseSet n (X n ω)) := by
+  rw [input, X_dualHardSample, Y_dualHardSample]
+
+/-- Hard-sample duality preserves the disjoint-input event. -/
+theorem disjointEvent_dualHardSample (ω : HardSample n) :
+    dualHardSample n ω ∈ disjointEvent n ↔ ω ∈ disjointEvent n := by
+  change Disjoint (X n (dualHardSample n ω)) (Y n (dualHardSample n ω)) ↔
+    Disjoint (X n ω) (Y n ω)
+  rw [disjoint_X_Y_iff, disjoint_X_Y_iff]
+  simp [dualHardSample, and_comm]
+
+/-- The disjoint-conditioned hard-sample measure gives the same mass to a sample and its dual. -/
+theorem disjointCondMeasure_measureReal_singleton_dualHardSample (ω : HardSample n) :
+    (disjointCondMeasure n).real ({dualHardSample n ω} : Set (HardSample n)) =
+      (disjointCondMeasure n).real ({ω} : Set (HardSample n)) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  by_cases hω : ω ∈ disjointEvent n
+  · have hdual : dualHardSample n ω ∈ disjointEvent n :=
+      (disjointEvent_dualHardSample n ω).2 hω
+    have hleft :
+        disjointEvent n ∩ ({dualHardSample n ω} : Set (HardSample n)) =
+          {dualHardSample n ω} := by
+      ext η
+      simp [hdual]
+    have hright : disjointEvent n ∩ ({ω} : Set (HardSample n)) = {ω} := by
+      ext η
+      simp [hω]
+    rw [hleft, hright, volume_measureReal_singleton_dualHardSample]
+  · have hdual : dualHardSample n ω ∉ disjointEvent n := by
+      intro h
+      exact hω ((disjointEvent_dualHardSample n ω).1 h)
+    have hleft :
+        disjointEvent n ∩ ({dualHardSample n ω} : Set (HardSample n)) =
+          ∅ := by
+      ext η
+      by_cases hη : η = dualHardSample n ω
+      · subst η
+        simp [hdual]
+      · simp [hη]
+    have hright : disjointEvent n ∩ ({ω} : Set (HardSample n)) = ∅ := by
+      ext η
+      by_cases hη : η = ω
+      · subst η
+        simp [hω]
+      · simp [hη]
+    rw [hleft, hright]
+
+/-- Hard-sample duality preserves the disjoint-conditioned hard-sample measure. -/
+theorem disjointCondMeasure_measurePreserving_dualHardSample :
+    MeasurePreserving (dualHardSample n) (disjointCondMeasure n) (disjointCondMeasure n) := by
+  refine ⟨Measurable.of_discrete, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro ω
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real, dualHardSample_preimage_singleton,
+    disjointCondMeasure_measureReal_singleton_dualHardSample]
+
+/-- Alice's special bit in the dual hard sample is Bob's original special bit. -/
+theorem specialX_dualHardSample (ω : HardSample n) :
+    specialX n (dualHardSample n ω) = specialY n ω := by
+  simp [specialX, specialY, dualHardSample]
+
+/-- Bob's special bit in the dual hard sample is Alice's original special bit. -/
+theorem specialY_dualHardSample (ω : HardSample n) :
+    specialY n (dualHardSample n ω) = specialX n ω := by
+  simp [specialX, specialY, dualHardSample]
+
+/-- Alice's before-special vector in the dual is Bob's after-special vector in reverse order. -/
+theorem xBeforeSpecial_dualHardSample (ω : HardSample n) :
+    xBeforeSpecial n (dualHardSample n ω) =
+      reverseBoolVector n (yAfterSpecial n ω) := by
+  funext i
+  change
+    (if i < Fin.rev ω.T then xBit n (dualHardSample n ω) i else false) =
+      (if ω.T < Fin.rev i then yBit n ω (Fin.rev i) else false)
+  rw [xBit_dualHardSample]
+  by_cases h : i < Fin.rev ω.T
+  · have h' : ω.T < Fin.rev i := (Fin.lt_rev_iff).1 h
+    simp [h, h']
+  · have h' : ¬ω.T < Fin.rev i := by
+      intro h'
+      exact h ((Fin.lt_rev_iff).2 h')
+    simp [h, h']
+
+/-- Bob's after-special vector in the dual is Alice's before-special vector in reverse order. -/
+theorem yAfterSpecial_dualHardSample (ω : HardSample n) :
+    yAfterSpecial n (dualHardSample n ω) =
+      reverseBoolVector n (xBeforeSpecial n ω) := by
+  have h := xBeforeSpecial_dualHardSample n (dualHardSample n ω)
+  have hdual := congrArg (reverseBoolVector n) h
+  simpa [dualHardSample_dualHardSample,
+    reverseBoolVector_reverseBoolVector] using hdual.symm
+
+/-- The coarse `Z` conditioning data is self-dual up to the conditioning-value recoding. -/
+theorem coarseConditioning_dualHardSample (ω : HardSample n) :
+    coarseConditioning n (dualHardSample n ω) =
+      dualConditioningValue n (coarseConditioning n ω) := by
+  rw [coarseConditioning, coarseConditioning, dualConditioningValue,
+    xBeforeSpecial_dualHardSample, yAfterSpecial_dualHardSample]
+  simp [specialCoordinate, dualHardSample]
+
+/-- The dual protocol transcript on the dual hard sample is the original transcript recoded
+through protocol duality. -/
+theorem message_dualProtocol_dualHardSample
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (ω : HardSample n) :
+    message n (dualProtocol n p) (dualHardSample n ω) =
+      dualProtocolLeafMap n p (message n p ω) := by
+  change (p.swap.comap (reverseSet n) (reverseSet n)).transcript
+      (input n (dualHardSample n ω)) =
+    dualProtocolLeafMap n p (p.transcript (input n ω))
+  rw [input_dualHardSample, input]
+  rw [← Deterministic.Protocol.leafComap_transcript p.swap (reverseSet n) (reverseSet n)
+    (reverseSet n (Y n ω)) (reverseSet n (X n ω))]
+  rw [reverseSet_reverseSet, reverseSet_reverseSet]
+  rw [← Deterministic.Protocol.leafSwap_transcript p]
+  rfl
+
+/-- Dualize a `Z = (M,T,X_<T,Y_>T)` value by recoding the leaf and the coarse conditioning
+data. -/
+noncomputable def dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (dualProtocol n p).Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)) :=
+  (dualProtocolLeafMap n p z.1, dualConditioningValue n z.2)
+
+/-- The `Z`-value recoding induced by protocol and hard-sample duality is injective. -/
+theorem dualZValue_injective
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    Function.Injective (dualZValue n p) := by
+  intro z z' h
+  rcases z with ⟨leaf, c⟩
+  rcases z' with ⟨leaf', c'⟩
+  simp only [dualZValue, Prod.mk.injEq] at h ⊢
+  exact ⟨dualProtocolLeafMap_injective n p h.1, dualConditioningValue_injective n h.2⟩
+
+/-- The `Z` variable for the dual protocol and hard sample is the recoded original `Z`. -/
+theorem zVariable_dualProtocol_dualHardSample
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (ω : HardSample n) :
+    zVariable n (dualProtocol n p) (dualHardSample n ω) =
+      dualZValue n p (zVariable n p ω) := by
+  rw [zVariable_eq_message_coarseConditioning, zVariable_eq_message_coarseConditioning,
+    dualZValue, message_dualProtocol_dualHardSample, coarseConditioning_dualHardSample]
+
+/-- Pulling a recoded dual `Z` fiber back along hard-sample duality gives the original `Z`
+fiber. -/
+theorem zVariable_dualProtocol_preimage_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (dualHardSample n) ⁻¹'
+        ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
+      (zVariable n p) ⁻¹' {z} := by
+  ext ω
+  change zVariable n (dualProtocol n p) (dualHardSample n ω) = dualZValue n p z ↔
+    zVariable n p ω = z
+  rw [zVariable_dualProtocol_dualHardSample]
+  exact (dualZValue_injective n p).eq_iff
+
+/-- The ambient hard-sample measure gives corresponding original and dual `Z` fibers the same
+mass. -/
+theorem volume_zVariable_dualProtocol_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (volume : Measure (HardSample n))
+        ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
+      (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) := by
+  let μ : Measure (HardSample n) := volume
+  let S : Set (HardSample n) :=
+    (zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}
+  have hpre :
+      μ ((dualHardSample n) ⁻¹' S) = μ S :=
+    Measure.measure_preimage_of_map_eq_self
+      (volume_measurePreserving_dualHardSample n).map_eq
+      MeasurableSet.of_discrete.nullMeasurableSet
+  rw [← hpre]
+  exact congrArg (fun S : Set (HardSample n) => μ S)
+    (zVariable_dualProtocol_preimage_dualZValue n p z)
+
+/-- Real-valued version of `volume_zVariable_dualProtocol_dualZValue`. -/
+theorem volume_measureReal_zVariable_dualProtocol_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (volume : Measure (HardSample n)).real
+        ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
+      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) := by
+  repeat rw [Measure.real]
+  rw [volume_zVariable_dualProtocol_dualZValue]
+
+/-- The disjoint-conditioned hard-sample measure gives corresponding original and dual `Z`
+fibers the same mass. -/
+theorem disjointCondMeasure_zVariable_dualProtocol_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointCondMeasure n)
+        ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
+      (disjointCondMeasure n) ((zVariable n p) ⁻¹' {z}) := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let S : Set (HardSample n) :=
+    (zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}
+  have hpre :
+      μ ((dualHardSample n) ⁻¹' S) = μ S :=
+    Measure.measure_preimage_of_map_eq_self
+      (disjointCondMeasure_measurePreserving_dualHardSample n).map_eq
+      MeasurableSet.of_discrete.nullMeasurableSet
+  rw [← hpre]
+  exact congrArg (fun S : Set (HardSample n) => μ S)
+    (zVariable_dualProtocol_preimage_dualZValue n p z)
+
+/-- Real-valued version of `disjointCondMeasure_zVariable_dualProtocol_dualZValue`. -/
+theorem disjointCondMeasure_measureReal_zVariable_dualProtocol_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointCondMeasure n).real
+        ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) := by
+  repeat rw [Measure.real]
+  rw [disjointCondMeasure_zVariable_dualProtocol_dualZValue]
+
 /-- Alice's coarse information term under the disjoint law conditioned on `Y_T = false`, matching
 the conditioning used in the Claim 6.21 Pinsker step. -/
 noncomputable def firstCoarseInfoTerm
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
   I[specialX n : message n p | coarseConditioning n ; disjointSpecialYFalseMeasure n]
 
-/-- Bob's coarse information term under the disjoint law conditioned on `X_T = false`, matching
-the conditioning used in the Claim 6.21 Pinsker step. -/
-noncomputable def secondCoarseInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
-  I[specialY n : message n p | coarseConditioning n ; disjointSpecialXFalseMeasure n]
-
 /-- Alice's fine textbook conditioning term after additionally conditioning on `Y_T = false`. -/
 noncomputable def firstFineYFalseInfoTerm
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
   I[specialX n : message n p | firstConditioning n ; disjointSpecialYFalseMeasure n]
-
-/-- Bob's fine textbook conditioning term after additionally conditioning on `X_T = false`. -/
-noncomputable def secondFineXFalseInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
-  I[specialY n : message n p | secondConditioning n ; disjointSpecialXFalseMeasure n]
 
 /-- Alice's coarse information term is nonnegative. -/
 theorem firstCoarseInfoTerm_nonneg
@@ -3670,17 +3896,6 @@ theorem firstCoarseInfoTerm_nonneg
     (X := specialX n) (Y := message n p) (Z := coarseConditioning n)
     Measurable.of_discrete Measurable.of_discrete
 
-/-- Bob's coarse information term is nonnegative. -/
-theorem secondCoarseInfoTerm_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ secondCoarseInfoTerm n p := by
-  rw [secondCoarseInfoTerm]
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  exact ProbabilityTheory.condMutualInfo_nonneg
-    (μ := disjointSpecialXFalseMeasure n)
-    (X := specialY n) (Y := message n p) (Z := coarseConditioning n)
-    Measurable.of_discrete Measurable.of_discrete
-
 /-- Alice's fine `Y_T = false` information term is nonnegative. -/
 theorem firstFineYFalseInfoTerm_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -3690,17 +3905,6 @@ theorem firstFineYFalseInfoTerm_nonneg
   exact ProbabilityTheory.condMutualInfo_nonneg
     (μ := disjointSpecialYFalseMeasure n)
     (X := specialX n) (Y := message n p) (Z := firstConditioning n)
-    Measurable.of_discrete Measurable.of_discrete
-
-/-- Bob's fine `X_T = false` information term is nonnegative. -/
-theorem secondFineXFalseInfoTerm_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ secondFineXFalseInfoTerm n p := by
-  rw [secondFineXFalseInfoTerm]
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  exact ProbabilityTheory.condMutualInfo_nonneg
-    (μ := disjointSpecialXFalseMeasure n)
-    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
     Measurable.of_discrete Measurable.of_discrete
 
 /-- Alice's coarse information term as a finite sum over the coarse conditioning values. -/
@@ -3718,21 +3922,6 @@ theorem firstCoarseInfoTerm_eq_sum_conditioning
     (X := specialX n) (Y := message n p) (Z := coarseConditioning n)
     Measurable.of_discrete
 
-/-- Bob's coarse information term as a finite sum over the coarse conditioning values. -/
-theorem secondCoarseInfoTerm_eq_sum_conditioning
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    secondCoarseInfoTerm n p =
-      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
-        (disjointSpecialXFalseMeasure n).real ((coarseConditioning n) ⁻¹' {c}) *
-          I[specialY n : message n p ;
-            (disjointSpecialXFalseMeasure n)[|coarseConditioning n ← c]] := by
-  rw [secondCoarseInfoTerm]
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  exact ProbabilityTheory.condMutualInfo_eq_sum'
-    (μ := disjointSpecialXFalseMeasure n)
-    (X := specialY n) (Y := message n p) (Z := coarseConditioning n)
-    Measurable.of_discrete
-
 /-- Alice's fine `Y_T = false` information term as a finite sum over textbook conditioning
 values. -/
 theorem firstFineYFalseInfoTerm_eq_sum_conditioning
@@ -3747,22 +3936,6 @@ theorem firstFineYFalseInfoTerm_eq_sum_conditioning
   exact ProbabilityTheory.condMutualInfo_eq_sum'
     (μ := disjointSpecialYFalseMeasure n)
     (X := specialX n) (Y := message n p) (Z := firstConditioning n)
-    Measurable.of_discrete
-
-/-- Bob's fine `X_T = false` information term as a finite sum over textbook conditioning
-values. -/
-theorem secondFineXFalseInfoTerm_eq_sum_conditioning
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    secondFineXFalseInfoTerm n p =
-      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
-        (disjointSpecialXFalseMeasure n).real ((secondConditioning n) ⁻¹' {c}) *
-          I[specialY n : message n p ;
-            (disjointSpecialXFalseMeasure n)[|secondConditioning n ← c]] := by
-  rw [secondFineXFalseInfoTerm]
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  exact ProbabilityTheory.condMutualInfo_eq_sum'
-    (μ := disjointSpecialXFalseMeasure n)
-    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
     Measurable.of_discrete
 
 /-- If Alice's fine conditioning carries no additional information about `X_T` beyond the coarse
@@ -3792,33 +3965,6 @@ theorem firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_condMutualInfo_eq_zero
       Measurable.of_discrete hzero'
   simpa [firstCoarseInfoTerm, firstFineYFalseInfoTerm, hcoarse] using hle
 
-/-- If Bob's fine conditioning carries no additional information about `Y_T` beyond the coarse
-Claim 6.21 conditioning, then the coarse Bob information term is bounded by the fine one. -/
-theorem secondCoarseInfoTerm_le_secondFineXFalseInfoTerm_of_condMutualInfo_eq_zero
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hzero :
-      I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
-        0) :
-    secondCoarseInfoTerm n p ≤ secondFineXFalseInfoTerm n p := by
-  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
-  have hcoarse :
-      coarseConditioning n = coarseFromSecondConditioning n ∘ secondConditioning n := by
-    funext ω
-    exact coarseConditioning_eq_coarseFromSecondConditioning n ω
-  have hzero' :
-      I[specialY n : secondConditioning n|
-        coarseFromSecondConditioning n ∘ secondConditioning n;disjointSpecialXFalseMeasure n] =
-        0 := by
-    simpa [hcoarse] using hzero
-  have hle :=
-    ProbabilityTheory.condMutualInfo_comp_conditioning_le_of_condMutualInfo_eq_zero
-      (μ := disjointSpecialXFalseMeasure n)
-      (X := specialY n) (Y := message n p) (W := secondConditioning n)
-      (f := coarseFromSecondConditioning n)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete hzero'
-  simpa [secondCoarseInfoTerm, secondFineXFalseInfoTerm, hcoarse] using hle
-
 /-- A `Z` fiber is the intersection of its transcript fiber and its coarse-conditioning fiber. -/
 theorem zVariable_preimage_singleton_eq_message_inter_coarseConditioning
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -3845,21 +3991,6 @@ theorem disjointSpecialYFalseMeasure_measureReal_zVariable
   ring
 
 open Classical in
-/-- The mass of a `Z` fiber under the Bob-side conditioned measure, with the `3 / 2` scaling
-from `Pr_D[X_T = false] = 2 / 3` made explicit. -/
-theorem disjointSpecialXFalseMeasure_measureReal_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    (disjointSpecialXFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) =
-      (3 / 2 : ℝ) *
-        (disjointCondMeasure n).real
-          (((specialX n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})) := by
-  rw [disjointSpecialXFalseMeasure]
-  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
-  rw [disjointCondMeasure_measureReal_specialX_false]
-  ring
-
-open Classical in
 /-- The Alice fine-conditioning fiber mass under `D ∧ Y_T = false`, with the `3 / 2` scaling
 from `Pr_D[Y_T = false] = 2 / 3` made explicit. -/
 theorem disjointSpecialYFalseMeasure_measureReal_firstConditioning
@@ -3871,20 +4002,6 @@ theorem disjointSpecialYFalseMeasure_measureReal_firstConditioning
   rw [disjointSpecialYFalseMeasure]
   rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
   rw [disjointCondMeasure_measureReal_specialY_false]
-  ring
-
-open Classical in
-/-- The Bob fine-conditioning fiber mass under `D ∧ X_T = false`, with the `3 / 2` scaling
-from `Pr_D[X_T = false] = 2 / 3` made explicit. -/
-theorem disjointSpecialXFalseMeasure_measureReal_secondConditioning
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    (disjointSpecialXFalseMeasure n).real ((secondConditioning n) ⁻¹' {c}) =
-      (3 / 2 : ℝ) *
-        (disjointCondMeasure n).real
-          (((specialX n) ⁻¹' {false}) ∩ ((secondConditioning n) ⁻¹' {c})) := by
-  rw [disjointSpecialXFalseMeasure]
-  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
-  rw [disjointCondMeasure_measureReal_specialX_false]
   ring
 
 open Classical in
@@ -3900,18 +4017,6 @@ theorem disjointSpecialYFalseMeasure_cond_firstConditioning_eq_cond_inter
     MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
 
 open Classical in
-/-- Conditioning first on `X_T = false` under `D`, then on a second-conditioning value, is the
-same as conditioning under `D` on the intersection of those events. -/
-theorem disjointSpecialXFalseMeasure_cond_secondConditioning_eq_cond_inter
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    (disjointSpecialXFalseMeasure n)[|secondConditioning n ← c] =
-      (disjointCondMeasure n)[|
-        ((specialX n) ⁻¹' {false}) ∩ ((secondConditioning n) ⁻¹' {c})] := by
-  rw [disjointSpecialXFalseMeasure]
-  exact ProbabilityTheory.cond_cond_eq_cond_inter
-    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
-
-open Classical in
 /-- Conditioning first on `Y_T = false` under `D`, then on a `Z` value, is the same as
 conditioning under `D` on the intersection of those events. -/
 theorem disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter
@@ -3921,19 +4026,6 @@ theorem disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter
       (disjointCondMeasure n)[|
         ((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})] := by
   rw [disjointSpecialYFalseMeasure]
-  exact ProbabilityTheory.cond_cond_eq_cond_inter
-    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
-
-open Classical in
-/-- Conditioning first on `X_T = false` under `D`, then on a `Z` value, is the same as
-conditioning under `D` on the intersection of those events. -/
-theorem disjointSpecialXFalseMeasure_cond_zVariable_eq_cond_inter
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    (disjointSpecialXFalseMeasure n)[|zVariable n p ← z] =
-      (disjointCondMeasure n)[|
-        ((specialX n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})] := by
-  rw [disjointSpecialXFalseMeasure]
   exact ProbabilityTheory.cond_cond_eq_cond_inter
     MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
 
@@ -4198,22 +4290,6 @@ theorem two_mul_xDistance_sq_le_toReal_klDiv_uniformBool
       (conditionalSpecialXLaw n p z hz) uniformBool uniformBool_toPMF_ne_zero)
 
 open Classical in
-/-- Pinsker for Bob's one-bit fiber distance against the uniform bit. -/
-theorem two_mul_yDistance_sq_le_toReal_klDiv_uniformBool
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    {z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))}
-    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
-    2 * yDistance n p z ^ 2 ≤
-      (InformationTheory.klDiv
-        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
-        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
-  rw [yDistance, dif_pos hz]
-  exact two_mul_tvDistance_sq_le_toReal_klDiv
-    (conditionalSpecialYLaw n p z hz) uniformBool
-    (FiniteMeasureSpace.probabilityMeasure_klDiv_ne_top_of_forall_toPMF_ne_zero
-      (conditionalSpecialYLaw n p z hz) uniformBool uniformBool_toPMF_ne_zero)
-
-open Classical in
 /-- Alice's one-bit KL cost on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
 noncomputable def xFiberKL
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -4221,18 +4297,6 @@ noncomputable def xFiberKL
   if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
     (InformationTheory.klDiv
       ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
-      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
-  else
-    0
-
-open Classical in
-/-- Bob's one-bit KL cost on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
-noncomputable def yFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
-  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
-    (InformationTheory.klDiv
-      ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
       ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
   else
     0
@@ -4248,16 +4312,6 @@ theorem xFiberKL_nonneg
   · simp [xFiberKL, hz]
 
 open Classical in
-/-- Bob's one-bit fiber KL cost is nonnegative, including the zero-mass fallback case. -/
-theorem yFiberKL_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    0 ≤ yFiberKL n p z := by
-  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
-  · simp [yFiberKL, hz]
-  · simp [yFiberKL, hz]
-
-open Classical in
 /-- Pointwise Pinsker, with zero-mass `Z` fibers handled by `xFiberKL`. -/
 theorem two_mul_xDistance_sq_le_xFiberKL
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -4266,16 +4320,6 @@ theorem two_mul_xDistance_sq_le_xFiberKL
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
   · simpa [xFiberKL, hz] using two_mul_xDistance_sq_le_toReal_klDiv_uniformBool n p hz
   · simp [xFiberKL, xDistance, hz]
-
-open Classical in
-/-- Pointwise Pinsker, with zero-mass `Z` fibers handled by `yFiberKL`. -/
-theorem two_mul_yDistance_sq_le_yFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    2 * yDistance n p z ^ 2 ≤ yFiberKL n p z := by
-  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
-  · simpa [yFiberKL, hz] using two_mul_yDistance_sq_le_toReal_klDiv_uniformBool n p hz
-  · simp [yFiberKL, yDistance, hz]
 
 /-- Integrated Alice Pinsker bound over the disjoint-conditioned hard distribution. -/
 theorem two_mul_integral_xDistance_sq_le_integral_xFiberKL
@@ -4292,21 +4336,6 @@ theorem two_mul_integral_xDistance_sq_le_integral_xFiberKL
     Integrable.of_finite Integrable.of_finite hpoint
   simpa [integral_const_mul] using h
 
-/-- Integrated Bob Pinsker bound over the disjoint-conditioned hard distribution. -/
-theorem two_mul_integral_yDistance_sq_le_integral_yFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      ∫ ω, yFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n) := by
-  have hpoint :
-      ∀ ω : HardSample n,
-        2 * (yDistance n p (zVariable n p ω)) ^ 2 ≤
-          yFiberKL n p (zVariable n p ω) := by
-    intro ω
-    exact two_mul_yDistance_sq_le_yFiberKL n p (zVariable n p ω)
-  have h := integral_mono (μ := disjointCondMeasure n)
-    Integrable.of_finite Integrable.of_finite hpoint
-  simpa [integral_const_mul] using h
-
 /-- The averaged Alice fiber KL cost as a finite sum over `Z` values. -/
 theorem integral_xFiberKL_eq_sum_zVariable
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -4315,15 +4344,6 @@ theorem integral_xFiberKL_eq_sum_zVariable
         (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z :=
   FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
     (μ := disjointCondMeasure n) (Z := zVariable n p) (f := xFiberKL n p)
-
-/-- The averaged Bob fiber KL cost as a finite sum over `Z` values. -/
-theorem integral_yFiberKL_eq_sum_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (∫ ω, yFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n)) =
-      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z :=
-  FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
-    (μ := disjointCondMeasure n) (Z := zVariable n p) (f := yFiberKL n p)
 
 /-- The weighted Alice one-bit KL sum over `Z` fibers is nonnegative. -/
 theorem sum_xFiberKL_nonneg
@@ -4336,17 +4356,6 @@ theorem sum_xFiberKL_nonneg
       (measureReal_nonneg (μ := disjointCondMeasure n) (s := (zVariable n p) ⁻¹' {z}))
       (xFiberKL_nonneg n p z)
 
-/-- The weighted Bob one-bit KL sum over `Z` fibers is nonnegative. -/
-theorem sum_yFiberKL_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤
-      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z := by
-  exact Finset.sum_nonneg fun z _ =>
-    mul_nonneg
-      (measureReal_nonneg (μ := disjointCondMeasure n) (s := (zVariable n p) ⁻¹' {z}))
-      (yFiberKL_nonneg n p z)
-
 /-- Sum-form Alice Pinsker bound over `Z` fibers. -/
 theorem two_mul_integral_xDistance_sq_le_sum_xFiberKL
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -4355,15 +4364,6 @@ theorem two_mul_integral_xDistance_sq_le_sum_xFiberKL
         (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z := by
   rw [← integral_xFiberKL_eq_sum_zVariable n p]
   exact two_mul_integral_xDistance_sq_le_integral_xFiberKL n p
-
-/-- Sum-form Bob Pinsker bound over `Z` fibers. -/
-theorem two_mul_integral_yDistance_sq_le_sum_yFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z := by
-  rw [← integral_yFiberKL_eq_sum_zVariable n p]
-  exact two_mul_integral_yDistance_sq_le_integral_yFiberKL n p
 
 /-- The sample-space event that the sampled `zVariable` value is good. -/
 def goodZEvent
@@ -4481,6 +4481,99 @@ theorem conditionalSpecialYLaw_singleton
   rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
   rfl
+
+/-- Pulling a dual `Z` fiber intersected with a dual Alice-special-bit event back along
+hard-sample duality gives the corresponding original Bob-special-bit event. -/
+theorem dualHardSample_preimage_zVariable_dualZValue_inter_specialX
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) (b : Bool) :
+    (dualHardSample n) ⁻¹'
+        (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
+          ((specialX n) ⁻¹' {b})) =
+      ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b}) := by
+  ext ω
+  change
+    zVariable n (dualProtocol n p) (dualHardSample n ω) = dualZValue n p z ∧
+        specialX n (dualHardSample n ω) = b ↔
+      zVariable n p ω = z ∧ specialY n ω = b
+  rw [zVariable_dualProtocol_dualHardSample, specialX_dualHardSample]
+  exact and_congr ((dualZValue_injective n p).eq_iff) Iff.rfl
+
+/-- The ambient hard-sample measure gives corresponding original and dual one-bit `Z`-fiber
+events the same mass. -/
+theorem volume_zVariable_dualProtocol_dualZValue_inter_specialX
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) (b : Bool) :
+    (volume : Measure (HardSample n))
+        (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
+          ((specialX n) ⁻¹' {b})) =
+      (volume : Measure (HardSample n))
+        (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b})) := by
+  let μ : Measure (HardSample n) := volume
+  let S : Set (HardSample n) :=
+    ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
+      ((specialX n) ⁻¹' {b})
+  have hpre :
+      μ ((dualHardSample n) ⁻¹' S) = μ S :=
+    Measure.measure_preimage_of_map_eq_self
+      (volume_measurePreserving_dualHardSample n).map_eq
+      MeasurableSet.of_discrete.nullMeasurableSet
+  rw [← hpre]
+  exact congrArg (fun S : Set (HardSample n) => μ S)
+    (dualHardSample_preimage_zVariable_dualZValue_inter_specialX n p z b)
+
+/-- Real-valued version of
+`volume_zVariable_dualProtocol_dualZValue_inter_specialX`. -/
+theorem volume_measureReal_zVariable_dualProtocol_dualZValue_inter_specialX
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) (b : Bool) :
+    (volume : Measure (HardSample n)).real
+        (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
+          ((specialX n) ⁻¹' {b})) =
+      (volume : Measure (HardSample n)).real
+        (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b})) := by
+  repeat rw [Measure.real]
+  rw [volume_zVariable_dualProtocol_dualZValue_inter_specialX]
+
+open Classical in
+/-- The Alice one-bit law on the dual protocol's recoded `Z` fiber is Bob's one-bit law on the
+original `Z` fiber. -/
+theorem conditionalSpecialXLaw_dualProtocol_dualZValue
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hzDual :
+      (volume : Measure (HardSample n))
+          ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ≠ 0)
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    conditionalSpecialXLaw n (dualProtocol n p) (dualZValue n p z) hzDual =
+      conditionalSpecialYLaw n p z hz := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [conditionalSpecialXLaw_singleton, conditionalSpecialYLaw_singleton]
+  rw [zFiberMeasure_real_apply, zFiberMeasure_real_apply]
+  rw [volume_measureReal_zVariable_dualProtocol_dualZValue]
+  rw [volume_measureReal_zVariable_dualProtocol_dualZValue_inter_specialX]
+
+open Classical in
+/-- The Alice one-bit distance for the dual protocol at the recoded `Z` value is the original
+Bob one-bit distance. -/
+theorem xDistance_dualProtocol_dualZValue_eq_yDistance
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    xDistance n (dualProtocol n p) (dualZValue n p z) = yDistance n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · have hzDual :
+        (volume : Measure (HardSample n))
+            ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ≠ 0 := by
+      rwa [volume_zVariable_dualProtocol_dualZValue n p z]
+    rw [xDistance, yDistance, dif_pos hzDual, dif_pos hz]
+    rw [conditionalSpecialXLaw_dualProtocol_dualZValue n p z hzDual hz]
+  · have hzDual :
+        ¬(volume : Measure (HardSample n))
+            ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ≠ 0 := by
+      rwa [volume_zVariable_dualProtocol_dualZValue n p z]
+    rw [xDistance, yDistance, dif_neg hzDual, dif_neg hz]
 
 /-- To prove the conditional special-pair law factors, it suffices to prove singleton
 factorization for the four bit-pairs. -/
@@ -5141,20 +5234,6 @@ theorem fixedFirstInfoTerm_nonneg
     (Z := coordinateFirstConditioning n i)
     Measurable.of_discrete Measurable.of_discrete
 
-/-- Fixed-coordinate Bob summands are nonnegative. -/
-theorem fixedSecondInfoTerm_nonneg
-    (i : Fin n)
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ fixedSecondInfoTerm n i p := by
-  rw [fixedSecondInfoTerm]
-  exact ProbabilityTheory.condMutualInfo_nonneg
-    (μ := ((uniformDisjointCoordinateVector n :
-      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-      Measure (Fin n → DisjointCoordinate)))
-    (X := coordinateYBit n i) (Y := coordinateMessage n p)
-    (Z := coordinateSecondConditioning n i)
-    Measurable.of_discrete Measurable.of_discrete
-
 /-- Alice's fixed-coordinate conditional information is ordinary mutual information with the
 conditioning data bundled into the transcript side. -/
 theorem fixedFirstInfoTerm_eq_mutualInfo_conditioning_message
@@ -5184,35 +5263,6 @@ theorem fixedFirstInfoTerm_eq_mutualInfo_conditioning_message
     exact mutualInfo_coordinateFirstConditioning_coordinateXBit_eq_zero n i
   linarith
 
-/-- Bob's fixed-coordinate conditional information is ordinary mutual information with the
-conditioning data bundled into the transcript side. -/
-theorem fixedSecondInfoTerm_eq_mutualInfo_conditioning_message
-    (i : Fin n)
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    fixedSecondInfoTerm n i p =
-      I[coordinateYBit n i :
-        (fun coords => (coordinateSecondConditioning n i coords, coordinateMessage n p coords)) ;
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate))] := by
-  rw [fixedSecondInfoTerm]
-  have hchain :=
-    ProbabilityTheory.mutualInfo_prod_right_eq_add
-      (μ := ((uniformDisjointCoordinateVector n :
-        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate)))
-      (X := coordinateYBit n i) (Y := coordinateSecondConditioning n i)
-      (W := coordinateMessage n p)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-  have hzero :
-      I[coordinateYBit n i : coordinateSecondConditioning n i ;
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate))] = 0 := by
-    rw [ProbabilityTheory.mutualInfo_comm Measurable.of_discrete Measurable.of_discrete]
-    exact mutualInfo_coordinateSecondConditioning_coordinateYBit_eq_zero n i
-  linarith
-
 /-- Sum-level Alice rewrite into ordinary mutual information with conditioning data bundled into
 the transcript side. -/
 theorem fixedFirstInfoSum_eq_sum_mutualInfo_conditioning_message
@@ -5227,40 +5277,12 @@ theorem fixedFirstInfoSum_eq_sum_mutualInfo_conditioning_message
   rw [fixedFirstInfoSum]
   simp_rw [fixedFirstInfoTerm_eq_mutualInfo_conditioning_message]
 
-/-- Sum-level Bob rewrite into ordinary mutual information with conditioning data bundled into
-the transcript side. -/
-theorem fixedSecondInfoSum_eq_sum_mutualInfo_conditioning_message
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    fixedSecondInfoSum n p =
-      ∑ i : Fin n,
-        I[coordinateYBit n i :
-          (fun coords => (coordinateSecondConditioning n i coords, coordinateMessage n p coords)) ;
-          ((uniformDisjointCoordinateVector n :
-            ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-            Measure (Fin n → DisjointCoordinate))] := by
-  rw [fixedSecondInfoSum]
-  simp_rw [fixedSecondInfoTerm_eq_mutualInfo_conditioning_message]
-
 /-- The fixed-coordinate Alice sum is nonnegative. -/
 theorem fixedFirstInfoSum_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     0 ≤ fixedFirstInfoSum n p := by
   rw [fixedFirstInfoSum]
   exact Finset.sum_nonneg fun i _ => fixedFirstInfoTerm_nonneg n i p
-
-/-- The fixed-coordinate Bob sum is nonnegative. -/
-theorem fixedSecondInfoSum_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ fixedSecondInfoSum n p := by
-  rw [fixedSecondInfoSum]
-  exact Finset.sum_nonneg fun i _ => fixedSecondInfoTerm_nonneg n i p
-
-/-- The total fixed-coordinate summand sum is nonnegative. -/
-theorem fixedSpecialInfoSum_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ fixedSpecialInfoSum n p := by
-  rw [fixedSpecialInfoSum]
-  linarith [fixedFirstInfoSum_nonneg n p, fixedSecondInfoSum_nonneg n p]
 
 /-- The pair-space Alice special-coordinate information as a finite sum over the random
 coordinate and its first-conditioning data. -/
@@ -5285,31 +5307,6 @@ theorem pairFirstInfoTerm_eq_sum_conditioning
       Measure (Fin n × (Fin n → DisjointCoordinate))))
     (X := coordinateAndVectorSpecialX n) (Y := coordinateAndVectorMessage n p)
     (Z := coordinateAndVectorFirstConditioning n)
-    Measurable.of_discrete
-
-/-- The pair-space Bob special-coordinate information as a finite sum over the random
-coordinate and its second-conditioning data. -/
-theorem pairSecondInfoTerm_eq_sum_conditioning
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    pairSecondInfoTerm n p =
-      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
-        ((uniformCoordinateAndVector n :
-          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-          Measure (Fin n × (Fin n → DisjointCoordinate))).real
-          ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) *
-          I[coordinateAndVectorSpecialY n : coordinateAndVectorMessage n p ;
-            ProbabilityTheory.cond
-              (((uniformCoordinateAndVector n :
-                ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-                Measure (Fin n × (Fin n → DisjointCoordinate))))
-              ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})] := by
-  rw [pairSecondInfoTerm]
-  exact ProbabilityTheory.condMutualInfo_eq_sum'
-    (μ := ((uniformCoordinateAndVector n :
-      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-      Measure (Fin n × (Fin n → DisjointCoordinate))))
-    (X := coordinateAndVectorSpecialY n) (Y := coordinateAndVectorMessage n p)
-    (Z := coordinateAndVectorSecondConditioning n)
     Measurable.of_discrete
 
 /-- A fixed-coordinate Alice summand as a finite sum over its first-conditioning values. -/
@@ -5337,30 +5334,109 @@ theorem fixedFirstInfoTerm_eq_sum_conditioning
     (Z := coordinateFirstConditioning n i)
     Measurable.of_discrete
 
-/-- A fixed-coordinate Bob summand as a finite sum over its second-conditioning values. -/
-theorem fixedSecondInfoTerm_eq_sum_conditioning
+/-- The Alice fixed-coordinate summand for the dual protocol is the Bob summand for the original
+protocol at the reversed coordinate. -/
+theorem fixedFirstInfoTerm_dualProtocol_rev
     (i : Fin n)
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    fixedSecondInfoTerm n i p =
-      ∑ d : (Fin n → Bool) × (Fin n → Bool),
-        ((uniformDisjointCoordinateVector n :
-          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-          Measure (Fin n → DisjointCoordinate)).real
-          ((coordinateSecondConditioning n i) ⁻¹' {d}) *
-          I[coordinateYBit n i : coordinateMessage n p ;
-            ProbabilityTheory.cond
-              (((uniformDisjointCoordinateVector n :
-                ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-                Measure (Fin n → DisjointCoordinate)))
-              ((coordinateSecondConditioning n i) ⁻¹' {d})] := by
-  rw [fixedSecondInfoTerm]
-  exact ProbabilityTheory.condMutualInfo_eq_sum'
-    (μ := ((uniformDisjointCoordinateVector n :
-      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-      Measure (Fin n → DisjointCoordinate)))
-    (X := coordinateYBit n i) (Y := coordinateMessage n p)
-    (Z := coordinateSecondConditioning n i)
-    Measurable.of_discrete
+    fixedFirstInfoTerm n (Fin.rev i) (dualProtocol n p) =
+      fixedSecondInfoTerm n i p := by
+  let μ :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  have hdual :
+      fixedFirstInfoTerm n (Fin.rev i) (dualProtocol n p) =
+        I[coordinateYBit n i :
+          dualProtocolLeafMap n p ∘ coordinateMessage n p |
+          dualFixedConditioningValue n ∘ coordinateSecondConditioning n i ; μ] := by
+    rw [fixedFirstInfoTerm]
+    have hident :=
+      identDistrib_self_comp_measurePreserving
+        (uniformDisjointCoordinateVector_measurePreserving_dualCoordinateVector n)
+        (fun coords : Fin n → DisjointCoordinate =>
+          (coordinateXBit n (Fin.rev i) coords,
+            coordinateMessage n (dualProtocol n p) coords,
+            coordinateFirstConditioning n (Fin.rev i) coords))
+        Measurable.of_discrete
+    have hinfo :=
+      ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+        Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+        Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete hident
+    simpa [μ, Function.comp_def, coordinateXBit_dualCoordinateVector,
+      coordinateMessage_dualProtocol_dualCoordinateVector,
+      coordinateFirstConditioning_dualCoordinateVector] using hinfo
+  have hrec :
+      I[coordinateYBit n i :
+        dualProtocolLeafMap n p ∘ coordinateMessage n p |
+        dualFixedConditioningValue n ∘ coordinateSecondConditioning n i ; μ] =
+        fixedSecondInfoTerm n i p := by
+    rw [fixedSecondInfoTerm]
+    exact ProbabilityTheory.condMutualInfo_comp_right_conditioning_of_injective
+      (μ := μ)
+      (X := coordinateYBit n i) (Y := coordinateMessage n p)
+      (Z := coordinateSecondConditioning n i)
+      (f := dualProtocolLeafMap n p) (g := dualFixedConditioningValue n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete
+      (dualProtocolLeafMap_injective n p) (dualFixedConditioningValue_injective n)
+  exact hdual.trans hrec
+
+/-- The Alice fixed-coordinate sum for the dual protocol is the Bob fixed-coordinate sum for the
+original protocol. -/
+theorem fixedFirstInfoSum_dualProtocol_eq_fixedSecondInfoSum
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoSum n (dualProtocol n p) = fixedSecondInfoSum n p := by
+  rw [fixedFirstInfoSum, fixedSecondInfoSum]
+  rw [← Equiv.sum_comp (Fin.revPerm (n := (n : ℕ)))
+    (fun i : Fin n => fixedFirstInfoTerm n i (dualProtocol n p))]
+  simp_rw [Fin.revPerm_apply, fixedFirstInfoTerm_dualProtocol_rev]
+
+/-- The Alice pair-space information term for the dual protocol is the Bob pair-space term for
+the original protocol. -/
+theorem pairFirstInfoTerm_dualProtocol_eq_pairSecondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    pairFirstInfoTerm n (dualProtocol n p) = pairSecondInfoTerm n p := by
+  let μ :=
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))
+    )
+  have hdual :
+      pairFirstInfoTerm n (dualProtocol n p) =
+        I[coordinateAndVectorSpecialY n :
+          dualProtocolLeafMap n p ∘ coordinateAndVectorMessage n p |
+          dualConditioningValue n ∘ coordinateAndVectorSecondConditioning n ; μ] := by
+    rw [pairFirstInfoTerm]
+    have hident :=
+      identDistrib_self_comp_measurePreserving
+        (uniformCoordinateAndVector_measurePreserving_dualCoordinateAndVector n)
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (coordinateAndVectorSpecialX n z,
+            coordinateAndVectorMessage n (dualProtocol n p) z,
+            coordinateAndVectorFirstConditioning n z))
+        Measurable.of_discrete
+    have hinfo :=
+      ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+        Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+        Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete hident
+    simpa [μ, Function.comp_def, coordinateAndVectorSpecialX_dualCoordinateAndVector,
+      coordinateAndVectorMessage_dualProtocol_dualCoordinateAndVector,
+      coordinateAndVectorFirstConditioning_dualCoordinateAndVector] using hinfo
+  have hrec :
+      I[coordinateAndVectorSpecialY n :
+        dualProtocolLeafMap n p ∘ coordinateAndVectorMessage n p |
+        dualConditioningValue n ∘ coordinateAndVectorSecondConditioning n ; μ] =
+        pairSecondInfoTerm n p := by
+    rw [pairSecondInfoTerm]
+    exact ProbabilityTheory.condMutualInfo_comp_right_conditioning_of_injective
+      (μ := μ)
+      (X := coordinateAndVectorSpecialY n) (Y := coordinateAndVectorMessage n p)
+      (Z := coordinateAndVectorSecondConditioning n)
+      (f := dualProtocolLeafMap n p) (g := dualConditioningValue n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete
+      (dualProtocolLeafMap_injective n p) (dualConditioningValue_injective n)
+  exact hdual.trans hrec
 
 /-- The Alice pair-space special-coordinate information averages to the sum of fixed-coordinate
 Alice summands. -/
@@ -5386,19 +5462,9 @@ Bob summands. -/
 theorem mul_pairSecondInfoTerm_eq_fixedSecondInfoSum
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     (n : ℝ) * pairSecondInfoTerm n p = fixedSecondInfoSum n p := by
-  rw [pairSecondInfoTerm_eq_sum_conditioning, fixedSecondInfoSum]
-  simp_rw [fixedSecondInfoTerm_eq_sum_conditioning]
-  rw [Fintype.sum_prod_type]
-  rw [Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro i _
-  rw [Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro d _
-  rw [uniformCoordinateAndVector_measureReal_secondConditioning_fiber]
-  rw [mutualInfo_secondPairFiber_fixed]
-  have hn : (n : ℝ) ≠ 0 := by positivity
-  field_simp [hn]
+  have h := mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n (dualProtocol n p)
+  rwa [pairFirstInfoTerm_dualProtocol_eq_pairSecondInfoTerm,
+    fixedFirstInfoSum_dualProtocol_eq_fixedSecondInfoSum] at h
 
 /-- The random-coordinate averaging identity follows from the two one-sided averaging
 identities. -/
@@ -5418,114 +5484,180 @@ theorem mul_pairSpecialInfo_eq_fixedSpecialInfoSum
     (mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
     (mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
 
+/-- The first coordinate-vector information term can be computed on the explicit uniform
+`(T, coordinateVector)` space. -/
+theorem coordinateFirstInfoTerm_eq_pairFirstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    coordinateFirstInfoTerm n p = pairFirstInfoTerm n p := by
+  rw [coordinateFirstInfoTerm, pairFirstInfoTerm]
+  have hcoord := identDistrib_coordinateAndVector_uniform n
+  have hXYZ :
+      IdentDistrib
+        (fun ω : HardSample n => (projectedSpecialX n ω, projectedMessage n p ω,
+          projectedFirstConditioning n ω))
+        (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z,
+          coordinateAndVectorFirstConditioning n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [projectedSpecialX_eq_coordinateXBit, projectedMessage_eq_coordinateMessage,
+      projectedFirstConditioning_eq_coordinateFirstConditioning,
+      coordinateAndVectorSpecialX, coordinateAndVectorMessage,
+      coordinateAndVectorFirstConditioning] using
+      hcoord.comp (Measurable.of_discrete (f := fun z =>
+        (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z,
+          coordinateAndVectorFirstConditioning n z)))
+  exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+    (μ := disjointCondMeasure n)
+    (μ' := ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))))
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    hXYZ
+
+/-- The second coordinate-vector information term can be computed on the explicit uniform
+`(T, coordinateVector)` space. -/
+theorem coordinateSecondInfoTerm_eq_pairSecondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    coordinateSecondInfoTerm n p = pairSecondInfoTerm n p := by
+  rw [coordinateSecondInfoTerm, pairSecondInfoTerm]
+  have hcoord := identDistrib_coordinateAndVector_uniform n
+  have hXYZ :
+      IdentDistrib
+        (fun ω : HardSample n => (projectedSpecialY n ω, projectedMessage n p ω,
+          projectedSecondConditioning n ω))
+        (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z,
+          coordinateAndVectorSecondConditioning n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [projectedSpecialY_eq_coordinateYBit, projectedMessage_eq_coordinateMessage,
+      projectedSecondConditioning_eq_coordinateSecondConditioning,
+      coordinateAndVectorSpecialY, coordinateAndVectorMessage,
+      coordinateAndVectorSecondConditioning] using
+      hcoord.comp (Measurable.of_discrete (f := fun z =>
+        (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z,
+          coordinateAndVectorSecondConditioning n z)))
+  exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+    (μ := disjointCondMeasure n)
+    (μ' := ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))))
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    hXYZ
+
+/-- The projected first information term agrees with its coordinate-message form. -/
+theorem projectedFirstInfoTerm_eq_coordinateFirstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    projectedFirstInfoTerm n p = coordinateFirstInfoTerm n p := by
+  rw [projectedFirstInfoTerm, coordinateFirstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_congr_ae
+    (μ := disjointCondMeasure n)
+    (X := projectedSpecialX n) (Y := message n p) (Z := projectedFirstConditioning n)
+    (X' := projectedSpecialX n) (Y' := projectedMessage n p)
+    (Z' := projectedFirstConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (by rfl) (message_ae_eq_projectedMessage n p) (by rfl)
+
+/-- The projected second information term agrees with its coordinate-message form. -/
+theorem projectedSecondInfoTerm_eq_coordinateSecondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    projectedSecondInfoTerm n p = coordinateSecondInfoTerm n p := by
+  rw [projectedSecondInfoTerm, coordinateSecondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_congr_ae
+    (μ := disjointCondMeasure n)
+    (X := projectedSpecialY n) (Y := message n p) (Z := projectedSecondConditioning n)
+    (X' := projectedSpecialY n) (Y' := projectedMessage n p)
+    (Z' := projectedSecondConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (by rfl) (message_ae_eq_projectedMessage n p) (by rfl)
+
+/-- The first special-coordinate information term agrees with its projected form. -/
+theorem firstInfoTerm_eq_projectedFirstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n p = projectedFirstInfoTerm n p := by
+  rw [firstInfoTerm, projectedFirstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_congr_ae
+    (μ := disjointCondMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    (X' := projectedSpecialX n) (Y' := message n p) (Z' := projectedFirstConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (specialX_ae_eq_projectedSpecialX n) (by rfl)
+    (firstConditioning_ae_eq_projectedFirstConditioning n)
+
+/-- The second special-coordinate information term agrees with its projected form. -/
+theorem secondInfoTerm_eq_projectedSecondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondInfoTerm n p = projectedSecondInfoTerm n p := by
+  rw [secondInfoTerm, projectedSecondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_congr_ae
+    (μ := disjointCondMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    (X' := projectedSpecialY n) (Y' := message n p) (Z' := projectedSecondConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (specialY_ae_eq_projectedSpecialY n) (by rfl)
+    (secondConditioning_ae_eq_projectedSecondConditioning n)
+
+/-- The first special-coordinate information term can be computed on the explicit uniform
+`(T, coordinateVector)` space. -/
+theorem firstInfoTerm_eq_pairFirstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n p = pairFirstInfoTerm n p := by
+  rw [firstInfoTerm_eq_projectedFirstInfoTerm,
+    projectedFirstInfoTerm_eq_coordinateFirstInfoTerm,
+    coordinateFirstInfoTerm_eq_pairFirstInfoTerm]
+
+/-- The second special-coordinate information term can be computed on the explicit uniform
+`(T, coordinateVector)` space. -/
+theorem secondInfoTerm_eq_pairSecondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondInfoTerm n p = pairSecondInfoTerm n p := by
+  rw [secondInfoTerm_eq_projectedSecondInfoTerm,
+    projectedSecondInfoTerm_eq_coordinateSecondInfoTerm,
+    coordinateSecondInfoTerm_eq_pairSecondInfoTerm]
+
+/-- The first information term for the dual protocol is the second information term for the
+original protocol. -/
+theorem firstInfoTerm_dualProtocol_eq_secondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstInfoTerm n (dualProtocol n p) = secondInfoTerm n p := by
+  rw [firstInfoTerm_eq_pairFirstInfoTerm,
+    pairFirstInfoTerm_dualProtocol_eq_pairSecondInfoTerm,
+    ← secondInfoTerm_eq_pairSecondInfoTerm]
+
 /-- The coordinate-vector special information can be computed on the explicit uniform
 `(T, coordinateVector)` space. -/
 theorem coordinateSpecialInfo_eq_pairSpecialInfo
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     coordinateSpecialInfo n p = pairSpecialInfo n p := by
-  rw [coordinateSpecialInfo, pairSpecialInfo, coordinateFirstInfoTerm,
-    coordinateSecondInfoTerm, pairFirstInfoTerm, pairSecondInfoTerm]
-  have hcoord := identDistrib_coordinateAndVector_uniform n
-  congr 1
-  · have hXYZ :
-        IdentDistrib
-          (fun ω : HardSample n => (projectedSpecialX n ω, projectedMessage n p ω,
-            projectedFirstConditioning n ω))
-          (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z,
-            coordinateAndVectorFirstConditioning n z))
-          (disjointCondMeasure n)
-          ((uniformCoordinateAndVector n :
-            ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-            Measure (Fin n × (Fin n → DisjointCoordinate))) := by
-      simpa [projectedSpecialX_eq_coordinateXBit, projectedMessage_eq_coordinateMessage,
-        projectedFirstConditioning_eq_coordinateFirstConditioning,
-        coordinateAndVectorSpecialX, coordinateAndVectorMessage,
-        coordinateAndVectorFirstConditioning] using
-        hcoord.comp (Measurable.of_discrete (f := fun z =>
-          (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z,
-            coordinateAndVectorFirstConditioning n z)))
-    exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
-      (μ := disjointCondMeasure n)
-      (μ' := ((uniformCoordinateAndVector n :
-        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-        Measure (Fin n × (Fin n → DisjointCoordinate))))
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      hXYZ
-  · have hXYZ :
-        IdentDistrib
-          (fun ω : HardSample n => (projectedSpecialY n ω, projectedMessage n p ω,
-            projectedSecondConditioning n ω))
-          (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z,
-            coordinateAndVectorSecondConditioning n z))
-          (disjointCondMeasure n)
-          ((uniformCoordinateAndVector n :
-            ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-            Measure (Fin n × (Fin n → DisjointCoordinate))) := by
-      simpa [projectedSpecialY_eq_coordinateYBit, projectedMessage_eq_coordinateMessage,
-        projectedSecondConditioning_eq_coordinateSecondConditioning,
-        coordinateAndVectorSpecialY, coordinateAndVectorMessage,
-        coordinateAndVectorSecondConditioning] using
-        hcoord.comp (Measurable.of_discrete (f := fun z =>
-          (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z,
-            coordinateAndVectorSecondConditioning n z)))
-    exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
-      (μ := disjointCondMeasure n)
-      (μ' := ((uniformCoordinateAndVector n :
-        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
-        Measure (Fin n × (Fin n → DisjointCoordinate))))
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      hXYZ
+  rw [coordinateSpecialInfo, pairSpecialInfo,
+    coordinateFirstInfoTerm_eq_pairFirstInfoTerm,
+    coordinateSecondInfoTerm_eq_pairSecondInfoTerm]
 
 /-- The projected special-coordinate information agrees with its coordinate-vector-only form. -/
 theorem projectedSpecialInfo_eq_coordinateSpecialInfo
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     projectedSpecialInfo n p = coordinateSpecialInfo n p := by
-  rw [projectedSpecialInfo, coordinateSpecialInfo, projectedFirstInfoTerm,
-    projectedSecondInfoTerm, coordinateFirstInfoTerm, coordinateSecondInfoTerm]
-  congr 1
-  · exact ProbabilityTheory.condMutualInfo_congr_ae
-      (μ := disjointCondMeasure n)
-      (X := projectedSpecialX n) (Y := message n p) (Z := projectedFirstConditioning n)
-      (X' := projectedSpecialX n) (Y' := projectedMessage n p)
-      (Z' := projectedFirstConditioning n)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      (by rfl) (message_ae_eq_projectedMessage n p) (by rfl)
-  · exact ProbabilityTheory.condMutualInfo_congr_ae
-      (μ := disjointCondMeasure n)
-      (X := projectedSpecialY n) (Y := message n p) (Z := projectedSecondConditioning n)
-      (X' := projectedSpecialY n) (Y' := projectedMessage n p)
-      (Z' := projectedSecondConditioning n)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      (by rfl) (message_ae_eq_projectedMessage n p) (by rfl)
+  rw [projectedSpecialInfo, coordinateSpecialInfo,
+    projectedFirstInfoTerm_eq_coordinateFirstInfoTerm,
+    projectedSecondInfoTerm_eq_coordinateSecondInfoTerm]
 
 /-- Under the disjoint-conditioned distribution, `specialInfo` equals its coordinate-vector
 projected form. -/
 theorem specialInfo_eq_projectedSpecialInfo
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     specialInfo n p = projectedSpecialInfo n p := by
-  rw [specialInfo, projectedSpecialInfo, firstInfoTerm, secondInfoTerm,
-    projectedFirstInfoTerm, projectedSecondInfoTerm]
-  congr 1
-  · exact ProbabilityTheory.condMutualInfo_congr_ae
-      (μ := disjointCondMeasure n)
-      (X := specialX n) (Y := message n p) (Z := firstConditioning n)
-      (X' := projectedSpecialX n) (Y' := message n p) (Z' := projectedFirstConditioning n)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      (specialX_ae_eq_projectedSpecialX n) (by rfl)
-      (firstConditioning_ae_eq_projectedFirstConditioning n)
-  · exact ProbabilityTheory.condMutualInfo_congr_ae
-      (μ := disjointCondMeasure n)
-      (X := specialY n) (Y := message n p) (Z := secondConditioning n)
-      (X' := projectedSpecialY n) (Y' := message n p) (Z' := projectedSecondConditioning n)
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
-      (specialY_ae_eq_projectedSpecialY n) (by rfl)
-      (secondConditioning_ae_eq_projectedSecondConditioning n)
+  rw [specialInfo, projectedSpecialInfo,
+    firstInfoTerm_eq_projectedFirstInfoTerm,
+    secondInfoTerm_eq_projectedSecondInfoTerm]
 
 /-- Under the disjoint-conditioned distribution, `specialInfo` equals its coordinate-vector-only
 form. -/
@@ -5738,6 +5870,45 @@ theorem entropy_coordinateMessage_le_complexity_mul_log_two
       Measure (Fin n → DisjointCoordinate)))
     (Deterministic.Protocol.card_leaf_le_two_pow_complexity p)
 
+/-- The dual protocol transcript has the same entropy as the original transcript under the
+uniform coordinate-vector law. -/
+theorem entropy_coordinateMessage_dualProtocol
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    H[coordinateMessage n (dualProtocol n p) ;
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] =
+      H[coordinateMessage n p ;
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate))] := by
+  let μ :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  have hdual :
+      H[coordinateMessage n (dualProtocol n p) ; μ] =
+        H[fun coords => coordinateMessage n (dualProtocol n p) (dualCoordinateVector n coords) ;
+          μ] := by
+    have hident :=
+      identDistrib_self_comp_measurePreserving
+        (uniformDisjointCoordinateVector_measurePreserving_dualCoordinateVector n)
+        (coordinateMessage n (dualProtocol n p))
+        Measurable.of_discrete
+    exact hident.entropy_congr
+  have hrec :
+      H[fun coords => coordinateMessage n (dualProtocol n p) (dualCoordinateVector n coords) ;
+        μ] =
+        H[dualProtocolLeafMap n p ∘ coordinateMessage n p ; μ] := by
+    apply ProbabilityTheory.entropy_congr
+    filter_upwards with coords
+    exact coordinateMessage_dualProtocol_dualCoordinateVector n p coords
+  have hinj :
+      H[dualProtocolLeafMap n p ∘ coordinateMessage n p ; μ] =
+        H[coordinateMessage n p ; μ] :=
+    ProbabilityTheory.entropy_comp_of_injective μ Measurable.of_discrete
+      (dualProtocolLeafMap n p) (dualProtocolLeafMap_injective n p)
+  exact hdual.trans (hrec.trans hinj)
+
 /-- Alice's fixed-coordinate information sum is bounded by the transcript entropy. This is the
 first chain-rule/subadditivity input needed for the disjointness lower bound. -/
 theorem fixedFirstInfoSum_le_entropy_coordinateMessage
@@ -5758,7 +5929,10 @@ theorem fixedSecondInfoSum_le_entropy_coordinateMessage
         ((uniformDisjointCoordinateVector n :
           ProbabilityMeasure (Fin n → DisjointCoordinate)) :
           Measure (Fin n → DisjointCoordinate))] := by
-  sorry
+  have hfirst := fixedFirstInfoSum_le_entropy_coordinateMessage n (dualProtocol n p)
+  rw [fixedFirstInfoSum_dualProtocol_eq_fixedSecondInfoSum,
+    entropy_coordinateMessage_dualProtocol] at hfirst
+  exact hfirst
 
 /-- Core fixed-coordinate information upper bound. -/
 theorem fixedSpecialInfoSum_le_two_mul_entropy_coordinateMessage
@@ -5896,22 +6070,15 @@ theorem firstInfoTerm_nonneg
 theorem secondInfoTerm_le_complexity_mul_log_two
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     secondInfoTerm n p ≤ p.complexity * Real.log 2 := by
-  rw [secondInfoTerm]
-  exact (ProbabilityTheory.condMutualInfo_le_entropy_right
-    (μ := disjointCondMeasure n)
-    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
-    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete).trans
-    (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
+  have h := firstInfoTerm_le_complexity_mul_log_two n (dualProtocol n p)
+  rwa [firstInfoTerm_dualProtocol_eq_secondInfoTerm, dualProtocol_complexity] at h
 
 /-- The second special-coordinate information term is nonnegative. -/
 theorem secondInfoTerm_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     0 ≤ secondInfoTerm n p := by
-  rw [secondInfoTerm]
-  exact ProbabilityTheory.condMutualInfo_nonneg
-    (μ := disjointCondMeasure n)
-    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
-    Measurable.of_discrete Measurable.of_discrete
+  have h := firstInfoTerm_nonneg n (dualProtocol n p)
+  rwa [firstInfoTerm_dualProtocol_eq_secondInfoTerm] at h
 
 /-- The total special-coordinate information is at most twice the transcript length in bits. -/
 theorem specialInfo_le_two_mul_complexity_mul_log_two
@@ -5972,13 +6139,33 @@ theorem sum_xFiberKL_le_three_halves_firstInfoTerm
       (3 / 2 : ℝ) * firstInfoTerm n p := by
   sorry
 
-/-- The remaining Bob KL-sum comparison for the corrected textbook route. -/
-theorem sum_yFiberKL_le_three_halves_secondInfoTerm
+open Classical in
+/-- The dual-protocol Alice distance integral is the original protocol's Bob distance integral. -/
+theorem integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-      (3 / 2 : ℝ) * secondInfoTerm n p := by
-  sorry
+    (∫ ω, (xDistance n (dualProtocol n p)
+        (zVariable n (dualProtocol n p) ω)) ^ 2 ∂(disjointCondMeasure n)) =
+      ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let f : HardSample n → ℝ := fun ω =>
+    (xDistance n (dualProtocol n p) (zVariable n (dualProtocol n p) ω)) ^ 2
+  have hmap : (∫ ω, f ω ∂μ) = ∫ ω, f (dualHardSample n ω) ∂μ := by
+    have h :
+        (∫ ω, f ω ∂Measure.map (dualHardSample n) μ) =
+          ∫ ω, f (dualHardSample n ω) ∂μ :=
+      integral_map
+        (μ := μ) (φ := dualHardSample n)
+        Measurable.of_discrete.aemeasurable
+        Measurable.of_discrete.aestronglyMeasurable
+    rw [show Measure.map (dualHardSample n) μ = μ by
+      simpa [μ] using (disjointCondMeasure_measurePreserving_dualHardSample n).map_eq] at h
+    exact h
+  change (∫ ω, f ω ∂μ) = ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂μ
+  rw [hmap]
+  apply integral_congr_ae
+  filter_upwards with ω
+  simp [f, zVariable_dualProtocol_dualHardSample,
+    xDistance_dualProtocol_dualZValue_eq_yDistance]
 
 /-- Alice one-bit information estimate with the constant loss from the textbook conditioning
 comparison. -/
@@ -5994,9 +6181,11 @@ comparison. -/
 theorem two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-      (3 / 2 : ℝ) * secondInfoTerm n p :=
-  (two_mul_integral_yDistance_sq_le_sum_yFiberKL n p).trans
-    (sum_yFiberKL_le_three_halves_secondInfoTerm n p)
+      (3 / 2 : ℝ) * secondInfoTerm n p := by
+  have h := two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm n (dualProtocol n p)
+  rw [integral_xDistance_sq_dualProtocol_eq_integral_yDistance_sq,
+    firstInfoTerm_dualProtocol_eq_secondInfoTerm] at h
+  exact h
 
 /-- The textbook one-bit information estimates bound the squared averaged `Z`-fiber distance by
 `3 / 2` times the special-coordinate information. -/
