@@ -186,6 +186,25 @@ theorem FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq
     Integrable.of_finite
     Integrable.of_finite
 
+open Classical in
+/-- On a finite measurable space, the integral of a function of a finite-valued random variable
+is the sum over its fibers. -/
+theorem FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    {Ω α : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    [MeasurableSpace α] [DiscreteMeasurableSpace α] [Fintype α]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (Z : Ω → α) (f : α → ℝ) :
+    ∫ ω, f (Z ω) ∂μ = ∑ z : α, μ.real (Z ⁻¹' {z}) * f z := by
+  have hmap :
+      ∫ ω, f (Z ω) ∂μ = ∫ z, f z ∂Measure.map Z μ := by
+    exact (integral_map Measurable.of_discrete.aemeasurable
+      Measurable.of_discrete.aestronglyMeasurable).symm
+  rw [hmap]
+  rw [MeasureTheory.integral_fintype f Integrable.of_finite]
+  simp only [smul_eq_mul]
+  apply Finset.sum_congr rfl
+  intro z _
+  rw [map_measureReal_apply Measurable.of_discrete MeasurableSet.of_discrete]
+
 instance finiteMeasureSpaceBool : FiniteMeasureSpace Bool :=
   FiniteMeasureSpace.of Bool
 

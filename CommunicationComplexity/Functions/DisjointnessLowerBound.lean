@@ -1139,6 +1139,116 @@ theorem two_mul_yDistance_sq_le_toReal_klDiv_uniformBool
     (FiniteMeasureSpace.probabilityMeasure_klDiv_ne_top_of_forall_toPMF_ne_zero
       (conditionalSpecialYLaw n p z hz) uniformBool uniformBool_toPMF_ne_zero)
 
+open Classical in
+/-- Alice's one-bit KL cost on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
+noncomputable def xFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
+  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
+    (InformationTheory.klDiv
+      ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
+  else
+    0
+
+open Classical in
+/-- Bob's one-bit KL cost on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
+noncomputable def yFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) : ℝ :=
+  if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
+    (InformationTheory.klDiv
+      ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) : Measure Bool)
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
+  else
+    0
+
+open Classical in
+/-- Pointwise Pinsker, with zero-mass `Z` fibers handled by `xFiberKL`. -/
+theorem two_mul_xDistance_sq_le_xFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    2 * xDistance n p z ^ 2 ≤ xFiberKL n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [xFiberKL, hz] using two_mul_xDistance_sq_le_toReal_klDiv_uniformBool n p hz
+  · simp [xFiberKL, xDistance, hz]
+
+open Classical in
+/-- Pointwise Pinsker, with zero-mass `Z` fibers handled by `yFiberKL`. -/
+theorem two_mul_yDistance_sq_le_yFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    2 * yDistance n p z ^ 2 ≤ yFiberKL n p z := by
+  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
+  · simpa [yFiberKL, hz] using two_mul_yDistance_sq_le_toReal_klDiv_uniformBool n p hz
+  · simp [yFiberKL, yDistance, hz]
+
+/-- Integrated Alice Pinsker bound over the disjoint-conditioned hard distribution. -/
+theorem two_mul_integral_xDistance_sq_le_integral_xFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n) := by
+  have hpoint :
+      ∀ ω : HardSample n,
+        2 * (xDistance n p (zVariable n p ω)) ^ 2 ≤
+          xFiberKL n p (zVariable n p ω) := by
+    intro ω
+    exact two_mul_xDistance_sq_le_xFiberKL n p (zVariable n p ω)
+  have h := integral_mono (μ := disjointCondMeasure n)
+    Integrable.of_finite Integrable.of_finite hpoint
+  simpa [integral_const_mul] using h
+
+/-- Integrated Bob Pinsker bound over the disjoint-conditioned hard distribution. -/
+theorem two_mul_integral_yDistance_sq_le_integral_yFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      ∫ ω, yFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n) := by
+  have hpoint :
+      ∀ ω : HardSample n,
+        2 * (yDistance n p (zVariable n p ω)) ^ 2 ≤
+          yFiberKL n p (zVariable n p ω) := by
+    intro ω
+    exact two_mul_yDistance_sq_le_yFiberKL n p (zVariable n p ω)
+  have h := integral_mono (μ := disjointCondMeasure n)
+    Integrable.of_finite Integrable.of_finite hpoint
+  simpa [integral_const_mul] using h
+
+/-- The averaged Alice fiber KL cost as a finite sum over `Z` values. -/
+theorem integral_xFiberKL_eq_sum_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n)) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z :=
+  FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n) (Z := zVariable n p) (f := xFiberKL n p)
+
+/-- The averaged Bob fiber KL cost as a finite sum over `Z` values. -/
+theorem integral_yFiberKL_eq_sum_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, yFiberKL n p (zVariable n p ω) ∂(disjointCondMeasure n)) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z :=
+  FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n) (Z := zVariable n p) (f := yFiberKL n p)
+
+/-- Sum-form Alice Pinsker bound over `Z` fibers. -/
+theorem two_mul_integral_xDistance_sq_le_sum_xFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z := by
+  rw [← integral_xFiberKL_eq_sum_zVariable n p]
+  exact two_mul_integral_xDistance_sq_le_integral_xFiberKL n p
+
+/-- Sum-form Bob Pinsker bound over `Z` fibers. -/
+theorem two_mul_integral_yDistance_sq_le_sum_yFiberKL
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z := by
+  rw [← integral_yFiberKL_eq_sum_zVariable n p]
+  exact two_mul_integral_yDistance_sq_le_integral_yFiberKL n p
+
 /-- The sample-space event that the sampled `zVariable` value is good. -/
 def goodZEvent
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
@@ -1806,6 +1916,13 @@ noncomputable def specialInfo
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
   firstInfoTerm n p + secondInfoTerm n p
 
+/-- The full-vector conditional information used in Lemma 6.20 before averaging over the special
+coordinate. -/
+noncomputable def fullConditionalInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[xVector n : message n p | yVector n ; disjointCondMeasure n] +
+    I[yVector n : message n p | xVector n ; disjointCondMeasure n]
+
 /-- The first special-coordinate information term as a finite sum over its conditioning values. -/
 theorem firstInfoTerm_eq_sum_conditioning
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -1899,12 +2016,69 @@ theorem specialInfo_le_two_mul_complexity_mul_log_two
   linarith [firstInfoTerm_le_complexity_mul_log_two n p,
     secondInfoTerm_le_complexity_mul_log_two n p]
 
+/-- The full-vector conditional information is at most twice the transcript length in bits. -/
+theorem fullConditionalInfo_le_two_mul_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fullConditionalInfo n p ≤ 2 * (p.complexity * Real.log 2) := by
+  rw [fullConditionalInfo]
+  have hx :
+      I[xVector n : message n p | yVector n ; disjointCondMeasure n] ≤
+        p.complexity * Real.log 2 :=
+    (ProbabilityTheory.condMutualInfo_le_entropy_right
+      (μ := disjointCondMeasure n)
+      (X := xVector n) (Y := message n p) (Z := yVector n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete).trans
+      (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
+  have hy :
+      I[yVector n : message n p | xVector n ; disjointCondMeasure n] ≤
+        p.complexity * Real.log 2 :=
+    (ProbabilityTheory.condMutualInfo_le_entropy_right
+      (μ := disjointCondMeasure n)
+      (X := yVector n) (Y := message n p) (Z := xVector n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete).trans
+      (entropy_message_le_complexity_mul_log_two_of_measure n p (disjointCondMeasure n))
+  linarith
+
+/-- Lemma 6.20 reduces the needed averaged-coordinate upper bound to a comparison between
+`specialInfo` and the full-vector conditional information. -/
+theorem specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p) :
+    specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ) := by
+  have hn_pos : 0 < (n : ℝ) := by
+    exact_mod_cast n.pos
+  have hfull := fullConditionalInfo_le_two_mul_complexity_mul_log_two n p
+  rw [le_div_iff₀ hn_pos]
+  nlinarith
+
 /-- The total special-coordinate information is nonnegative. -/
 theorem specialInfo_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     0 ≤ specialInfo n p := by
   rw [specialInfo]
   linarith [firstInfoTerm_nonneg n p, secondInfoTerm_nonneg n p]
+
+/-- Alice's one-bit information estimate follows from the corresponding sum-KL comparison. -/
+theorem two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hsum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+        firstInfoTerm n p) :
+    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      firstInfoTerm n p :=
+  (two_mul_integral_xDistance_sq_le_sum_xFiberKL n p).trans hsum
+
+/-- Bob's one-bit information estimate follows from the corresponding sum-KL comparison. -/
+theorem two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hsum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+        secondInfoTerm n p) :
+    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      secondInfoTerm n p :=
+  (two_mul_integral_yDistance_sq_le_sum_yFiberKL n p).trans hsum
 
 /-- If Pinsker/chain-rule bounds the squared one-bit fiber distances by the two special
 information terms, then the product-law bridge controls the squared average `zDistance` by
@@ -2620,6 +2794,83 @@ theorem publicCoin_communicationComplexity_linear_lower_bound_of_info_upper
     n hk hupper ?_ hxinfo hyinfo
   intro p z _hz b
   exact fiber_volume_factorization n p z b
+
+/-- Deterministic lower-bound wrapper after proving the product-law bridge and reducing the
+averaged-coordinate entropy upper bound to the Lemma 6.20 chain-rule comparison. -/
+theorem complexity_lower_bound_of_chain_rule_and_one_bit_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_info_upper n p
+    (specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p hchain)
+    hxinfo hyinfo herror
+
+/-- Public-coin fixed-error lower-bound wrapper after proving the product-law bridge and reducing
+the averaged-coordinate entropy upper bound to Lemma 6.20. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
+    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        firstInfoTerm n p)
+    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
+  publicCoin_communicationComplexity_linear_lower_bound_of_info_upper n hk
+    (fun p => specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p (hchain p))
+    hxinfo hyinfo
+
+/-- Deterministic lower-bound wrapper after reducing the one-bit estimates to KL-sum
+comparisons. -/
+theorem complexity_lower_bound_of_chain_rule_and_kl_sums
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
+    (hxsum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+        firstInfoTerm n p)
+    (hysum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_chain_rule_and_one_bit_info n p hchain
+    (two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le n p hxsum)
+    (two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le n p hysum)
+    herror
+
+/-- Public-coin fixed-error lower-bound wrapper after reducing the one-bit estimates to KL-sum
+comparisons. -/
+theorem publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
+    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+        firstInfoTerm n p)
+    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
+  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info n hk hchain
+    (fun p => two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le n p (hxsum p))
+    (fun p => two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le n p (hysum p))
 
 end HardSample
 
