@@ -170,4 +170,92 @@ theorem condMutualInfo_prod_right_eq_add
     condMutualInfo_comm hY hX Z μ,
     condMutualInfo_comm hW hX (fun ω => (Y ω, Z ω)) μ]
 
+/-- Conditional entropy is unchanged when both variables are replaced by almost-everywhere equal
+variables. -/
+theorem condEntropy_congr_ae
+    {X' : Ω → S} {Y' : Ω → T}
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange X'] [FiniteRange Y']
+    (hX : Measurable X) (hY : Measurable Y) (hX' : Measurable X') (hY' : Measurable Y')
+    (hXae : X =ᵐ[μ] X') (hYae : Y =ᵐ[μ] Y') :
+    H[X | Y ; μ] = H[X' | Y' ; μ] := by
+  have hpair :
+      IdentDistrib (fun ω => (X ω, Y ω)) (fun ω => (X' ω, Y' ω)) μ μ :=
+    IdentDistrib.of_ae_eq (hX.prodMk hY).aemeasurable (hXae.prodMk hYae)
+  exact IdentDistrib.condEntropy_eq hX hY hX' hY' hpair
+
+/-- Conditional mutual information is unchanged when the two measured variables are replaced by
+almost-everywhere equal variables and the conditioning variable is unchanged. -/
+theorem condMutualInfo_congr_ae_left_right
+    {X' : Ω → S} {Y' : Ω → T}
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange X'] [FiniteRange Y']
+    [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (hX' : Measurable X') (hY' : Measurable Y')
+    (hXae : X =ᵐ[μ] X') (hYae : Y =ᵐ[μ] Y') :
+    I[X : Y | Z ; μ] = I[X' : Y' | Z ; μ] := by
+  rw [condMutualInfo_eq hX hY hZ, condMutualInfo_eq hX' hY' hZ]
+  have hXcond :
+      H[X | Z ; μ] = H[X' | Z ; μ] := by
+    exact condEntropy_congr_ae hX hZ hX' hZ hXae (by rfl)
+  have hYcond :
+      H[Y | Z ; μ] = H[Y' | Z ; μ] := by
+    exact condEntropy_congr_ae hY hZ hY' hZ hYae (by rfl)
+  have hXYcond :
+      H[fun ω => (X ω, Y ω) | Z ; μ] = H[fun ω => (X' ω, Y' ω) | Z ; μ] := by
+    exact condEntropy_congr_ae (hX.prodMk hY) hZ (hX'.prodMk hY') hZ
+      (hXae.prodMk hYae) (by rfl)
+  rw [hXcond, hYcond, hXYcond]
+
+/-- Conditional mutual information is unchanged when all three variables are replaced by
+almost-everywhere equal variables. -/
+theorem condMutualInfo_congr_ae
+    {X' : Ω → S} {Y' : Ω → T} {Z' : Ω → U}
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    [FiniteRange X'] [FiniteRange Y'] [FiniteRange Z']
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (hX' : Measurable X') (hY' : Measurable Y') (hZ' : Measurable Z')
+    (hXae : X =ᵐ[μ] X') (hYae : Y =ᵐ[μ] Y') (hZae : Z =ᵐ[μ] Z') :
+    I[X : Y | Z ; μ] = I[X' : Y' | Z' ; μ] := by
+  rw [condMutualInfo_eq (μ := μ) hX hY hZ,
+    condMutualInfo_eq (μ := μ) hX' hY' hZ']
+  have hXcond :
+      H[X | Z ; μ] = H[X' | Z' ; μ] := by
+    exact condEntropy_congr_ae hX hZ hX' hZ' hXae hZae
+  have hYcond :
+      H[Y | Z ; μ] = H[Y' | Z' ; μ] := by
+    exact condEntropy_congr_ae hY hZ hY' hZ' hYae hZae
+  have hXYcond :
+      H[fun ω => (X ω, Y ω) | Z ; μ] = H[fun ω => (X' ω, Y' ω) | Z' ; μ] := by
+    exact condEntropy_congr_ae (hX.prodMk hY) hZ (hX'.prodMk hY') hZ'
+      (hXae.prodMk hYae) hZae
+  rw [hXcond, hYcond, hXYcond]
+
+/-- Conditional mutual information is determined by the joint law of `(X, Y, Z)`. -/
+theorem IdentDistrib.condMutualInfo_eq
+    {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
+    {X' : Ω' → S} {Y' : Ω' → T} {Z' : Ω' → U}
+    [IsProbabilityMeasure μ] [IsProbabilityMeasure μ']
+    [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    [FiniteRange X'] [FiniteRange Y'] [FiniteRange Z']
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (hX' : Measurable X') (hY' : Measurable Y') (hZ' : Measurable Z')
+    (h : IdentDistrib (fun ω => (X ω, Y ω, Z ω))
+        (fun ω => (X' ω, Y' ω, Z' ω)) μ μ') :
+    I[X : Y | Z ; μ] = I[X' : Y' | Z' ; μ'] := by
+  rw [_root_.ProbabilityTheory.condMutualInfo_eq (μ := μ) hX hY hZ,
+    _root_.ProbabilityTheory.condMutualInfo_eq (μ := μ') hX' hY' hZ']
+  have hXZ :
+      IdentDistrib (fun ω => (X ω, Z ω)) (fun ω => (X' ω, Z' ω)) μ μ' :=
+    h.comp (Measurable.of_discrete (f := fun a : S × T × U => (a.1, a.2.2)))
+  have hYZ :
+      IdentDistrib (fun ω => (Y ω, Z ω)) (fun ω => (Y' ω, Z' ω)) μ μ' :=
+    h.comp (Measurable.of_discrete (f := fun a : S × T × U => (a.2.1, a.2.2)))
+  have hXYZ :
+      IdentDistrib (fun ω => ((X ω, Y ω), Z ω))
+          (fun ω => ((X' ω, Y' ω), Z' ω)) μ μ' :=
+    h.comp (Measurable.of_discrete (f := fun a : S × T × U => ((a.1, a.2.1), a.2.2)))
+  rw [IdentDistrib.condEntropy_eq hX hZ hX' hZ' hXZ,
+    IdentDistrib.condEntropy_eq hY hZ hY' hZ' hYZ,
+    IdentDistrib.condEntropy_eq (hX.prodMk hY) hZ (hX'.prodMk hY') hZ' hXYZ]
+
 end ProbabilityTheory
