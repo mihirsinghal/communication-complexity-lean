@@ -35,6 +35,15 @@ inductive DisjointCoordinate
   | rightOnly
   deriving DecidableEq, Fintype
 
+instance disjointCoordinateMeasurableSpace : MeasurableSpace DisjointCoordinate := ⊤
+
+instance disjointCoordinateDiscreteMeasurableSpace :
+    DiscreteMeasurableSpace DisjointCoordinate := by
+  infer_instance
+
+instance disjointCoordinateFiniteMeasureSpace : FiniteMeasureSpace DisjointCoordinate :=
+  FiniteMeasureSpace.of DisjointCoordinate
+
 namespace DisjointCoordinate
 
 /-- Alice's bit in a disjoint coordinate-pair. -/
@@ -373,6 +382,173 @@ theorem disjoint_X_Y_iff (ω : HardSample n) :
       exact h ⟨by simpa [X] using hiX, by simpa [Y] using hiY⟩
     · exact not_xBit_and_yBit_of_ne_special n ω hi ⟨hiX, hiY⟩
 
+/-- The generated disjoint coordinate-pair vector. On samples outside `D`, the special coordinate
+uses the arbitrary default built into `coordinateOfBits`. -/
+def disjointCoordinateVector (ω : HardSample n) : Fin n → DisjointCoordinate :=
+  fun i => if i = ω.T then coordinateOfBits ω.xT ω.yT else ω.other i
+
+/-- On disjoint samples, the generated coordinate vector recovers Alice's input bit at every
+coordinate. -/
+theorem disjointCoordinateVector_xBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (i : Fin n) :
+    (disjointCoordinateVector n ω i).xBit = xBit n ω i := by
+  have hbits : ¬(ω.xT = true ∧ ω.yT = true) := by
+    simpa [disjointEvent, disjoint_X_Y_iff] using hω
+  by_cases hi : i = ω.T
+  · subst i
+    simp [disjointCoordinateVector, coordinateOfBits_xBit hbits, xBit]
+  · simp [disjointCoordinateVector, xBit, hi]
+
+/-- On disjoint samples, the generated coordinate vector recovers Bob's input bit at every
+coordinate. -/
+theorem disjointCoordinateVector_yBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (i : Fin n) :
+    (disjointCoordinateVector n ω i).yBit = yBit n ω i := by
+  have hbits : ¬(ω.xT = true ∧ ω.yT = true) := by
+    simpa [disjointEvent, disjoint_X_Y_iff] using hω
+  by_cases hi : i = ω.T
+  · subst i
+    simp [disjointCoordinateVector, coordinateOfBits_yBit hbits, yBit]
+  · simp [disjointCoordinateVector, yBit, hi]
+
+/-- The `other` value at the special coordinate is ignored by the generated input. -/
+def ignoredCoordinate (ω : HardSample n) : DisjointCoordinate :=
+  ω.other ω.T
+
+/-- Coordinates for the conditioned-on-disjointness sample space: the special coordinate, the
+generated disjoint coordinate-pair vector, and the ignored `other` value at the special
+coordinate. -/
+def disjointModel (ω : HardSample n) :
+    Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate :=
+  (ω.T, disjointCoordinateVector n ω, ignoredCoordinate n ω)
+
+private def disjointEventEquiv :
+    {ω : HardSample n // ω ∈ disjointEvent n} ≃
+      Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate where
+  toFun ω := disjointModel n ω.1
+  invFun p :=
+    ⟨{ T := p.1
+       xT := (p.2.1 p.1).xBit
+       yT := (p.2.1 p.1).yBit
+       other := Function.update p.2.1 p.1 p.2.2 },
+      by
+        change Disjoint
+          (X n { T := p.1
+                 xT := (p.2.1 p.1).xBit
+                 yT := (p.2.1 p.1).yBit
+                 other := Function.update p.2.1 p.1 p.2.2 })
+          (Y n { T := p.1
+                 xT := (p.2.1 p.1).xBit
+                 yT := (p.2.1 p.1).yBit
+                 other := Function.update p.2.1 p.1 p.2.2 })
+        rw [disjoint_X_Y_iff]
+        exact DisjointCoordinate.not_xBit_and_yBit (p.2.1 p.1)⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    change Disjoint (X n { T := T, xT := xT, yT := yT, other := other })
+      (Y n { T := T, xT := xT, yT := yT, other := other }) at hω
+    have hbits : ¬(xT = true ∧ yT = true) := by
+      simpa [disjoint_X_Y_iff] using hω
+    apply Subtype.ext
+    change
+      HardSample.mk T
+        (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other } T).xBit
+        (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other } T).yBit
+        (Function.update
+          (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other }) T
+          (ignoredCoordinate n { T := T, xT := xT, yT := yT, other := other })) =
+      HardSample.mk T xT yT other
+    congr
+    · simpa [disjointCoordinateVector] using coordinateOfBits_xBit hbits
+    · simpa [disjointCoordinateVector] using coordinateOfBits_yBit hbits
+    · funext i
+      by_cases hi : i = T
+      · subst i
+        simp [ignoredCoordinate]
+      · rw [Function.update_of_ne hi]
+        simp [disjointCoordinateVector, hi]
+  right_inv p := by
+    rcases p with ⟨T, coords, junk⟩
+    ext i
+    · rfl
+    · by_cases hi : i = T
+      · subst i
+        simp [disjointModel, disjointCoordinateVector, coordinateOfBits_xBit_yBit]
+      · simp [disjointModel, disjointCoordinateVector, hi]
+    · simp [disjointModel, ignoredCoordinate]
+
+noncomputable instance disjointEventFintype :
+    Fintype {ω : HardSample n // ω ∈ disjointEvent n} :=
+  Fintype.ofEquiv (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+    (disjointEventEquiv n).symm
+
+@[simp] theorem card_disjointEvent_subtype :
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
+      (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
+        Fintype.card (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :=
+      Fintype.card_congr (disjointEventEquiv n)
+    _ = (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
+      simp [Fintype.card_prod, Fintype.card_pi]
+      ring
+
+private def disjointEventInterDisjointModelEquiv
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} ≃ Unit where
+  toFun _ := Unit.unit
+  invFun _ :=
+    ⟨((disjointEventEquiv n).symm z).1,
+      by
+        constructor
+        · exact ((disjointEventEquiv n).symm z).2
+        · change disjointModel n ((disjointEventEquiv n).symm z).1 = z
+          exact (disjointEventEquiv n).right_inv z⟩
+  left_inv ω := by
+    apply Subtype.ext
+    change ((disjointEventEquiv n).symm z).1 = ω.1
+    have hmodel : disjointModel n ω.1 = z := by
+      simpa using ω.2.2
+    have hsub :
+        (⟨ω.1, ω.2.1⟩ : {ω : HardSample n // ω ∈ disjointEvent n}) =
+          (disjointEventEquiv n).symm z := by
+      apply (disjointEventEquiv n).injective
+      exact hmodel.trans ((disjointEventEquiv n).right_inv z).symm
+    exact (congrArg Subtype.val hsub).symm
+  right_inv _ := by
+    rfl
+
+noncomputable instance disjointEventInterDisjointModelFintype
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    Fintype {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} :=
+  Fintype.ofEquiv Unit (disjointEventInterDisjointModelEquiv n z).symm
+
+@[simp] theorem card_disjointEvent_inter_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} =
+      1 := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} =
+        Fintype.card Unit :=
+      Fintype.card_congr (disjointEventInterDisjointModelEquiv n z)
+    _ = 1 := by simp
+
+open Classical in
+/-- Under the hard distribution, a singleton fiber of the disjoint model together with `D` has
+one ambient sample's worth of mass. -/
+theorem measureReal_disjointEvent_inter_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    (volume (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
+      (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
+    (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype,
+    card_disjointEvent_inter_disjointModel_fiber, card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+
 private def specialCoordinateEventInterDisjointEquiv (i : Fin n) :
     {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ disjointEvent n} ≃
       DisjointCoordinate × (Fin n → DisjointCoordinate) where
@@ -559,6 +735,194 @@ noncomputable instance disjointCondMeasure_isProbabilityMeasure :
   rw [disjointCondMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
 
+/-- Under the disjoint-conditioned distribution, the disjoint model is uniform. -/
+theorem disjointCondMeasure_measureReal_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hnum :
+      (volume : Measure (HardSample n)).real
+          (disjointEvent n ∩ (disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent_inter_disjointModel_fiber n z
+  have hden : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  rw [hnum, hden]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  field_simp [hn, hpow]
+
+private def disjointModelFiberForCoordinateVectorEquiv
+    (coords : Fin n → DisjointCoordinate) :
+    {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate // z.2.1 = coords} ≃
+      Fin n × DisjointCoordinate where
+  toFun z := (z.1.1, z.1.2.2)
+  invFun p := ⟨(p.1, coords, p.2), rfl⟩
+  left_inv z := by
+    rcases z with ⟨⟨i, coords', junk⟩, hcoords⟩
+    subst hcoords
+    rfl
+  right_inv p := by
+    rcases p with ⟨i, junk⟩
+    rfl
+
+@[simp] theorem card_disjointModel_fiber_for_coordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.2.1 = coords} =
+      (n : ℕ) * 3 := by
+  calc
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.2.1 = coords} =
+        Fintype.card (Fin n × DisjointCoordinate) :=
+      Fintype.card_congr (disjointModelFiberForCoordinateVectorEquiv n coords)
+    _ = (n : ℕ) * 3 := by
+      simp [Fintype.card_prod]
+
+open Classical in
+/-- Under the disjoint-conditioned distribution, the generated disjoint coordinate vector is
+uniform over the `3^n` disjoint coordinate vectors. -/
+theorem disjointCondMeasure_measureReal_disjointCoordinateVector_fiber
+    (coords : Fin n → DisjointCoordinate) :
+    (disjointCondMeasure n).real ((disjointCoordinateVector n) ⁻¹' {coords}) =
+      (1 / (3 ^ (n : ℕ)) : ℝ) := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hpre :=
+    FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      (Ω := HardSample n)
+      (α := Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+      μ (disjointModel n) (fun z => z.2.1 = coords)
+  change (μ : Measure (HardSample n)).real {ω | (disjointModel n ω).2.1 = coords} =
+    (1 / (3 ^ (n : ℕ)) : ℝ)
+  rw [hpre]
+  have hfiber (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+      (μ : Measure (HardSample n)).real ((disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+    change (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ)
+    exact disjointCondMeasure_measureReal_disjointModel_fiber n z
+  simp_rw [hfiber]
+  rw [Finset.sum_ite]
+  have hcardFilter :
+      (Finset.univ.filter
+        (fun z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate =>
+          z.2.1 = coords)).card = (n : ℕ) * 3 := by
+    simpa [Fintype.card_subtype] using
+      card_disjointModel_fiber_for_coordinateVector n coords
+  simp [hcardFilter]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  field_simp [hn, hpow]
+
+/-- Integrating a function of the generated disjoint coordinate vector under the disjoint
+conditioning is the uniform average over all disjoint coordinate vectors. -/
+theorem integral_disjointCoordinateVector_disjointCondMeasure
+    (f : (Fin n → DisjointCoordinate) → ℝ) :
+    (∫ ω, f (disjointCoordinateVector n ω) ∂(disjointCondMeasure n)) =
+      (1 / (3 ^ (n : ℕ)) : ℝ) * ∑ coords : Fin n → DisjointCoordinate, f coords := by
+  rw [FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n) (Z := disjointCoordinateVector n) (f := f)]
+  simp_rw [disjointCondMeasure_measureReal_disjointCoordinateVector_fiber]
+  rw [Finset.mul_sum]
+
+private def disjointModelFiberForCoordinateAndVectorEquiv
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+      z.1 = i ∧ z.2.1 = coords} ≃ DisjointCoordinate where
+  toFun z := z.1.2.2
+  invFun junk := ⟨(i, coords, junk), by simp⟩
+  left_inv z := by
+    rcases z with ⟨⟨i', coords', junk⟩, hz⟩
+    rcases hz with ⟨hi, hcoords⟩
+    subst hi
+    subst hcoords
+    rfl
+  right_inv junk := rfl
+
+@[simp] theorem card_disjointModel_fiber_for_coordinate_and_vector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.1 = i ∧ z.2.1 = coords} =
+      3 := by
+  calc
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.1 = i ∧ z.2.1 = coords} =
+        Fintype.card DisjointCoordinate :=
+      Fintype.card_congr (disjointModelFiberForCoordinateAndVectorEquiv n i coords)
+    _ = 3 := by simp
+
+open Classical in
+/-- Under the disjoint-conditioned distribution, the special coordinate and generated disjoint
+coordinate vector have the expected product-uniform joint mass. -/
+theorem disjointCondMeasure_measureReal_specialCoordinate_inter_disjointCoordinateVector_fiber
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    (disjointCondMeasure n).real
+        (specialCoordinateEvent n i ∩ (disjointCoordinateVector n) ⁻¹' {coords}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ) := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hpre :=
+    FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      (Ω := HardSample n)
+      (α := Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+      μ (disjointModel n) (fun z => z.1 = i ∧ z.2.1 = coords)
+  change (μ : Measure (HardSample n)).real
+      {ω | (disjointModel n ω).1 = i ∧ (disjointModel n ω).2.1 = coords} =
+    (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ)
+  rw [hpre]
+  have hfiber (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+      (μ : Measure (HardSample n)).real ((disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+    change (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ)
+    exact disjointCondMeasure_measureReal_disjointModel_fiber n z
+  simp_rw [hfiber]
+  rw [Finset.sum_ite]
+  have hcardFilter :
+      (Finset.univ.filter
+        (fun z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate =>
+          z.1 = i ∧ z.2.1 = coords)).card = 3 := by
+    simpa [Fintype.card_subtype] using
+      card_disjointModel_fiber_for_coordinate_and_vector n i coords
+  simp [hcardFilter]
+
+/-- The joint random variable consisting of `T` and the generated disjoint coordinate vector has
+product-uniform singleton masses under the disjoint conditioning. -/
+theorem disjointCondMeasure_measureReal_coordinateAndVector_fiber
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    (disjointCondMeasure n).real
+        ((fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω)) ⁻¹' {(i, coords)}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ) := by
+  rw [show
+      ((fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω)) ⁻¹' {(i, coords)}) =
+        specialCoordinateEvent n i ∩ (disjointCoordinateVector n) ⁻¹' {coords} by
+    ext ω
+    simp [specialCoordinateEvent, Prod.ext_iff]]
+  exact disjointCondMeasure_measureReal_specialCoordinate_inter_disjointCoordinateVector_fiber
+    n i coords
+
+/-- Integrating a function of `T` and the generated disjoint coordinate vector under the disjoint
+conditioning is the uniform average over the product space. -/
+theorem integral_coordinateAndVector_disjointCondMeasure
+    (f : Fin n × (Fin n → DisjointCoordinate) → ℝ) :
+    (∫ ω, f (ω.T, disjointCoordinateVector n ω) ∂(disjointCondMeasure n)) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ) *
+        ∑ z : Fin n × (Fin n → DisjointCoordinate), f z := by
+  rw [FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n)
+    (Z := fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω))
+    (f := f)]
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro z _
+  rcases z with ⟨i, coords⟩
+  rw [disjointCondMeasure_measureReal_coordinateAndVector_fiber]
+
 /-- Under the disjoint-conditioned distribution, each non-intersecting special-coordinate bit-pair
 has probability `1 / 3`. -/
 theorem disjointCondMeasure_measureReal_specialBitsEvent
@@ -596,6 +960,19 @@ theorem disjointCondMeasure_measureReal_specialCoordinateEvent (i : Fin n) :
   rw [hinter, hnum, hden]
   have hn : (n : ℝ) ≠ 0 := by positivity
   field_simp [hn]
+
+/-- The joint mass of the special coordinate and disjoint coordinate vector factors as the
+product of the two uniform marginals. -/
+theorem disjointCondMeasure_specialCoordinate_independent_disjointCoordinateVector_fiber
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    (disjointCondMeasure n).real
+        (specialCoordinateEvent n i ∩ (disjointCoordinateVector n) ⁻¹' {coords}) =
+      (disjointCondMeasure n).real (specialCoordinateEvent n i) *
+        (disjointCondMeasure n).real ((disjointCoordinateVector n) ⁻¹' {coords}) := by
+  rw [disjointCondMeasure_measureReal_specialCoordinate_inter_disjointCoordinateVector_fiber,
+    disjointCondMeasure_measureReal_specialCoordinateEvent,
+    disjointCondMeasure_measureReal_disjointCoordinateVector_fiber]
+  ring
 
 /-- Under the disjoint-conditioned distribution, `(X_T, Y_T) = (false, false)` has probability
 `1 / 3`. -/
@@ -657,6 +1034,22 @@ def xVector (ω : HardSample n) : Fin n → Bool :=
 /-- Bob's full input bit-vector. -/
 def yVector (ω : HardSample n) : Fin n → Bool :=
   yBit n ω
+
+/-- On disjoint samples, Alice's full input vector is the Alice projection of the generated
+disjoint coordinate vector. -/
+theorem xVector_eq_disjointCoordinateVector_xBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
+    xVector n ω = fun i => (disjointCoordinateVector n ω i).xBit := by
+  funext i
+  exact (disjointCoordinateVector_xBit_of_mem_disjointEvent n hω i).symm
+
+/-- On disjoint samples, Bob's full input vector is the Bob projection of the generated disjoint
+coordinate vector. -/
+theorem yVector_eq_disjointCoordinateVector_yBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
+    yVector n ω = fun i => (disjointCoordinateVector n ω i).yBit := by
+  funext i
+  exact (disjointCoordinateVector_yBit_of_mem_disjointEvent n hω i).symm
 
 /-- Alice's special bit is the value of `xVector` at the special coordinate. -/
 theorem specialX_eq_xVector_specialCoordinate (ω : HardSample n) :
