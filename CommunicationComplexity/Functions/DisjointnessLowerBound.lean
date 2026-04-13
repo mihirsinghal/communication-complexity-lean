@@ -1652,6 +1652,374 @@ def coordinateAndVectorSecondConditioning
   (z.1, (coordinateSecondConditioning n z.1 z.2).1,
     (coordinateSecondConditioning n z.1 z.2).2)
 
+/-- A first-conditioning fiber in `(T, coordinateVector)` form is a coordinate singleton times
+the corresponding fixed-coordinate vector fiber. -/
+theorem coordinateAndVectorFirstConditioning_preimage_singleton
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (coordinateAndVectorFirstConditioning n) ⁻¹' {c} =
+      ({c.1} : Set (Fin n)) ×ˢ
+        ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xBefore, yExcept⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorFirstConditioning, Prod.ext_iff]
+  · simp [coordinateAndVectorFirstConditioning, Prod.ext_iff, hij]
+
+/-- A second-conditioning fiber in `(T, coordinateVector)` form is a coordinate singleton times
+the corresponding fixed-coordinate vector fiber. -/
+theorem coordinateAndVectorSecondConditioning_preimage_singleton
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (coordinateAndVectorSecondConditioning n) ⁻¹' {c} =
+      ({c.1} : Set (Fin n)) ×ˢ
+        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xExcept, yAfter⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorSecondConditioning, Prod.ext_iff]
+  · simp [coordinateAndVectorSecondConditioning, Prod.ext_iff, hij]
+
+/-- Under product-uniform sampling, first-conditioning fibers have the expected `1 / n` factor
+from the random coordinate. -/
+theorem uniformCoordinateAndVector_measureReal_firstConditioning_fiber
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        ((coordinateAndVectorFirstConditioning n) ⁻¹' {c}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
+  rw [coordinateAndVectorFirstConditioning_preimage_singleton]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ
+          ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- Under product-uniform sampling, second-conditioning fibers have the expected `1 / n` factor
+from the random coordinate. -/
+theorem uniformCoordinateAndVector_measureReal_secondConditioning_fiber
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) := by
+  rw [coordinateAndVectorSecondConditioning_preimage_singleton]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ
+          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- Intersecting a first-conditioning fiber with a pair-side Alice bit/transcript event is the
+coordinate singleton times the corresponding fixed-coordinate vector event. -/
+theorem coordinateAndVectorFirstConditioning_inter_specialX_message_preimage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × p.Leaf) :
+    (coordinateAndVectorFirstConditioning n) ⁻¹' {c} ∩
+        (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z)) ⁻¹'
+          {a} =
+      ({c.1} : Set (Fin n)) ×ˢ
+        (((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+          (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+            {a}) := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xBefore, yExcept⟩
+  rcases a with ⟨b, leaf⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorFirstConditioning, coordinateAndVectorSpecialX,
+      coordinateAndVectorMessage, Prod.ext_iff]
+  · simp [coordinateAndVectorFirstConditioning, coordinateAndVectorSpecialX,
+      coordinateAndVectorMessage, Prod.ext_iff, hij]
+
+/-- Intersecting a second-conditioning fiber with a pair-side Bob bit/transcript event is the
+coordinate singleton times the corresponding fixed-coordinate vector event. -/
+theorem coordinateAndVectorSecondConditioning_inter_specialY_message_preimage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × p.Leaf) :
+    (coordinateAndVectorSecondConditioning n) ⁻¹' {c} ∩
+        (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
+          {a} =
+      ({c.1} : Set (Fin n)) ×ˢ
+        (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+          (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+            {a}) := by
+  ext z
+  rcases z with ⟨i, coords⟩
+  rcases c with ⟨j, xExcept, yAfter⟩
+  rcases a with ⟨b, leaf⟩
+  by_cases hij : i = j
+  · subst hij
+    simp [coordinateAndVectorSecondConditioning, coordinateAndVectorSpecialY,
+      coordinateAndVectorMessage, Prod.ext_iff]
+  · simp [coordinateAndVectorSecondConditioning, coordinateAndVectorSpecialY,
+      coordinateAndVectorMessage, Prod.ext_iff, hij]
+
+/-- Under product-uniform sampling, a first-conditioning fiber intersected with an Alice
+bit/transcript event has the expected `1 / n` factor from the random coordinate. -/
+theorem uniformCoordinateAndVector_measureReal_firstConditioning_inter_specialX_message
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × p.Leaf) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        (((coordinateAndVectorFirstConditioning n) ⁻¹' {c}) ∩
+          (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z)) ⁻¹'
+            {a}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a}) := by
+  rw [coordinateAndVectorFirstConditioning_inter_specialX_message_preimage]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ
+          (((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a})) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a})
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- Under product-uniform sampling, a second-conditioning fiber intersected with a Bob
+bit/transcript event has the expected `1 / n` factor from the random coordinate. -/
+theorem uniformCoordinateAndVector_measureReal_secondConditioning_inter_specialY_message
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (a : Bool × p.Leaf) :
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        (((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) ∩
+          (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
+            {a}) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a}) := by
+  rw [coordinateAndVectorSecondConditioning_inter_specialY_message_preimage]
+  rw [uniformCoordinateAndVector_eq_prod, TVDistance.probabilityMeasureProd]
+  change
+    (((uniformCoordinate n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).prod
+      ((uniformDisjointCoordinateVector n :
+        ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))).real
+        (({c.1} : Set (Fin n)) ×ˢ
+          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a})) =
+      (1 / (n : ℝ) : ℝ) *
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          (((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}) ∩
+            (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+              {a})
+  rw [MeasureTheory.measureReal_prod_prod, uniformCoordinate_singleton]
+
+/-- After conditioning on a first-conditioning fiber, the pair-space Alice bit/transcript law is
+the same as the corresponding fixed-coordinate law on coordinate vectors. -/
+theorem identDistrib_firstPairFiber_fixed
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    IdentDistrib
+      (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z))
+      (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords))
+      (ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorFirstConditioning n) ⁻¹' {c}))
+      (ProbabilityTheory.cond
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)))
+        ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) := by
+  refine ⟨Measurable.of_discrete.aemeasurable, Measurable.of_discrete.aemeasurable, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro a
+  let μPair : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate)))
+  let μVec : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  change
+    ((Measure.map
+        (fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z))
+        (ProbabilityTheory.cond μPair
+          ((coordinateAndVectorFirstConditioning n) ⁻¹' {c}))) {a}).toReal =
+      ((Measure.map
+        (fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords))
+        (ProbabilityTheory.cond μVec
+          ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}))) {a}).toReal
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  change
+    (ProbabilityTheory.cond μPair
+        ((coordinateAndVectorFirstConditioning n) ⁻¹' {c})).real
+      ((fun z => (coordinateAndVectorSpecialX n z, coordinateAndVectorMessage n p z)) ⁻¹'
+        {a}) =
+    (ProbabilityTheory.cond μVec
+        ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})).real
+      ((fun coords => (coordinateXBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+        {a})
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  dsimp only [μPair, μVec]
+  rw [uniformCoordinateAndVector_measureReal_firstConditioning_fiber]
+  rw [uniformCoordinateAndVector_measureReal_firstConditioning_inter_specialX_message]
+  have hn : (1 / (n : ℝ) : ℝ) ≠ 0 := by positivity
+  rw [mul_inv_rev, ← mul_assoc, inv_mul_cancel_right₀ hn]
+
+/-- After conditioning on a second-conditioning fiber, the pair-space Bob bit/transcript law is
+the same as the corresponding fixed-coordinate law on coordinate vectors. -/
+theorem identDistrib_secondPairFiber_fixed
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    IdentDistrib
+      (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z))
+      (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords))
+      (ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}))
+      (ProbabilityTheory.cond
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)))
+        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})) := by
+  refine ⟨Measurable.of_discrete.aemeasurable, Measurable.of_discrete.aemeasurable, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro a
+  let μPair : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate)))
+  let μVec : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  change
+    ((Measure.map
+        (fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z))
+        (ProbabilityTheory.cond μPair
+          ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}))) {a}).toReal =
+      ((Measure.map
+        (fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords))
+        (ProbabilityTheory.cond μVec
+          ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)}))) {a}).toReal
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  change
+    (ProbabilityTheory.cond μPair
+        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})).real
+      ((fun z => (coordinateAndVectorSpecialY n z, coordinateAndVectorMessage n p z)) ⁻¹'
+        {a}) =
+    (ProbabilityTheory.cond μVec
+        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})).real
+      ((fun coords => (coordinateYBit n c.1 coords, coordinateMessage n p coords)) ⁻¹'
+        {a})
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  dsimp only [μPair, μVec]
+  rw [uniformCoordinateAndVector_measureReal_secondConditioning_fiber]
+  rw [uniformCoordinateAndVector_measureReal_secondConditioning_inter_specialY_message]
+  have hn : (1 / (n : ℝ) : ℝ) ≠ 0 := by positivity
+  rw [mul_inv_rev, ← mul_assoc, inv_mul_cancel_right₀ hn]
+
+/-- The Alice bit/transcript mutual information on a first-conditioning pair-space fiber equals
+the corresponding fixed-coordinate mutual information. -/
+theorem mutualInfo_firstPairFiber_fixed
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    I[coordinateAndVectorSpecialX n : coordinateAndVectorMessage n p ;
+      ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorFirstConditioning n) ⁻¹' {c})] =
+    I[coordinateXBit n c.1 : coordinateMessage n p ;
+      ProbabilityTheory.cond
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)))
+        ((coordinateFirstConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})] :=
+  ProbabilityTheory.IdentDistrib.mutualInfo_eq
+    (identDistrib_firstPairFiber_fixed n p c)
+
+/-- The Bob bit/transcript mutual information on a second-conditioning pair-space fiber equals
+the corresponding fixed-coordinate mutual information. -/
+theorem mutualInfo_secondPairFiber_fixed
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    I[coordinateAndVectorSpecialY n : coordinateAndVectorMessage n p ;
+      ProbabilityTheory.cond
+        (((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+        ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})] =
+    I[coordinateYBit n c.1 : coordinateMessage n p ;
+      ProbabilityTheory.cond
+        (((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)))
+        ((coordinateSecondConditioning n c.1) ⁻¹' {(c.2.1, c.2.2)})] :=
+  ProbabilityTheory.IdentDistrib.mutualInfo_eq
+    (identDistrib_secondPairFiber_fixed n p c)
+
 /-- Alice's full vector is recovered from the coordinate bit and the vector with that coordinate
 removed. -/
 theorem update_xExceptCoordinate (i : Fin n) (ω : HardSample n) :
@@ -3453,6 +3821,144 @@ theorem fixedSpecialInfoSum_nonneg
   rw [fixedSpecialInfoSum]
   linarith [fixedFirstInfoSum_nonneg n p, fixedSecondInfoSum_nonneg n p]
 
+/-- The pair-space Alice special-coordinate information as a finite sum over the random
+coordinate and its first-conditioning data. -/
+theorem pairFirstInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    pairFirstInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))).real
+          ((coordinateAndVectorFirstConditioning n) ⁻¹' {c}) *
+          I[coordinateAndVectorSpecialX n : coordinateAndVectorMessage n p ;
+            ProbabilityTheory.cond
+              (((uniformCoordinateAndVector n :
+                ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+                Measure (Fin n × (Fin n → DisjointCoordinate))))
+              ((coordinateAndVectorFirstConditioning n) ⁻¹' {c})] := by
+  rw [pairFirstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))))
+    (X := coordinateAndVectorSpecialX n) (Y := coordinateAndVectorMessage n p)
+    (Z := coordinateAndVectorFirstConditioning n)
+    Measurable.of_discrete
+
+/-- The pair-space Bob special-coordinate information as a finite sum over the random
+coordinate and its second-conditioning data. -/
+theorem pairSecondInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    pairSecondInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))).real
+          ((coordinateAndVectorSecondConditioning n) ⁻¹' {c}) *
+          I[coordinateAndVectorSpecialY n : coordinateAndVectorMessage n p ;
+            ProbabilityTheory.cond
+              (((uniformCoordinateAndVector n :
+                ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+                Measure (Fin n × (Fin n → DisjointCoordinate))))
+              ((coordinateAndVectorSecondConditioning n) ⁻¹' {c})] := by
+  rw [pairSecondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := ((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))))
+    (X := coordinateAndVectorSpecialY n) (Y := coordinateAndVectorMessage n p)
+    (Z := coordinateAndVectorSecondConditioning n)
+    Measurable.of_discrete
+
+/-- A fixed-coordinate Alice summand as a finite sum over its first-conditioning values. -/
+theorem fixedFirstInfoTerm_eq_sum_conditioning
+    (i : Fin n)
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedFirstInfoTerm n i p =
+      ∑ d : (Fin n → Bool) × (Fin n → Bool),
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateFirstConditioning n i) ⁻¹' {d}) *
+          I[coordinateXBit n i : coordinateMessage n p ;
+            ProbabilityTheory.cond
+              (((uniformDisjointCoordinateVector n :
+                ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+                Measure (Fin n → DisjointCoordinate)))
+              ((coordinateFirstConditioning n i) ⁻¹' {d})] := by
+  rw [fixedFirstInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate)))
+    (X := coordinateXBit n i) (Y := coordinateMessage n p)
+    (Z := coordinateFirstConditioning n i)
+    Measurable.of_discrete
+
+/-- A fixed-coordinate Bob summand as a finite sum over its second-conditioning values. -/
+theorem fixedSecondInfoTerm_eq_sum_conditioning
+    (i : Fin n)
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSecondInfoTerm n i p =
+      ∑ d : (Fin n → Bool) × (Fin n → Bool),
+        ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real
+          ((coordinateSecondConditioning n i) ⁻¹' {d}) *
+          I[coordinateYBit n i : coordinateMessage n p ;
+            ProbabilityTheory.cond
+              (((uniformDisjointCoordinateVector n :
+                ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+                Measure (Fin n → DisjointCoordinate)))
+              ((coordinateSecondConditioning n i) ⁻¹' {d})] := by
+  rw [fixedSecondInfoTerm]
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate)))
+    (X := coordinateYBit n i) (Y := coordinateMessage n p)
+    (Z := coordinateSecondConditioning n i)
+    Measurable.of_discrete
+
+/-- The Alice pair-space special-coordinate information averages to the sum of fixed-coordinate
+Alice summands. -/
+theorem mul_pairFirstInfoTerm_eq_fixedFirstInfoSum
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (n : ℝ) * pairFirstInfoTerm n p = fixedFirstInfoSum n p := by
+  rw [pairFirstInfoTerm_eq_sum_conditioning, fixedFirstInfoSum]
+  simp_rw [fixedFirstInfoTerm_eq_sum_conditioning]
+  rw [Fintype.sum_prod_type]
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro i _
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro d _
+  rw [uniformCoordinateAndVector_measureReal_firstConditioning_fiber]
+  rw [mutualInfo_firstPairFiber_fixed]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  field_simp [hn]
+
+/-- The Bob pair-space special-coordinate information averages to the sum of fixed-coordinate
+Bob summands. -/
+theorem mul_pairSecondInfoTerm_eq_fixedSecondInfoSum
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (n : ℝ) * pairSecondInfoTerm n p = fixedSecondInfoSum n p := by
+  rw [pairSecondInfoTerm_eq_sum_conditioning, fixedSecondInfoSum]
+  simp_rw [fixedSecondInfoTerm_eq_sum_conditioning]
+  rw [Fintype.sum_prod_type]
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro i _
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro d _
+  rw [uniformCoordinateAndVector_measureReal_secondConditioning_fiber]
+  rw [mutualInfo_secondPairFiber_fixed]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  field_simp [hn]
+
 /-- The random-coordinate averaging identity follows from the two one-sided averaging
 identities. -/
 theorem mul_pairSpecialInfo_eq_fixedSpecialInfoSum_of_parts
@@ -3462,6 +3968,14 @@ theorem mul_pairSpecialInfo_eq_fixedSpecialInfoSum_of_parts
     (n : ℝ) * pairSpecialInfo n p = fixedSpecialInfoSum n p := by
   rw [pairSpecialInfo, fixedSpecialInfoSum]
   linarith
+
+/-- The random-coordinate special information averages to the sum of fixed-coordinate summands. -/
+theorem mul_pairSpecialInfo_eq_fixedSpecialInfoSum
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (n : ℝ) * pairSpecialInfo n p = fixedSpecialInfoSum n p :=
+  mul_pairSpecialInfo_eq_fixedSpecialInfoSum_of_parts n p
+    (mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
+    (mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
 
 /-- The coordinate-vector special information can be computed on the explicit uniform
 `(T, coordinateVector)` space. -/
@@ -4934,6 +5448,27 @@ theorem complexity_lower_bound_of_fixed_sum_chain_rule_and_kl_sums
         hchainFirst hchainSecond))
     hxsum hysum herror
 
+/-- Deterministic lower-bound wrapper after proving the random-coordinate averaging identities,
+leaving the two fixed-coordinate chain-rule inequalities and KL-sum comparisons. -/
+theorem complexity_lower_bound_of_fixed_chain_rule_and_kl_sums
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hchainFirst : fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
+    (hchainSecond : fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
+    (hxsum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+        firstInfoTerm n p)
+    (hysum :
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+        secondInfoTerm n p)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_fixed_sum_chain_rule_and_kl_sums n p
+    (mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
+    (mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
+    hchainFirst hchainSecond hxsum hysum herror
+
 /-- Public-coin fixed-error lower-bound wrapper after reducing the one-bit estimates to KL-sum
 comparisons. -/
 theorem publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums
@@ -5026,6 +5561,30 @@ theorem publicCoin_lower_bound_of_fixed_sum_chain_rule_and_kl_sums
       (fixedSpecialInfoSum_le_vectorFullConditionalInfo_of_parts n p
         (hchainFirst p) (hchainSecond p)))
     hxsum hysum
+
+/-- Public-coin fixed-error lower-bound wrapper after proving the random-coordinate averaging
+identities, leaving the fixed-coordinate chain-rule inequalities and KL-sum comparisons. -/
+theorem publicCoin_lower_bound_of_fixed_chain_rule_and_kl_sums
+    {k : ℕ}
+    (hk : (k : ℝ) <
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+    (hchainFirst : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
+    (hchainSecond : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
+    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+        firstInfoTerm n p)
+    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+        secondInfoTerm n p) :
+    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
+  publicCoin_lower_bound_of_fixed_sum_chain_rule_and_kl_sums n hk
+    (fun p => mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
+    (fun p => mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
+    hchainFirst hchainSecond hxsum hysum
 
 end HardSample
 
