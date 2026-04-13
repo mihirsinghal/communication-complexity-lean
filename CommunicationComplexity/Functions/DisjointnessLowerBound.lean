@@ -1044,6 +1044,30 @@ theorem specialY_eq_yBit_specialCoordinate (ω : HardSample n) :
     specialY n ω = yBit n ω (specialCoordinate n ω) := by
   simp [specialY, specialCoordinate]
 
+/-- On disjoint samples, Bob's special bit being `true` forces Alice's special bit to be
+`false`. This is the zero-information branch in the Alice-side conditioning decomposition. -/
+theorem specialX_eq_false_of_mem_disjointEvent_of_specialY_eq_true
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (hy : specialY n ω = true) :
+    specialX n ω = false := by
+  have hdisj : Disjoint (X n ω) (Y n ω) := by simpa [disjointEvent] using hω
+  rw [disjoint_X_Y_iff] at hdisj
+  cases hx : specialX n ω
+  · rfl
+  · exfalso
+    exact hdisj ⟨by simpa [specialX] using hx, by simpa [specialY] using hy⟩
+
+/-- On disjoint samples, Alice's special bit being `true` forces Bob's special bit to be
+`false`. This is the zero-information branch in the Bob-side conditioning decomposition. -/
+theorem specialY_eq_false_of_mem_disjointEvent_of_specialX_eq_true
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (hx : specialX n ω = true) :
+    specialY n ω = false := by
+  have hdisj : Disjoint (X n ω) (Y n ω) := by simpa [disjointEvent] using hω
+  rw [disjoint_X_Y_iff] at hdisj
+  cases hy : specialY n ω
+  · rfl
+  · exfalso
+    exact hdisj ⟨by simpa [specialX] using hx, by simpa [specialY] using hy⟩
+
 /-- On disjoint samples, Alice's special bit is the coordinate-vector projection at `T`. -/
 theorem specialX_eq_projectedSpecialX_of_mem_disjointEvent
     {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
@@ -1568,9 +1592,19 @@ def xExceptSpecial (ω : HardSample n) : Fin n → Bool :=
 def yAfterSpecial (ω : HardSample n) : Fin n → Bool :=
   fun i => if ω.T < i then yBit n ω i else false
 
+/-- Bob's input bits before the special coordinate, padded by `false` elsewhere. This is the
+extra fine-conditioning data on Alice's side beyond `(T, X_<T, Y_>T)`. -/
+def yBeforeSpecial (ω : HardSample n) : Fin n → Bool :=
+  fun i => if i < ω.T then yBit n ω i else false
+
 /-- Bob's input bits except at the special coordinate, padded by `false` at `ω.T`. -/
 def yExceptSpecial (ω : HardSample n) : Fin n → Bool :=
   fun i => if i = ω.T then false else yBit n ω i
+
+/-- Alice's input bits after the special coordinate, padded by `false` elsewhere. This is the
+extra fine-conditioning data on Bob's side beyond `(T, X_<T, Y_>T)`. -/
+def xAfterSpecial (ω : HardSample n) : Fin n → Bool :=
+  fun i => if ω.T < i then xBit n ω i else false
 
 /-- Alice's input bits before a fixed coordinate, padded by `false` elsewhere. -/
 def xBeforeCoordinate (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
@@ -1603,10 +1637,20 @@ elsewhere. -/
 def coordinateYAfter (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
   fun j => if i < j then (coords j).yBit else false
 
+/-- Bob's projected coordinate-vector bits before a fixed coordinate, padded by `false`
+elsewhere. -/
+def coordinateYBefore (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
+  fun j => if j < i then (coords j).yBit else false
+
 /-- Bob's projected coordinate-vector bits except at a fixed coordinate, padded by `false`
 there. -/
 def coordinateYExcept (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
   fun j => if j = i then false else (coords j).yBit
+
+/-- Alice's projected coordinate-vector bits after a fixed coordinate, padded by `false`
+elsewhere. -/
+def coordinateXAfter (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
+  fun j => if i < j then (coords j).xBit else false
 
 /-- Alice's bit at a fixed coordinate of a generated disjoint coordinate vector. -/
 def coordinateXBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
@@ -1743,6 +1787,24 @@ def coordinateAndVectorSecondConditioning
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (z.1, (coordinateSecondConditioning n z.1 z.2).1,
     (coordinateSecondConditioning n z.1 z.2).2)
+
+/-- The coarse Claim 6.21 conditioning data as a function on `(T, coordinateVector)`. -/
+def coordinateAndVectorCoarseConditioning
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (z.1, coordinateXBefore n z.1 z.2, coordinateYAfter n z.1 z.2)
+
+/-- The extra `Y_<T` data in Alice's textbook conditioning, as a function on
+`(T, coordinateVector)`. -/
+def coordinateAndVectorYBefore
+    (z : Fin n × (Fin n → DisjointCoordinate)) : Fin n → Bool :=
+  coordinateYBefore n z.1 z.2
+
+/-- The extra `X_>T` data in Bob's textbook conditioning, as a function on
+`(T, coordinateVector)`. -/
+def coordinateAndVectorXAfter
+    (z : Fin n × (Fin n → DisjointCoordinate)) : Fin n → Bool :=
+  coordinateXAfter n z.1 z.2
 
 /-- A first-conditioning fiber in `(T, coordinateVector)` form is a coordinate singleton times
 the corresponding fixed-coordinate vector fiber. -/
@@ -2173,9 +2235,19 @@ theorem yAfterSpecial_eq_yAfterCoordinate (ω : HardSample n) :
     yAfterSpecial n ω = yAfterCoordinate n (specialCoordinate n ω) ω :=
   rfl
 
+/-- The special-coordinate version of `yBeforeSpecial`. -/
+theorem yBeforeSpecial_eq_coordinateYBefore_self (ω : HardSample n) :
+    yBeforeSpecial n ω = fun i => if i < specialCoordinate n ω then yBit n ω i else false := by
+  rfl
+
 /-- The special-coordinate version of `yExceptCoordinate`. -/
 theorem yExceptSpecial_eq_yExceptCoordinate (ω : HardSample n) :
     yExceptSpecial n ω = yExceptCoordinate n (specialCoordinate n ω) ω :=
+  rfl
+
+/-- The special-coordinate version of `xAfterSpecial`. -/
+theorem xAfterSpecial_eq_coordinateXAfter_self (ω : HardSample n) :
+    xAfterSpecial n ω = fun i => if specialCoordinate n ω < i then xBit n ω i else false := by
   rfl
 
 /-- On disjoint samples, Alice's before-special-coordinate vector is the corresponding projection
@@ -2214,6 +2286,18 @@ theorem yAfterSpecial_eq_coordinateYAfter_of_mem_disjointEvent
       disjointCoordinateVector_yBit_of_mem_disjointEvent n hω i]
   · simp [yAfterSpecial, coordinateYAfter, specialCoordinate, hi]
 
+/-- On disjoint samples, Bob's before-special-coordinate vector is the corresponding projection
+of the generated disjoint coordinate vector. -/
+theorem yBeforeSpecial_eq_coordinateYBefore_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
+    yBeforeSpecial n ω =
+      coordinateYBefore n (specialCoordinate n ω) (disjointCoordinateVector n ω) := by
+  funext i
+  by_cases hi : i < ω.T
+  · simp [yBeforeSpecial, coordinateYBefore, specialCoordinate, hi,
+      disjointCoordinateVector_yBit_of_mem_disjointEvent n hω i]
+  · simp [yBeforeSpecial, coordinateYBefore, specialCoordinate, hi]
+
 /-- On disjoint samples, Bob's except-special-coordinate vector is the corresponding projection of
 the generated disjoint coordinate vector. -/
 theorem yExceptSpecial_eq_coordinateYExcept_of_mem_disjointEvent
@@ -2225,6 +2309,18 @@ theorem yExceptSpecial_eq_coordinateYExcept_of_mem_disjointEvent
   · simp [yExceptSpecial, coordinateYExcept, specialCoordinate, hi]
   · simp [yExceptSpecial, coordinateYExcept, specialCoordinate, hi,
       disjointCoordinateVector_yBit_of_mem_disjointEvent n hω i]
+
+/-- On disjoint samples, Alice's after-special-coordinate vector is the corresponding projection
+of the generated disjoint coordinate vector. -/
+theorem xAfterSpecial_eq_coordinateXAfter_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) :
+    xAfterSpecial n ω =
+      coordinateXAfter n (specialCoordinate n ω) (disjointCoordinateVector n ω) := by
+  funext i
+  by_cases hi : ω.T < i
+  · simp [xAfterSpecial, coordinateXAfter, specialCoordinate, hi,
+      disjointCoordinateVector_xBit_of_mem_disjointEvent n hω i]
+  · simp [xAfterSpecial, coordinateXAfter, specialCoordinate, hi]
 
 /-- Under the disjoint-conditioned distribution, `X_<T` is a.e. the corresponding projection of
 the generated disjoint coordinate vector. -/
@@ -2250,6 +2346,14 @@ theorem yAfterSpecial_ae_eq_coordinateYAfter :
   filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
   exact yAfterSpecial_eq_coordinateYAfter_of_mem_disjointEvent n hω
 
+/-- Under the disjoint-conditioned distribution, `Y_<T` is a.e. the corresponding projection of
+the generated disjoint coordinate vector. -/
+theorem yBeforeSpecial_ae_eq_coordinateYBefore :
+    yBeforeSpecial n =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateYBefore n (specialCoordinate n ω) (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  exact yBeforeSpecial_eq_coordinateYBefore_of_mem_disjointEvent n hω
+
 /-- Under the disjoint-conditioned distribution, `Y_≠T` is a.e. the corresponding projection of
 the generated disjoint coordinate vector. -/
 theorem yExceptSpecial_ae_eq_coordinateYExcept :
@@ -2257,6 +2361,14 @@ theorem yExceptSpecial_ae_eq_coordinateYExcept :
       fun ω => coordinateYExcept n (specialCoordinate n ω) (disjointCoordinateVector n ω) := by
   filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
   exact yExceptSpecial_eq_coordinateYExcept_of_mem_disjointEvent n hω
+
+/-- Under the disjoint-conditioned distribution, `X_>T` is a.e. the corresponding projection of
+the generated disjoint coordinate vector. -/
+theorem xAfterSpecial_ae_eq_coordinateXAfter :
+    xAfterSpecial n =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateXAfter n (specialCoordinate n ω) (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  exact xAfterSpecial_eq_coordinateXAfter_of_mem_disjointEvent n hω
 
 /-- If two samples agree on the data contained in `Z`, then Alice's bit from the first sample and
 Bob's bit from the second sample are disjoint away from the special coordinate. -/
@@ -2416,6 +2528,147 @@ def firstConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n 
 def secondConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (specialCoordinate n ω, xExceptSpecial n ω, yAfterSpecial n ω)
 
+/-- The coarser conditioning variable used in the Pinsker/Claim 6.21 step:
+`(T, X_<T, Y_>T)`. The `zVariable` is this data bundled with the transcript. -/
+def coarseConditioning (ω : HardSample n) : Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (specialCoordinate n ω, xBeforeSpecial n ω, yAfterSpecial n ω)
+
+/-- Extract the Claim 6.21 coarse conditioning data from Alice's finer textbook conditioning
+`(T, X_<T, Y_≠T)`. -/
+def coarseFromFirstConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (c.1, c.2.1, fun i => if c.1 < i then c.2.2 i else false)
+
+/-- Extract the Claim 6.21 coarse conditioning data from Bob's finer textbook conditioning
+`(T, X_≠T, Y_>T)`. -/
+def coarseFromSecondConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (c.1, fun i => if i < c.1 then c.2.1 i else false, c.2.2)
+
+/-- Rebuild Alice's finer textbook conditioning from the Claim 6.21 coarse conditioning plus
+Bob's bits before the special coordinate. -/
+def firstConditioningFromCoarseAndYBefore
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) (yb : Fin n → Bool) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (c.1, c.2.1, fun i => if i < c.1 then yb i else c.2.2 i)
+
+/-- Rebuild Bob's finer textbook conditioning from the Claim 6.21 coarse conditioning plus
+Alice's bits after the special coordinate. -/
+def secondConditioningFromCoarseAndXAfter
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) (xa : Fin n → Bool) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  (c.1, fun i => if c.1 < i then xa i else c.2.1 i, c.2.2)
+
+/-- Alice's finer textbook conditioning determines the coarse Claim 6.21 conditioning. -/
+theorem coarseConditioning_eq_coarseFromFirstConditioning (ω : HardSample n) :
+    coarseConditioning n ω = coarseFromFirstConditioning n (firstConditioning n ω) := by
+  rw [coarseConditioning, coarseFromFirstConditioning, firstConditioning]
+  congr
+  funext i
+  by_cases h : specialCoordinate n ω < i
+  · have h' : ω.T < i := by simpa [specialCoordinate] using h
+    have hne : i ≠ ω.T := ne_of_gt h'
+    simp [yAfterSpecial, yExceptSpecial, specialCoordinate, h', hne]
+  · have h' : ¬ω.T < i := by simpa [specialCoordinate] using h
+    simp [yAfterSpecial, specialCoordinate, h']
+
+/-- Bob's finer textbook conditioning determines the coarse Claim 6.21 conditioning. -/
+theorem coarseConditioning_eq_coarseFromSecondConditioning (ω : HardSample n) :
+    coarseConditioning n ω = coarseFromSecondConditioning n (secondConditioning n ω) := by
+  rw [coarseConditioning, coarseFromSecondConditioning, secondConditioning]
+  congr
+  funext i
+  by_cases h : i < specialCoordinate n ω
+  · have h' : i < ω.T := by simpa [specialCoordinate] using h
+    have hne : i ≠ ω.T := ne_of_lt h'
+    simp [xBeforeSpecial, xExceptSpecial, specialCoordinate, h', hne]
+  · have h' : ¬i < ω.T := by simpa [specialCoordinate] using h
+    simp [xBeforeSpecial, specialCoordinate, h']
+
+/-- Alice's finer textbook conditioning is coarse Claim 6.21 conditioning plus Bob's bits before
+the special coordinate. -/
+theorem firstConditioning_eq_firstConditioningFromCoarseAndYBefore (ω : HardSample n) :
+    firstConditioning n ω =
+      firstConditioningFromCoarseAndYBefore n
+        (coarseConditioning n ω) (yBeforeSpecial n ω) := by
+  rw [firstConditioning, firstConditioningFromCoarseAndYBefore, coarseConditioning]
+  congr
+  funext i
+  by_cases hlt : i < ω.T
+  · have hne : i ≠ ω.T := ne_of_lt hlt
+    simp [yExceptSpecial, yBeforeSpecial, specialCoordinate, hlt, hne]
+  · by_cases hgt : ω.T < i
+    · have hne : i ≠ ω.T := ne_of_gt hgt
+      simp [yExceptSpecial, yAfterSpecial, specialCoordinate, hlt, hgt, hne]
+    · have heq : i = ω.T := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
+      simp [yExceptSpecial, yAfterSpecial, specialCoordinate, heq]
+
+/-- Bob's finer textbook conditioning is coarse Claim 6.21 conditioning plus Alice's bits after
+the special coordinate. -/
+theorem secondConditioning_eq_secondConditioningFromCoarseAndXAfter (ω : HardSample n) :
+    secondConditioning n ω =
+      secondConditioningFromCoarseAndXAfter n
+        (coarseConditioning n ω) (xAfterSpecial n ω) := by
+  rw [secondConditioning, secondConditioningFromCoarseAndXAfter, coarseConditioning]
+  congr
+  funext i
+  by_cases hgt : ω.T < i
+  · have hne : i ≠ ω.T := ne_of_gt hgt
+    simp [xExceptSpecial, xAfterSpecial, specialCoordinate, hgt, hne]
+  · by_cases hlt : i < ω.T
+    · have hne : i ≠ ω.T := ne_of_lt hlt
+      simp [xExceptSpecial, xBeforeSpecial, specialCoordinate, hgt, hlt, hne]
+    · have heq : i = ω.T := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
+      simp [xExceptSpecial, xBeforeSpecial, specialCoordinate, heq]
+
+/-- Alice's coordinate-vector textbook conditioning is the coarse conditioning plus the extra
+`Y_<T` data. -/
+theorem coordinateAndVectorFirstConditioning_eq_fromCoarseAndYBefore
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorFirstConditioning n z =
+      firstConditioningFromCoarseAndYBefore n
+        (coordinateAndVectorCoarseConditioning n z)
+        (coordinateAndVectorYBefore n z) := by
+  rcases z with ⟨i, coords⟩
+  rw [coordinateAndVectorFirstConditioning, firstConditioningFromCoarseAndYBefore,
+    coordinateAndVectorCoarseConditioning, coordinateAndVectorYBefore,
+    coordinateFirstConditioning]
+  congr
+  funext j
+  by_cases hlt : j < i
+  · have hne : j ≠ i := ne_of_lt hlt
+    simp [coordinateYExcept, coordinateYBefore, hlt, hne]
+  · by_cases hgt : i < j
+    · have hne : j ≠ i := ne_of_gt hgt
+      simp [coordinateYExcept, coordinateYAfter, hlt, hgt, hne]
+    · have heq : j = i := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
+      simp [coordinateYExcept, coordinateYAfter, heq]
+
+/-- Bob's coordinate-vector textbook conditioning is the coarse conditioning plus the extra
+`X_>T` data. -/
+theorem coordinateAndVectorSecondConditioning_eq_fromCoarseAndXAfter
+    (z : Fin n × (Fin n → DisjointCoordinate)) :
+    coordinateAndVectorSecondConditioning n z =
+      secondConditioningFromCoarseAndXAfter n
+        (coordinateAndVectorCoarseConditioning n z)
+        (coordinateAndVectorXAfter n z) := by
+  rcases z with ⟨i, coords⟩
+  rw [coordinateAndVectorSecondConditioning, secondConditioningFromCoarseAndXAfter,
+    coordinateAndVectorCoarseConditioning, coordinateAndVectorXAfter,
+    coordinateSecondConditioning]
+  congr
+  funext j
+  by_cases hgt : i < j
+  · have hne : j ≠ i := ne_of_gt hgt
+    simp [coordinateXExcept, coordinateXAfter, hgt, hne]
+  · by_cases hlt : j < i
+    · have hne : j ≠ i := ne_of_lt hlt
+      simp [coordinateXExcept, coordinateXBefore, hgt, hlt, hne]
+    · have heq : j = i := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
+      simp [coordinateXExcept, coordinateXBefore, heq]
+
 /-- The first conditioning variable with the coordinate supplied explicitly. -/
 def firstConditioningAt (i : Fin n) (ω : HardSample n) :
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
@@ -2442,6 +2695,13 @@ def projectedSecondConditioning (ω : HardSample n) :
     coordinateXExcept n (specialCoordinate n ω) (disjointCoordinateVector n ω),
     coordinateYAfter n (specialCoordinate n ω) (disjointCoordinateVector n ω))
 
+/-- The coarse Claim 6.21 conditioning variable expressed as a function of `T` and the generated
+disjoint coordinate vector. -/
+def projectedCoarseConditioning (ω : HardSample n) :
+    Fin n × (Fin n → Bool) × (Fin n → Bool) :=
+  coordinateAndVectorCoarseConditioning n
+    (specialCoordinate n ω, disjointCoordinateVector n ω)
+
 /-- The projected first conditioning variable is the coordinate index paired with the
 fixed-coordinate first conditioning data. -/
 theorem projectedFirstConditioning_eq_coordinateFirstConditioning (ω : HardSample n) :
@@ -2462,6 +2722,22 @@ theorem projectedSecondConditioning_eq_coordinateSecondConditioning (ω : HardSa
           (disjointCoordinateVector n ω)).1,
         (coordinateSecondConditioning n (specialCoordinate n ω)
           (disjointCoordinateVector n ω)).2) :=
+  rfl
+
+/-- The projected first conditioning variable is the `(T, coordinateVector)` version. -/
+theorem projectedFirstConditioning_eq_coordinateAndVectorFirstConditioning
+    (ω : HardSample n) :
+    projectedFirstConditioning n ω =
+      coordinateAndVectorFirstConditioning n
+        (specialCoordinate n ω, disjointCoordinateVector n ω) :=
+  rfl
+
+/-- The projected second conditioning variable is the `(T, coordinateVector)` version. -/
+theorem projectedSecondConditioning_eq_coordinateAndVectorSecondConditioning
+    (ω : HardSample n) :
+    projectedSecondConditioning n ω =
+      coordinateAndVectorSecondConditioning n
+        (specialCoordinate n ω, disjointCoordinateVector n ω) :=
   rfl
 
 /-- The first textbook conditioning variable is the explicit-coordinate version at `T`. -/
@@ -2490,6 +2766,15 @@ theorem secondConditioning_ae_eq_projectedSecondConditioning :
   filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
   simp [secondConditioning, projectedSecondConditioning,
     xExceptSpecial_eq_coordinateXExcept_of_mem_disjointEvent n hω,
+    yAfterSpecial_eq_coordinateYAfter_of_mem_disjointEvent n hω]
+
+/-- Under the disjoint-conditioned distribution, the coarse Claim 6.21 conditioning variable is
+a.e. the corresponding function of `T` and the generated disjoint coordinate vector. -/
+theorem coarseConditioning_ae_eq_projectedCoarseConditioning :
+    coarseConditioning n =ᵐ[disjointCondMeasure n] projectedCoarseConditioning n := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  simp [coarseConditioning, projectedCoarseConditioning, coordinateAndVectorCoarseConditioning,
+    xBeforeSpecial_eq_coordinateXBefore_of_mem_disjointEvent n hω,
     yAfterSpecial_eq_coordinateYAfter_of_mem_disjointEvent n hω]
 
 /-- The special-coordinate bit-pair. -/
@@ -2677,6 +2962,554 @@ theorem disjointCondMeasure_measureReal_specialX_false :
     (disjointCondMeasure n).real ((specialX n) ⁻¹' {false}) = (2 / 3 : ℝ) := by
   simpa using disjointCondMeasure_measureReal_specialX_preimage_singleton n false
 
+open Classical in
+/-- The disjoint-conditioned hard distribution, further conditioned on Bob's special bit being
+`false`. This is the Alice-side conditioning used in the Claim 6.21 Pinsker step. -/
+noncomputable def disjointSpecialYFalseMeasure : Measure (HardSample n) :=
+  (disjointCondMeasure n)[|(specialY n) ⁻¹' {false}]
+
+open Classical in
+/-- The disjoint-conditioned hard distribution, further conditioned on Alice's special bit being
+`false`. This is the Bob-side conditioning used in the Claim 6.21 Pinsker step. -/
+noncomputable def disjointSpecialXFalseMeasure : Measure (HardSample n) :=
+  (disjointCondMeasure n)[|(specialX n) ⁻¹' {false}]
+
+open Classical in
+/-- Conditioning the disjoint law on `Y_T = false` gives a probability measure. -/
+theorem disjointSpecialYFalseMeasure_isProbabilityMeasure :
+    IsProbabilityMeasure (disjointSpecialYFalseMeasure n) := by
+  rw [disjointSpecialYFalseMeasure]
+  apply ProbabilityTheory.cond_isProbabilityMeasure
+  rw [← MeasureTheory.measureReal_ne_zero_iff]
+  rw [disjointCondMeasure_measureReal_specialY_false]
+  norm_num
+
+open Classical in
+/-- Conditioning the disjoint law on `X_T = false` gives a probability measure. -/
+theorem disjointSpecialXFalseMeasure_isProbabilityMeasure :
+    IsProbabilityMeasure (disjointSpecialXFalseMeasure n) := by
+  rw [disjointSpecialXFalseMeasure]
+  apply ProbabilityTheory.cond_isProbabilityMeasure
+  rw [← MeasureTheory.measureReal_ne_zero_iff]
+  rw [disjointCondMeasure_measureReal_specialX_false]
+  norm_num
+
+/-- Almost-everywhere identities under the disjoint-conditioned law remain true after further
+conditioning on `Y_T = false`. -/
+theorem ae_eq_of_disjointSpecialYFalse
+    {α : Type*} {f g : HardSample n → α}
+    (h : f =ᵐ[disjointCondMeasure n] g) :
+    f =ᵐ[disjointSpecialYFalseMeasure n] g := by
+  rw [disjointSpecialYFalseMeasure]
+  exact cond_absolutelyContinuous.ae_le h
+
+/-- Almost-everywhere identities under the disjoint-conditioned law remain true after further
+conditioning on `X_T = false`. -/
+theorem ae_eq_of_disjointSpecialXFalse
+    {α : Type*} {f g : HardSample n → α}
+    (h : f =ᵐ[disjointCondMeasure n] g) :
+    f =ᵐ[disjointSpecialXFalseMeasure n] g := by
+  rw [disjointSpecialXFalseMeasure]
+  exact cond_absolutelyContinuous.ae_le h
+
+/-- Under the Alice-side one-bit conditioning, `X_T` is a.e. the coordinate-vector projection. -/
+theorem specialX_ae_eq_coordinateAndVectorSpecialX_disjointSpecialYFalse :
+    specialX n =ᵐ[disjointSpecialYFalseMeasure n]
+      fun ω => coordinateAndVectorSpecialX n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialYFalse n (by
+    simpa [projectedSpecialX, coordinateAndVectorSpecialX, coordinateXBit, specialCoordinate]
+      using specialX_ae_eq_projectedSpecialX n)
+
+/-- Under the Alice-side one-bit conditioning, the fine textbook conditioning is a.e. the
+coordinate-vector version. -/
+theorem firstConditioning_ae_eq_coordinateAndVectorFirstConditioning_disjointSpecialYFalse :
+    firstConditioning n =ᵐ[disjointSpecialYFalseMeasure n]
+      fun ω => coordinateAndVectorFirstConditioning n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialYFalse n (by
+    simpa [projectedFirstConditioning, coordinateAndVectorFirstConditioning,
+      coordinateFirstConditioning, specialCoordinate]
+      using firstConditioning_ae_eq_projectedFirstConditioning n)
+
+/-- Under the Alice-side one-bit conditioning, the coarse Claim 6.21 conditioning is a.e. the
+coordinate-vector version. -/
+theorem coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialYFalse :
+    coarseConditioning n =ᵐ[disjointSpecialYFalseMeasure n]
+      fun ω => coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialYFalse n (by
+    simpa [projectedCoarseConditioning, specialCoordinate]
+      using coarseConditioning_ae_eq_projectedCoarseConditioning n)
+
+/-- Under the Bob-side one-bit conditioning, `Y_T` is a.e. the coordinate-vector projection. -/
+theorem specialY_ae_eq_coordinateAndVectorSpecialY_disjointSpecialXFalse :
+    specialY n =ᵐ[disjointSpecialXFalseMeasure n]
+      fun ω => coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialXFalse n (by
+    simpa [projectedSpecialY, coordinateAndVectorSpecialY, coordinateYBit, specialCoordinate]
+      using specialY_ae_eq_projectedSpecialY n)
+
+/-- Under the Bob-side one-bit conditioning, the fine textbook conditioning is a.e. the
+coordinate-vector version. -/
+theorem secondConditioning_ae_eq_coordinateAndVectorSecondConditioning_disjointSpecialXFalse :
+    secondConditioning n =ᵐ[disjointSpecialXFalseMeasure n]
+      fun ω => coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialXFalse n (by
+    simpa [projectedSecondConditioning, coordinateAndVectorSecondConditioning,
+      coordinateSecondConditioning, specialCoordinate]
+      using secondConditioning_ae_eq_projectedSecondConditioning n)
+
+/-- Under the Bob-side one-bit conditioning, the coarse Claim 6.21 conditioning is a.e. the
+coordinate-vector version. -/
+theorem coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialXFalse :
+    coarseConditioning n =ᵐ[disjointSpecialXFalseMeasure n]
+      fun ω => coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω) := by
+  exact ae_eq_of_disjointSpecialXFalse n (by
+    simpa [projectedCoarseConditioning, specialCoordinate]
+      using coarseConditioning_ae_eq_projectedCoarseConditioning n)
+
+open Classical in
+/-- Given disjointness and `Y_T = false`, Alice's special bit is uniform. -/
+theorem disjointSpecialYFalseMeasure_measureReal_specialX_singleton (b : Bool) :
+    (disjointSpecialYFalseMeasure n).real ((specialX n) ⁻¹' {b}) = (1 / 2 : ℝ) := by
+  rw [disjointSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hInter :
+      ((specialY n) ⁻¹' {false}) ∩ ((specialX n) ⁻¹' {b}) =
+        (specialPair n) ⁻¹' {(b, false)} := by
+    ext ω
+    cases b <;> simp [specialPair, and_comm]
+  rw [hInter, disjointCondMeasure_measureReal_specialPair_preimage_singleton,
+    disjointCondMeasure_measureReal_specialY_false]
+  cases b <;> norm_num
+
+open Classical in
+/-- Given disjointness and `X_T = false`, Bob's special bit is uniform. -/
+theorem disjointSpecialXFalseMeasure_measureReal_specialY_singleton (b : Bool) :
+    (disjointSpecialXFalseMeasure n).real ((specialY n) ⁻¹' {b}) = (1 / 2 : ℝ) := by
+  rw [disjointSpecialXFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hInter :
+      ((specialX n) ⁻¹' {false}) ∩ ((specialY n) ⁻¹' {b}) =
+        (specialPair n) ⁻¹' {(false, b)} := by
+    ext ω
+    cases b <;> simp [specialPair]
+  rw [hInter, disjointCondMeasure_measureReal_specialPair_preimage_singleton,
+    disjointCondMeasure_measureReal_specialX_false]
+  cases b <;> norm_num
+
+open Classical in
+/-- Under the Alice-side Claim 6.21 conditioning, `X_T` has the uniform one-bit law. -/
+theorem disjointSpecialYFalseMeasure_specialX_law_eq_uniformBool :
+    ProbabilityMeasure.map
+      (⟨disjointSpecialYFalseMeasure n, disjointSpecialYFalseMeasure_isProbabilityMeasure n⟩ :
+        ProbabilityMeasure (HardSample n))
+      (Measurable.of_discrete.aemeasurable (f := specialX n)) =
+      uniformBool := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  change (disjointSpecialYFalseMeasure n).real ((specialX n) ⁻¹' {b}) =
+    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b}
+  rw [disjointSpecialYFalseMeasure_measureReal_specialX_singleton,
+    uniformBool_singleton]
+
+open Classical in
+/-- Under the Bob-side Claim 6.21 conditioning, `Y_T` has the uniform one-bit law. -/
+theorem disjointSpecialXFalseMeasure_specialY_law_eq_uniformBool :
+    ProbabilityMeasure.map
+      (⟨disjointSpecialXFalseMeasure n, disjointSpecialXFalseMeasure_isProbabilityMeasure n⟩ :
+        ProbabilityMeasure (HardSample n))
+      (Measurable.of_discrete.aemeasurable (f := specialY n)) =
+      uniformBool := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  change (disjointSpecialXFalseMeasure n).real ((specialY n) ⁻¹' {b}) =
+    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b}
+  rw [disjointSpecialXFalseMeasure_measureReal_specialY_singleton,
+    uniformBool_singleton]
+
+/-- Conditioning on `Y_T = false` in the hard sample space is identified with conditioning the
+clean `(T, coordinateVector)` model on the corresponding projected event. -/
+theorem identDistrib_coordinateAndVector_disjointSpecialYFalse :
+    IdentDistrib (fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω)) id
+      (disjointSpecialYFalseMeasure n)
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+          (coordinateAndVectorSpecialY n) ⁻¹' {false}]) := by
+  have hbase := identDistrib_coordinateAndVector_uniform n
+  have hpairProjected :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), projectedSpecialY n ω))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (id z, coordinateAndVectorSpecialY n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [Function.comp_def, specialCoordinate, projectedSpecialY,
+      coordinateAndVectorSpecialY, coordinateYBit] using
+      hbase.comp (Measurable.of_discrete
+        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (z, coordinateAndVectorSpecialY n z)))
+  have hae :
+      (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), specialY n ω)) =ᵐ[disjointCondMeasure n]
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), projectedSpecialY n ω)) := by
+    filter_upwards [specialY_ae_eq_projectedSpecialY n] with ω hω
+    simp [hω]
+  have hpair :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), specialY n ω))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (id z, coordinateAndVectorSpecialY n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) :=
+    (IdentDistrib.of_ae_eq Measurable.of_discrete.aemeasurable hae).trans hpairProjected
+  simpa [disjointSpecialYFalseMeasure] using
+    ProbabilityTheory.IdentDistrib.cond_of_pair
+      (X := fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω))
+      (Y := specialY n)
+      (X' := id)
+      (Y' := coordinateAndVectorSpecialY n)
+      (μ := disjointCondMeasure n)
+      (μ' := ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+      (MeasurableSet.singleton false)
+      (Measurable.of_discrete (f := specialY n))
+      (Measurable.of_discrete (f := coordinateAndVectorSpecialY n))
+      hpair
+
+/-- Conditioning on `X_T = false` in the hard sample space is identified with conditioning the
+clean `(T, coordinateVector)` model on the corresponding projected event. -/
+theorem identDistrib_coordinateAndVector_disjointSpecialXFalse :
+    IdentDistrib (fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω)) id
+      (disjointSpecialXFalseMeasure n)
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+          (coordinateAndVectorSpecialX n) ⁻¹' {false}]) := by
+  have hbase := identDistrib_coordinateAndVector_uniform n
+  have hpairProjected :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), projectedSpecialX n ω))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (id z, coordinateAndVectorSpecialX n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [Function.comp_def, specialCoordinate, projectedSpecialX,
+      coordinateAndVectorSpecialX, coordinateXBit] using
+      hbase.comp (Measurable.of_discrete
+        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (z, coordinateAndVectorSpecialX n z)))
+  have hae :
+      (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), specialX n ω)) =ᵐ[disjointCondMeasure n]
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), projectedSpecialX n ω)) := by
+    filter_upwards [specialX_ae_eq_projectedSpecialX n] with ω hω
+    simp [hω]
+  have hpair :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          ((ω.T, disjointCoordinateVector n ω), specialX n ω))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (id z, coordinateAndVectorSpecialX n z))
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) :=
+    (IdentDistrib.of_ae_eq Measurable.of_discrete.aemeasurable hae).trans hpairProjected
+  simpa [disjointSpecialXFalseMeasure] using
+    ProbabilityTheory.IdentDistrib.cond_of_pair
+      (X := fun ω : HardSample n => (ω.T, disjointCoordinateVector n ω))
+      (Y := specialX n)
+      (X' := id)
+      (Y' := coordinateAndVectorSpecialX n)
+      (μ := disjointCondMeasure n)
+      (μ' := ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))))
+      (MeasurableSet.singleton false)
+      (Measurable.of_discrete (f := specialX n))
+      (Measurable.of_discrete (f := coordinateAndVectorSpecialX n))
+      hpair
+
+/-- In the clean `(T, coordinateVector)` model, the projected event `Y_T = false` has mass
+`2 / 3`. -/
+theorem uniformCoordinateAndVector_measureReal_specialY_false :
+    (((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        ((coordinateAndVectorSpecialY n) ⁻¹' {false})) = (2 / 3 : ℝ) := by
+  have hbase := identDistrib_coordinateAndVector_uniform n
+  have hdist :
+      IdentDistrib (projectedSpecialY n) (coordinateAndVectorSpecialY n)
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [Function.comp_def, specialCoordinate, projectedSpecialY,
+      coordinateAndVectorSpecialY, coordinateYBit] using
+      hbase.comp (Measurable.of_discrete (f := coordinateAndVectorSpecialY n))
+  have hmeasure :=
+    hdist.measure_mem_eq (MeasurableSet.singleton false)
+  have hreal :
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate))).real
+          ((coordinateAndVectorSpecialY n) ⁻¹' {false})) =
+        (disjointCondMeasure n).real ((projectedSpecialY n) ⁻¹' {false}) := by
+    simp [Measure.real, hmeasure]
+  have hreal_projected :
+      (disjointCondMeasure n).real ((projectedSpecialY n) ⁻¹' {false}) =
+        (disjointCondMeasure n).real ((specialY n) ⁻¹' {false}) := by
+    apply MeasureTheory.measureReal_congr
+    filter_upwards [specialY_ae_eq_projectedSpecialY n] with ω hω
+    apply propext
+    change projectedSpecialY n ω = false ↔ specialY n ω = false
+    rw [hω]
+  rw [hreal, hreal_projected, disjointCondMeasure_measureReal_specialY_false]
+
+/-- In the clean `(T, coordinateVector)` model, the projected event `X_T = false` has mass
+`2 / 3`. -/
+theorem uniformCoordinateAndVector_measureReal_specialX_false :
+    (((uniformCoordinateAndVector n :
+      ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+      Measure (Fin n × (Fin n → DisjointCoordinate))).real
+        ((coordinateAndVectorSpecialX n) ⁻¹' {false})) = (2 / 3 : ℝ) := by
+  have hbase := identDistrib_coordinateAndVector_uniform n
+  have hdist :
+      IdentDistrib (projectedSpecialX n) (coordinateAndVectorSpecialX n)
+        (disjointCondMeasure n)
+        ((uniformCoordinateAndVector n :
+          ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+          Measure (Fin n × (Fin n → DisjointCoordinate))) := by
+    simpa [Function.comp_def, specialCoordinate, projectedSpecialX,
+      coordinateAndVectorSpecialX, coordinateXBit] using
+      hbase.comp (Measurable.of_discrete (f := coordinateAndVectorSpecialX n))
+  have hmeasure :=
+    hdist.measure_mem_eq (MeasurableSet.singleton false)
+  have hreal :
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate))).real
+          ((coordinateAndVectorSpecialX n) ⁻¹' {false})) =
+        (disjointCondMeasure n).real ((projectedSpecialX n) ⁻¹' {false}) := by
+    simp [Measure.real, hmeasure]
+  have hreal_projected :
+      (disjointCondMeasure n).real ((projectedSpecialX n) ⁻¹' {false}) =
+        (disjointCondMeasure n).real ((specialX n) ⁻¹' {false}) := by
+    apply MeasureTheory.measureReal_congr
+    filter_upwards [specialX_ae_eq_projectedSpecialX n] with ω hω
+    apply propext
+    change projectedSpecialX n ω = false ↔ specialX n ω = false
+    rw [hω]
+  rw [hreal, hreal_projected, disjointCondMeasure_measureReal_specialX_false]
+
+/-- The clean coordinate-vector model conditioned on `Y_T = false` is a probability measure. -/
+theorem uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure :
+    IsProbabilityMeasure
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+          (coordinateAndVectorSpecialY n) ⁻¹' {false}]) := by
+  apply ProbabilityTheory.cond_isProbabilityMeasure
+  rw [← MeasureTheory.measureReal_ne_zero_iff]
+  rw [uniformCoordinateAndVector_measureReal_specialY_false]
+  norm_num
+
+/-- The clean coordinate-vector model conditioned on `X_T = false` is a probability measure. -/
+theorem uniformCoordinateAndVector_specialXFalse_isProbabilityMeasure :
+    IsProbabilityMeasure
+      (((uniformCoordinateAndVector n :
+        ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+        Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+          (coordinateAndVectorSpecialX n) ⁻¹' {false}]) := by
+  apply ProbabilityTheory.cond_isProbabilityMeasure
+  rw [← MeasureTheory.measureReal_ne_zero_iff]
+  rw [uniformCoordinateAndVector_measureReal_specialX_false]
+  norm_num
+
+/-- The clean coordinate-vector model conditioned on `Y_T = false`. -/
+noncomputable def uniformCoordinateAndVectorSpecialYFalseMeasure :
+    Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+  (((uniformCoordinateAndVector n :
+    ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+    Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+      (coordinateAndVectorSpecialY n) ⁻¹' {false}]
+  )
+
+/-- The clean coordinate-vector model conditioned on `X_T = false`. -/
+noncomputable def uniformCoordinateAndVectorSpecialXFalseMeasure :
+    Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+  (((uniformCoordinateAndVector n :
+    ProbabilityMeasure (Fin n × (Fin n → DisjointCoordinate))) :
+    Measure (Fin n × (Fin n → DisjointCoordinate)))[|
+      (coordinateAndVectorSpecialX n) ⁻¹' {false}]
+  )
+
+/-- The Alice-side extra-conditioning zero-information target can be computed on the clean
+coordinate-vector model conditioned on `Y_T = false`. -/
+theorem
+    condMutualInfo_alice_extra_eq_coordinate :
+    I[specialX n : firstConditioning n|coarseConditioning n;disjointSpecialYFalseMeasure n] =
+      I[coordinateAndVectorSpecialX n : coordinateAndVectorFirstConditioning n|
+        coordinateAndVectorCoarseConditioning n;
+        uniformCoordinateAndVectorSpecialYFalseMeasure n] := by
+  let μY : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    uniformCoordinateAndVectorSpecialYFalseMeasure n
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  haveI : IsProbabilityMeasure μY := by
+    simpa [μY, uniformCoordinateAndVectorSpecialYFalseMeasure] using
+      uniformCoordinateAndVector_specialYFalse_isProbabilityMeasure n
+  have hcoord := identDistrib_coordinateAndVector_disjointSpecialYFalse n
+  have hXYZ :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          (coordinateAndVectorSpecialX n (ω.T, disjointCoordinateVector n ω),
+            coordinateAndVectorFirstConditioning n (ω.T, disjointCoordinateVector n ω),
+            coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω)))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (coordinateAndVectorSpecialX n z,
+            coordinateAndVectorFirstConditioning n z,
+            coordinateAndVectorCoarseConditioning n z))
+        (disjointSpecialYFalseMeasure n)
+        μY := by
+    simpa [μY, Function.comp_def] using
+      hcoord.comp (Measurable.of_discrete
+        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (coordinateAndVectorSpecialX n z,
+            coordinateAndVectorFirstConditioning n z,
+            coordinateAndVectorCoarseConditioning n z)))
+  have hprojected :
+      I[(fun ω : HardSample n =>
+          coordinateAndVectorSpecialX n (ω.T, disjointCoordinateVector n ω)) :
+        (fun ω : HardSample n =>
+          coordinateAndVectorFirstConditioning n (ω.T, disjointCoordinateVector n ω))|
+        (fun ω : HardSample n =>
+          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
+        disjointSpecialYFalseMeasure n] =
+      I[coordinateAndVectorSpecialX n : coordinateAndVectorFirstConditioning n|
+        coordinateAndVectorCoarseConditioning n;μY] :=
+    ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+      (μ := disjointSpecialYFalseMeasure n) (μ' := μY)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      hXYZ
+  have hactual :
+      I[specialX n : firstConditioning n|coarseConditioning n;disjointSpecialYFalseMeasure n] =
+      I[(fun ω : HardSample n =>
+          coordinateAndVectorSpecialX n (ω.T, disjointCoordinateVector n ω)) :
+        (fun ω : HardSample n =>
+          coordinateAndVectorFirstConditioning n (ω.T, disjointCoordinateVector n ω))|
+        (fun ω : HardSample n =>
+          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
+        disjointSpecialYFalseMeasure n] :=
+    ProbabilityTheory.condMutualInfo_congr_ae
+      (μ := disjointSpecialYFalseMeasure n)
+      (X := specialX n) (Y := firstConditioning n) (Z := coarseConditioning n)
+      (X' := fun ω : HardSample n =>
+        coordinateAndVectorSpecialX n (ω.T, disjointCoordinateVector n ω))
+      (Y' := fun ω : HardSample n =>
+        coordinateAndVectorFirstConditioning n (ω.T, disjointCoordinateVector n ω))
+      (Z' := fun ω : HardSample n =>
+        coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω))
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (specialX_ae_eq_coordinateAndVectorSpecialX_disjointSpecialYFalse n)
+      (firstConditioning_ae_eq_coordinateAndVectorFirstConditioning_disjointSpecialYFalse n)
+      (coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialYFalse n)
+  exact hactual.trans (by simpa [μY] using hprojected)
+
+/-- The Bob-side extra-conditioning zero-information target can be computed on the clean
+coordinate-vector model conditioned on `X_T = false`. -/
+theorem
+    condMutualInfo_bob_extra_eq_coordinate :
+    I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
+      I[coordinateAndVectorSpecialY n : coordinateAndVectorSecondConditioning n|
+        coordinateAndVectorCoarseConditioning n;
+        uniformCoordinateAndVectorSpecialXFalseMeasure n] := by
+  let μX : Measure (Fin n × (Fin n → DisjointCoordinate)) :=
+    uniformCoordinateAndVectorSpecialXFalseMeasure n
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  haveI : IsProbabilityMeasure μX := by
+    simpa [μX, uniformCoordinateAndVectorSpecialXFalseMeasure] using
+      uniformCoordinateAndVector_specialXFalse_isProbabilityMeasure n
+  have hcoord := identDistrib_coordinateAndVector_disjointSpecialXFalse n
+  have hXYZ :
+      IdentDistrib
+        (fun ω : HardSample n =>
+          (coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω),
+            coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω),
+            coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω)))
+        (fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (coordinateAndVectorSpecialY n z,
+            coordinateAndVectorSecondConditioning n z,
+            coordinateAndVectorCoarseConditioning n z))
+        (disjointSpecialXFalseMeasure n)
+        μX := by
+    simpa [μX, Function.comp_def] using
+      hcoord.comp (Measurable.of_discrete
+        (f := fun z : Fin n × (Fin n → DisjointCoordinate) =>
+          (coordinateAndVectorSpecialY n z,
+            coordinateAndVectorSecondConditioning n z,
+            coordinateAndVectorCoarseConditioning n z)))
+  have hprojected :
+      I[(fun ω : HardSample n =>
+          coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω)) :
+        (fun ω : HardSample n =>
+          coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))|
+        (fun ω : HardSample n =>
+          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
+        disjointSpecialXFalseMeasure n] =
+      I[coordinateAndVectorSpecialY n : coordinateAndVectorSecondConditioning n|
+        coordinateAndVectorCoarseConditioning n;μX] :=
+    ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+      (μ := disjointSpecialXFalseMeasure n) (μ' := μX)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      hXYZ
+  have hactual :
+      I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
+      I[(fun ω : HardSample n =>
+          coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω)) :
+        (fun ω : HardSample n =>
+          coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))|
+        (fun ω : HardSample n =>
+          coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω));
+        disjointSpecialXFalseMeasure n] :=
+    ProbabilityTheory.condMutualInfo_congr_ae
+      (μ := disjointSpecialXFalseMeasure n)
+      (X := specialY n) (Y := secondConditioning n) (Z := coarseConditioning n)
+      (X' := fun ω : HardSample n =>
+        coordinateAndVectorSpecialY n (ω.T, disjointCoordinateVector n ω))
+      (Y' := fun ω : HardSample n =>
+        coordinateAndVectorSecondConditioning n (ω.T, disjointCoordinateVector n ω))
+      (Z' := fun ω : HardSample n =>
+        coordinateAndVectorCoarseConditioning n (ω.T, disjointCoordinateVector n ω))
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (specialY_ae_eq_coordinateAndVectorSpecialY_disjointSpecialXFalse n)
+      (secondConditioning_ae_eq_coordinateAndVectorSecondConditioning_disjointSpecialXFalse n)
+      (coarseConditioning_ae_eq_coordinateAndVectorCoarseConditioning_disjointSpecialXFalse n)
+  exact hactual.trans (by simpa [μX] using hprojected)
+
 /-- Probabilities under the hard input distribution can be computed on the explicit hard
 sample space by taking preimages under `input`. -/
 theorem inputDist_measureReal_eq_preimage (S : Set (Set (Fin n) × Set (Fin n))) :
@@ -2788,6 +3621,321 @@ noncomputable def zVariable
     (ω : HardSample n) :
     p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)) :=
   (message n p ω, specialCoordinate n ω, xBeforeSpecial n ω, yAfterSpecial n ω)
+
+/-- `zVariable` is the protocol transcript bundled with the coarse Claim 6.21 conditioning
+data `(T, X_<T, Y_>T)`. -/
+theorem zVariable_eq_message_coarseConditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (ω : HardSample n) :
+    zVariable n p ω = (message n p ω, coarseConditioning n ω) :=
+  rfl
+
+/-- The non-message component of `zVariable` is the coarse Claim 6.21 conditioning data. -/
+theorem coarseConditioning_eq_snd_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (ω : HardSample n) :
+    coarseConditioning n ω = (zVariable n p ω).2 :=
+  rfl
+
+/-- Alice's coarse information term under the disjoint law conditioned on `Y_T = false`, matching
+the conditioning used in the Claim 6.21 Pinsker step. -/
+noncomputable def firstCoarseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialX n : message n p | coarseConditioning n ; disjointSpecialYFalseMeasure n]
+
+/-- Bob's coarse information term under the disjoint law conditioned on `X_T = false`, matching
+the conditioning used in the Claim 6.21 Pinsker step. -/
+noncomputable def secondCoarseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialY n : message n p | coarseConditioning n ; disjointSpecialXFalseMeasure n]
+
+/-- Alice's fine textbook conditioning term after additionally conditioning on `Y_T = false`. -/
+noncomputable def firstFineYFalseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialX n : message n p | firstConditioning n ; disjointSpecialYFalseMeasure n]
+
+/-- Bob's fine textbook conditioning term after additionally conditioning on `X_T = false`. -/
+noncomputable def secondFineXFalseInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialY n : message n p | secondConditioning n ; disjointSpecialXFalseMeasure n]
+
+/-- Alice's coarse information term is nonnegative. -/
+theorem firstCoarseInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ firstCoarseInfoTerm n p := by
+  rw [firstCoarseInfoTerm]
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointSpecialYFalseMeasure n)
+    (X := specialX n) (Y := message n p) (Z := coarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- Bob's coarse information term is nonnegative. -/
+theorem secondCoarseInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ secondCoarseInfoTerm n p := by
+  rw [secondCoarseInfoTerm]
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointSpecialXFalseMeasure n)
+    (X := specialY n) (Y := message n p) (Z := coarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- Alice's fine `Y_T = false` information term is nonnegative. -/
+theorem firstFineYFalseInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ firstFineYFalseInfoTerm n p := by
+  rw [firstFineYFalseInfoTerm]
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointSpecialYFalseMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- Bob's fine `X_T = false` information term is nonnegative. -/
+theorem secondFineXFalseInfoTerm_nonneg
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    0 ≤ secondFineXFalseInfoTerm n p := by
+  rw [secondFineXFalseInfoTerm]
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_nonneg
+    (μ := disjointSpecialXFalseMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+
+/-- Alice's coarse information term as a finite sum over the coarse conditioning values. -/
+theorem firstCoarseInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstCoarseInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointSpecialYFalseMeasure n).real ((coarseConditioning n) ⁻¹' {c}) *
+          I[specialX n : message n p ;
+            (disjointSpecialYFalseMeasure n)[|coarseConditioning n ← c]] := by
+  rw [firstCoarseInfoTerm]
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointSpecialYFalseMeasure n)
+    (X := specialX n) (Y := message n p) (Z := coarseConditioning n)
+    Measurable.of_discrete
+
+/-- Bob's coarse information term as a finite sum over the coarse conditioning values. -/
+theorem secondCoarseInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondCoarseInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointSpecialXFalseMeasure n).real ((coarseConditioning n) ⁻¹' {c}) *
+          I[specialY n : message n p ;
+            (disjointSpecialXFalseMeasure n)[|coarseConditioning n ← c]] := by
+  rw [secondCoarseInfoTerm]
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointSpecialXFalseMeasure n)
+    (X := specialY n) (Y := message n p) (Z := coarseConditioning n)
+    Measurable.of_discrete
+
+/-- Alice's fine `Y_T = false` information term as a finite sum over textbook conditioning
+values. -/
+theorem firstFineYFalseInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    firstFineYFalseInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointSpecialYFalseMeasure n).real ((firstConditioning n) ⁻¹' {c}) *
+          I[specialX n : message n p ;
+            (disjointSpecialYFalseMeasure n)[|firstConditioning n ← c]] := by
+  rw [firstFineYFalseInfoTerm]
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointSpecialYFalseMeasure n)
+    (X := specialX n) (Y := message n p) (Z := firstConditioning n)
+    Measurable.of_discrete
+
+/-- Bob's fine `X_T = false` information term as a finite sum over textbook conditioning
+values. -/
+theorem secondFineXFalseInfoTerm_eq_sum_conditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    secondFineXFalseInfoTerm n p =
+      ∑ c : Fin n × (Fin n → Bool) × (Fin n → Bool),
+        (disjointSpecialXFalseMeasure n).real ((secondConditioning n) ⁻¹' {c}) *
+          I[specialY n : message n p ;
+            (disjointSpecialXFalseMeasure n)[|secondConditioning n ← c]] := by
+  rw [secondFineXFalseInfoTerm]
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  exact ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := disjointSpecialXFalseMeasure n)
+    (X := specialY n) (Y := message n p) (Z := secondConditioning n)
+    Measurable.of_discrete
+
+/-- If Alice's fine conditioning carries no additional information about `X_T` beyond the coarse
+Claim 6.21 conditioning, then the coarse Alice information term is bounded by the fine one. -/
+theorem firstCoarseInfoTerm_le_firstFineYFalseInfoTerm_of_condMutualInfo_eq_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hzero :
+      I[specialX n : firstConditioning n|coarseConditioning n;disjointSpecialYFalseMeasure n] =
+        0) :
+    firstCoarseInfoTerm n p ≤ firstFineYFalseInfoTerm n p := by
+  letI := disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  have hcoarse :
+      coarseConditioning n = coarseFromFirstConditioning n ∘ firstConditioning n := by
+    funext ω
+    exact coarseConditioning_eq_coarseFromFirstConditioning n ω
+  have hzero' :
+      I[specialX n : firstConditioning n|
+        coarseFromFirstConditioning n ∘ firstConditioning n;disjointSpecialYFalseMeasure n] =
+        0 := by
+    simpa [hcoarse] using hzero
+  have hle :=
+    ProbabilityTheory.condMutualInfo_comp_conditioning_le_of_condMutualInfo_eq_zero
+      (μ := disjointSpecialYFalseMeasure n)
+      (X := specialX n) (Y := message n p) (W := firstConditioning n)
+      (f := coarseFromFirstConditioning n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete hzero'
+  simpa [firstCoarseInfoTerm, firstFineYFalseInfoTerm, hcoarse] using hle
+
+/-- If Bob's fine conditioning carries no additional information about `Y_T` beyond the coarse
+Claim 6.21 conditioning, then the coarse Bob information term is bounded by the fine one. -/
+theorem secondCoarseInfoTerm_le_secondFineXFalseInfoTerm_of_condMutualInfo_eq_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hzero :
+      I[specialY n : secondConditioning n|coarseConditioning n;disjointSpecialXFalseMeasure n] =
+        0) :
+    secondCoarseInfoTerm n p ≤ secondFineXFalseInfoTerm n p := by
+  letI := disjointSpecialXFalseMeasure_isProbabilityMeasure n
+  have hcoarse :
+      coarseConditioning n = coarseFromSecondConditioning n ∘ secondConditioning n := by
+    funext ω
+    exact coarseConditioning_eq_coarseFromSecondConditioning n ω
+  have hzero' :
+      I[specialY n : secondConditioning n|
+        coarseFromSecondConditioning n ∘ secondConditioning n;disjointSpecialXFalseMeasure n] =
+        0 := by
+    simpa [hcoarse] using hzero
+  have hle :=
+    ProbabilityTheory.condMutualInfo_comp_conditioning_le_of_condMutualInfo_eq_zero
+      (μ := disjointSpecialXFalseMeasure n)
+      (X := specialY n) (Y := message n p) (W := secondConditioning n)
+      (f := coarseFromSecondConditioning n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete hzero'
+  simpa [secondCoarseInfoTerm, secondFineXFalseInfoTerm, hcoarse] using hle
+
+/-- A `Z` fiber is the intersection of its transcript fiber and its coarse-conditioning fiber. -/
+theorem zVariable_preimage_singleton_eq_message_inter_coarseConditioning
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (zVariable n p) ⁻¹' {z} =
+      ((message n p) ⁻¹' {z.1}) ∩ ((coarseConditioning n) ⁻¹' {z.2}) := by
+  ext ω
+  rcases z with ⟨m, c⟩
+  simp [zVariable_eq_message_coarseConditioning, Prod.ext_iff]
+
+open Classical in
+/-- The mass of a `Z` fiber under the Alice-side conditioned measure, with the `3 / 2` scaling
+from `Pr_D[Y_T = false] = 2 / 3` made explicit. -/
+theorem disjointSpecialYFalseMeasure_measureReal_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) =
+      (3 / 2 : ℝ) *
+        (disjointCondMeasure n).real
+          (((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})) := by
+  rw [disjointSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [disjointCondMeasure_measureReal_specialY_false]
+  ring
+
+open Classical in
+/-- The mass of a `Z` fiber under the Bob-side conditioned measure, with the `3 / 2` scaling
+from `Pr_D[X_T = false] = 2 / 3` made explicit. -/
+theorem disjointSpecialXFalseMeasure_measureReal_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialXFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) =
+      (3 / 2 : ℝ) *
+        (disjointCondMeasure n).real
+          (((specialX n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})) := by
+  rw [disjointSpecialXFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [disjointCondMeasure_measureReal_specialX_false]
+  ring
+
+open Classical in
+/-- The Alice fine-conditioning fiber mass under `D ∧ Y_T = false`, with the `3 / 2` scaling
+from `Pr_D[Y_T = false] = 2 / 3` made explicit. -/
+theorem disjointSpecialYFalseMeasure_measureReal_firstConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (disjointSpecialYFalseMeasure n).real ((firstConditioning n) ⁻¹' {c}) =
+      (3 / 2 : ℝ) *
+        (disjointCondMeasure n).real
+          (((specialY n) ⁻¹' {false}) ∩ ((firstConditioning n) ⁻¹' {c})) := by
+  rw [disjointSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [disjointCondMeasure_measureReal_specialY_false]
+  ring
+
+open Classical in
+/-- The Bob fine-conditioning fiber mass under `D ∧ X_T = false`, with the `3 / 2` scaling
+from `Pr_D[X_T = false] = 2 / 3` made explicit. -/
+theorem disjointSpecialXFalseMeasure_measureReal_secondConditioning
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (disjointSpecialXFalseMeasure n).real ((secondConditioning n) ⁻¹' {c}) =
+      (3 / 2 : ℝ) *
+        (disjointCondMeasure n).real
+          (((specialX n) ⁻¹' {false}) ∩ ((secondConditioning n) ⁻¹' {c})) := by
+  rw [disjointSpecialXFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [disjointCondMeasure_measureReal_specialX_false]
+  ring
+
+open Classical in
+/-- Conditioning first on `Y_T = false` under `D`, then on a first-conditioning value, is the
+same as conditioning under `D` on the intersection of those events. -/
+theorem disjointSpecialYFalseMeasure_cond_firstConditioning_eq_cond_inter
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (disjointSpecialYFalseMeasure n)[|firstConditioning n ← c] =
+      (disjointCondMeasure n)[|
+        ((specialY n) ⁻¹' {false}) ∩ ((firstConditioning n) ⁻¹' {c})] := by
+  rw [disjointSpecialYFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
+
+open Classical in
+/-- Conditioning first on `X_T = false` under `D`, then on a second-conditioning value, is the
+same as conditioning under `D` on the intersection of those events. -/
+theorem disjointSpecialXFalseMeasure_cond_secondConditioning_eq_cond_inter
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (disjointSpecialXFalseMeasure n)[|secondConditioning n ← c] =
+      (disjointCondMeasure n)[|
+        ((specialX n) ⁻¹' {false}) ∩ ((secondConditioning n) ⁻¹' {c})] := by
+  rw [disjointSpecialXFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
+
+open Classical in
+/-- Conditioning first on `Y_T = false` under `D`, then on a `Z` value, is the same as
+conditioning under `D` on the intersection of those events. -/
+theorem disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] =
+      (disjointCondMeasure n)[|
+        ((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})] := by
+  rw [disjointSpecialYFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
+
+open Classical in
+/-- Conditioning first on `X_T = false` under `D`, then on a `Z` value, is the same as
+conditioning under `D` on the intersection of those events. -/
+theorem disjointSpecialXFalseMeasure_cond_zVariable_eq_cond_inter
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialXFalseMeasure n)[|zVariable n p ← z] =
+      (disjointCondMeasure n)[|
+        ((specialX n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})] := by
+  rw [disjointSpecialXFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
 
 /-- The hard-distribution measure conditioned on a `zVariable` fiber. -/
 noncomputable def zFiberMeasure

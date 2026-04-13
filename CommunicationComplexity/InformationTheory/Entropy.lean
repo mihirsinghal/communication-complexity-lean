@@ -16,7 +16,7 @@ It also provides notations such as `H[X]`, `H[X ; μ]`, `H[X | Y]`, and `I[X : Y
 
 namespace ProbabilityTheory
 
-open MeasureTheory
+open MeasureTheory Measure Set
 
 variable {Ω S : Type*} [MeasurableSpace Ω] [MeasurableSpace S]
 
@@ -126,6 +126,44 @@ theorem condMutualInfo_conditioning_prod_function_eq
   simpa [Function.comp_def] using
     condMutualInfo_of_inj hX hY hZ μ
       (f := fun z => (z, f z)) (fun _ _ h => (Prod.ext_iff.1 h).1)
+
+/-- If a coarse conditioning variable is a deterministic function of a finer one, and the finer
+conditioning variable carries no conditional information about `X` beyond the coarse variable,
+then the finer conditioning can only increase `I[X : Y | -]`. -/
+theorem condMutualInfo_comp_conditioning_le_of_condMutualInfo_eq_zero
+    {W : Ω → V} (f : V → U)
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange W]
+    (hX : Measurable X) (hY : Measurable Y) (hW : Measurable W) (hf : Measurable f)
+    (hzero : I[X : W|f ∘ W;μ] = 0) :
+    I[X : Y|f ∘ W;μ] ≤ I[X : Y|W;μ] := by
+  let Z : Ω → U := f ∘ W
+  have hZ : Measurable Z := hf.comp hW
+  have hWZ :
+      H[X | (fun ω => (W ω, Z ω)) ; μ] = H[X | W ; μ] := by
+    let g : V → V × U := fun w => (w, f w)
+    have hg : Function.Injective g := fun a b h => (Prod.ext_iff.1 h).1
+    have hgW : Measurable (g ∘ W) := Measurable.of_discrete.comp hW
+    simpa [g, Z, Function.comp_def] using
+      condEntropy_of_injective' μ hX hW g hg hgW
+  have hfirst : H[X | Z ; μ] = H[X | W ; μ] := by
+    have hzero' : I[X : W | Z ; μ] = 0 := by
+      simpa [Z] using hzero
+    rw [condMutualInfo_eq' hX hW hZ μ, hWZ] at hzero'
+    linarith
+  have hsecond :
+      H[X | (fun ω => (Y ω, W ω)) ; μ] ≤
+        H[X | (fun ω => (Y ω, Z ω)) ; μ] := by
+    let g : T × V → T × U := fun yw => (yw.1, f yw.2)
+    have hg : Measurable g := Measurable.of_discrete
+    simpa [g, Z, Function.comp_def] using
+      condEntropy_comp_ge (μ := μ)
+        (X := fun ω => (Y ω, W ω)) (Y := X)
+        (hX := hY.prodMk hW) (hY := hX) g
+  have hmain : I[X : Y | Z ; μ] ≤ I[X : Y | W ; μ] := by
+    rw [condMutualInfo_eq' hX hY hZ μ,
+      condMutualInfo_eq' hX hY hW μ]
+    linarith
+  simpa [Z, Function.comp_def] using hmain
 
 /-- Chain rule for conditional mutual information, splitting a pair on the left. -/
 theorem condMutualInfo_prod_left_eq_add
@@ -283,5 +321,49 @@ theorem IdentDistrib.condMutualInfo_eq
   rw [IdentDistrib.condEntropy_eq hX hZ hX' hZ' hXZ,
     IdentDistrib.condEntropy_eq hY hZ hY' hZ' hYZ,
     IdentDistrib.condEntropy_eq (hX.prodMk hY) hZ (hX'.prodMk hY') hZ' hXYZ]
+
+variable {A B : Type*} [MeasurableSpace A] [MeasurableSpace B]
+
+/-- If `(X, Y)` and `(X', Y')` have the same joint law, then conditioning on the same measurable
+event in the `Y`/`Y'` coordinate preserves the law of `X`/`X'`. This is the heterogeneous-codomain
+version of `ProbabilityTheory.IdentDistrib.cond`. -/
+theorem IdentDistrib.cond_of_pair
+    {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
+    {X : Ω → A} {Y : Ω → B} {X' : Ω' → A} {Y' : Ω' → B}
+    {s : Set B}
+    (hs : MeasurableSet s) (hY : Measurable Y) (hY' : Measurable Y')
+    (h : IdentDistrib (fun ω => (X ω, Y ω)) (fun ω => (X' ω, Y' ω)) μ μ') :
+    IdentDistrib X X' (μ[|Y ⁻¹' s]) (μ'[|Y' ⁻¹' s]) where
+  aemeasurable_fst :=
+    (measurable_fst.aemeasurable.comp_aemeasurable h.aemeasurable_fst).mono_ac
+      cond_absolutelyContinuous
+  aemeasurable_snd :=
+    (measurable_fst.aemeasurable.comp_aemeasurable h.aemeasurable_snd).mono_ac
+      cond_absolutelyContinuous
+  map_eq := by
+    ext t ht
+    have hXae : AEMeasurable X μ := by
+      simpa only [Function.comp_def] using
+        measurable_fst.aemeasurable.comp_aemeasurable h.aemeasurable_fst
+    have hX'ae : AEMeasurable X' μ' := by
+      simpa only [Function.comp_def] using
+        measurable_fst.aemeasurable.comp_aemeasurable h.aemeasurable_snd
+    rw [map_apply₀
+        (hXae.mono_ac cond_absolutelyContinuous)
+        ht.nullMeasurableSet,
+      map_apply₀
+        (hX'ae.mono_ac cond_absolutelyContinuous)
+        ht.nullMeasurableSet,
+      cond_apply (hY' hs), cond_apply (hY hs)]
+    congr
+    · simpa only [
+        map_apply₀ (h.comp measurable_snd).aemeasurable_fst hs.nullMeasurableSet,
+        map_apply₀ (h.comp measurable_snd).aemeasurable_snd hs.nullMeasurableSet] using
+        congr_fun (congr_arg (⇑) (h.comp measurable_snd).map_eq) s
+    · rw [inter_comm, inter_comm (Y' ⁻¹' _)]
+      simpa only [
+        map_apply₀ h.aemeasurable_fst (ht.prod hs).nullMeasurableSet,
+        map_apply₀ h.aemeasurable_snd (ht.prod hs).nullMeasurableSet] using
+        congr_fun (congr_arg (⇑) h.map_eq) (t ×ˢ s)
 
 end ProbabilityTheory
