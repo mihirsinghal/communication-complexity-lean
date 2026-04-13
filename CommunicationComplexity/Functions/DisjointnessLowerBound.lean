@@ -4338,6 +4338,13 @@ theorem fixedSpecialInfoSum_le_vectorFullConditionalInfo_of_parts
   rw [fixedSpecialInfoSum, vectorFullConditionalInfo_eq_vectorFirst_add_vectorSecond]
   linarith
 
+/-- Combined fixed-coordinate chain-rule comparison. This is the corrected Lemma 6.20 target; the
+individual one-sided comparisons above are too strong in general. -/
+theorem fixedSpecialInfoSum_le_vectorFullConditionalInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    fixedSpecialInfoSum n p ≤ vectorFullConditionalInfo n p := by
+  sorry
+
 /-- The first special-coordinate information term as a finite sum over its conditioning values. -/
 theorem firstInfoTerm_eq_sum_conditioning
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -4513,6 +4520,30 @@ theorem specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo
   rw [le_div_iff₀ hn_pos]
   nlinarith
 
+/-- Core averaged-coordinate chain-rule comparison on the explicit uniform coordinate-vector
+space. This is the Lemma 6.20/subadditivity input; it should be proved directly rather than via
+the false one-sided inequalities. -/
+theorem mul_pairSpecialInfo_le_vectorFullConditionalInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (n : ℝ) * pairSpecialInfo n p ≤ vectorFullConditionalInfo n p :=
+  mul_pairSpecialInfo_le_vectorFullConditionalInfo_of_fixed_sum n p
+    (mul_pairSpecialInfo_eq_fixedSpecialInfoSum n p)
+    (fixedSpecialInfoSum_le_vectorFullConditionalInfo n p)
+
+/-- Lemma 6.20 chain-rule comparison transported back to the original hard sample space. -/
+theorem mul_specialInfo_le_fullConditionalInfo
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p :=
+  mul_specialInfo_le_fullConditionalInfo_of_pair n p
+    (mul_pairSpecialInfo_le_vectorFullConditionalInfo n p)
+
+/-- Averaged-coordinate information upper bound from the Lemma 6.20 chain-rule comparison. -/
+theorem specialInfo_le_average_info_upper
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ) :=
+  specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p
+    (mul_specialInfo_le_fullConditionalInfo n p)
+
 /-- The total special-coordinate information is nonnegative. -/
 theorem specialInfo_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -4611,252 +4642,169 @@ theorem average_zDistance_sq_le_specialInfo_of_prod_of_average_sq_le_info
   rw [specialInfo]
   nlinarith
 
-/-- Any lower bound on the special-coordinate information gives the intended linear
-communication lower bound once the averaged-coordinate information upper bound is available. -/
-theorem complexity_lower_bound_of_specialInfo_lower_bound_of_average_info_upper
+/-- The explicit full-vector information is bounded by twice the transcript length in bits. -/
+theorem vectorFullConditionalInfo_le_two_mul_complexity_mul_log_two
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    vectorFullConditionalInfo n p ≤ 2 * (p.complexity * Real.log 2) := by
+  rw [← coordinateFullConditionalInfo_eq_vectorFullConditionalInfo,
+    ← fullConditionalInfo_eq_coordinateFullConditionalInfo]
+  exact fullConditionalInfo_le_two_mul_complexity_mul_log_two n p
+
+/-- The remaining Alice KL-sum comparison for the corrected textbook route. The factor `3 / 2`
+comes from comparing the unconditional special-bit law on `Z` fibers with the information term
+conditioned on `Y_T = 0` inside the disjoint event. -/
+theorem sum_xFiberKL_le_three_halves_firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
+      (3 / 2 : ℝ) * firstInfoTerm n p := by
+  sorry
+
+/-- The remaining Bob KL-sum comparison for the corrected textbook route. -/
+theorem sum_yFiberKL_le_three_halves_secondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+      (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
+      (3 / 2 : ℝ) * secondInfoTerm n p := by
+  sorry
+
+/-- Alice one-bit information estimate with the constant loss from the textbook conditioning
+comparison. -/
+theorem two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      (3 / 2 : ℝ) * firstInfoTerm n p :=
+  (two_mul_integral_xDistance_sq_le_sum_xFiberKL n p).trans
+    (sum_xFiberKL_le_three_halves_firstInfoTerm n p)
+
+/-- Bob one-bit information estimate with the constant loss from the textbook conditioning
+comparison. -/
+theorem two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+      (3 / 2 : ℝ) * secondInfoTerm n p :=
+  (two_mul_integral_yDistance_sq_le_sum_yFiberKL n p).trans
+    (sum_yFiberKL_le_three_halves_secondInfoTerm n p)
+
+/-- The textbook one-bit information estimates bound the squared averaged `Z`-fiber distance by
+`3 / 2` times the special-coordinate information. -/
+theorem average_zDistance_sq_le_three_halves_specialInfo_of_prod_of_average_sq_le_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        (3 / 2 : ℝ) * firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        (3 / 2 : ℝ) * secondInfoTerm n p) :
+    (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+      (3 / 2 : ℝ) * specialInfo n p := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hz_le :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ≤
+        (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_zDistance_le_integral_xDistance_add_integral_yDistance_of_prod n p hprod
+  have hx_jensen :
+      (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+    simpa [μ] using
+      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
+        (fun ω => xDistance n p (zVariable n p ω))
+  have hy_jensen :
+      (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n) := by
+    simpa [μ] using
+      FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq μ
+        (fun ω => yDistance n p (zVariable n p ω))
+  have hz_nonneg :
+      0 ≤ ∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => zDistance_nonneg n p (zVariable n p ω)
+  have hx_nonneg :
+      0 ≤ ∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => xDistance_nonneg n p (zVariable n p ω)
+  have hy_nonneg :
+      0 ≤ ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n) :=
+    integral_nonneg fun ω => yDistance_nonneg n p (zVariable n p ω)
+  have hz_sq_le_sum_sq :
+      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
+    nlinarith
+  have hsum_sq :
+      ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) +
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 +
+          2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
+    nlinarith [
+      sq_nonneg
+        ((∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) -
+          ∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n))]
+  have hx_sq_info :
+      2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        (3 / 2 : ℝ) * firstInfoTerm n p := by
+    nlinarith
+  have hy_sq_info :
+      2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        (3 / 2 : ℝ) * secondInfoTerm n p := by
+    nlinarith
+  have hsum_info :
+      2 * (∫ ω, xDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 +
+          2 * (∫ ω, yDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
+        (3 / 2 : ℝ) * specialInfo n p := by
+    rw [specialInfo]
+    linarith
+  exact hz_sq_le_sum_sq.trans (hsum_sq.trans hsum_info)
+
+/-- Deterministic lower-bound wrapper for the corrected textbook route with the `3 / 2` loss in
+the one-bit KL comparison. -/
+theorem complexity_lower_bound_of_three_halves_info
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (hupper :
       specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    {δ : ℝ} (hδ : δ ≤ specialInfo n p) :
-    δ * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
-  have hinfo := hδ.trans hupper
-  have hn_pos : 0 < (n : ℝ) := by
-    exact_mod_cast n.pos
-  have hlog_pos : 0 < 2 * Real.log 2 := by
-    positivity
-  rw [div_le_iff₀ hlog_pos]
-  rw [le_div_iff₀ hn_pos] at hinfo
-  nlinarith
-
-/-- Error at most `1 / 32`, together with the future Pinsker/chain-rule estimate
-`(average zDistance)^2 ≤ specialInfo`, gives the concrete information lower bound. -/
-theorem one_over_1024_sq_lt_specialInfo_of_average_zDistance_sq_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (havg_info :
-      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        specialInfo n p)
+    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (hxinfo :
+      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        (3 / 2 : ℝ) * firstInfoTerm n p)
+    (hyinfo :
+      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
+        (3 / 2 : ℝ) * secondInfoTerm n p)
     (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    (1 / 1024 : ℝ) ^ 2 < specialInfo n p := by
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) ≤ p.complexity := by
+  have havg_info :=
+    average_zDistance_sq_le_three_halves_specialInfo_of_prod_of_average_sq_le_info
+      n p hprod hxinfo hyinfo
   have havg_lt :=
     one_over_1024_lt_average_zDistance_of_error_le_one_thirtytwo n p herror
   have hsq_lt :
       (1 / 1024 : ℝ) ^ 2 <
-        (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 :=
-    by nlinarith
-  exact hsq_lt.trans_le havg_info
-
-/-- Final deterministic lower-bound shell: once the Pinsker/chain-rule estimate bounds
-`(average zDistance)^2` by `specialInfo`, and Lemma 6.20 supplies the averaged-coordinate entropy
-upper bound, the protocol has linear communication complexity. -/
-theorem complexity_lower_bound_of_average_zDistance_sq_le_specialInfo_of_average_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hupper :
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (havg_info :
-      (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 ≤
-        specialInfo n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_specialInfo_lower_bound_of_average_info_upper n p hupper
-    (le_of_lt
-      (one_over_1024_sq_lt_specialInfo_of_average_zDistance_sq_le n p havg_info herror))
-
-/-- Deterministic lower-bound wrapper after the product-law, one-bit information/Pinsker
-estimates, and averaged-coordinate information upper bound have been proved. -/
-theorem complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hupper :
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
-      conditionalSpecialPairLaw n p z hz =
-        TVDistance.probabilityMeasureProd
-          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_average_zDistance_sq_le_specialInfo_of_average_info_upper n p hupper
-    (average_zDistance_sq_le_specialInfo_of_prod_of_average_sq_le_info n p hprod hxinfo hyinfo)
-    herror
-
-/-- Variant of `complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper`
-where the product-law bridge is supplied as singleton factorization identities. -/
-theorem complexity_lower_bound_of_singleton_factorization_of_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hupper :
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hfactor : ∀ z
-      (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
-      (b : Bool × Bool),
-      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
-          Measure (Bool × Bool)).real {b} =
-        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
-          Measure Bool).real {b.1} *
-        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
-          Measure Bool).real {b.2})
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
-  refine complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
-    n p hupper ?_ hxinfo hyinfo herror
-  intro z hz
-  exact conditionalSpecialPairLaw_eq_prod_of_singleton_factorization n p z hz (hfactor z hz)
-
-/-- Variant of `complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper`
-where the product-law bridge is supplied in cross-multiplied volume form on the `Z=z` fibers. -/
-theorem complexity_lower_bound_of_fiber_volume_factorization_of_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hupper :
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hfactor : ∀ z
-      (_hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
-      (b : Bool × Bool),
-      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
-          (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
-        (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
-          (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})))
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
-  refine complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
-    n p hupper ?_ hxinfo hyinfo herror
-  intro z hz
-  exact conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz (hfactor z hz)
-
-/-- Contrapositive form of the deterministic lower-bound wrapper: a protocol with communication
-below the linear threshold must have hard-distribution error strictly above `1 / 32`. -/
-theorem distributionalError_gt_one_thirtytwo_of_complexity_lt_linear_bound
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hupper :
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hprod : ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
-      conditionalSpecialPairLaw n p z hz =
-        TVDistance.probabilityMeasureProd
-          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    {k : ℕ}
-    (hcomplexity : p.complexity ≤ k)
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2)) :
-    1 / 32 < p.distributionalError (inputDist n) (disjointness n) := by
-  by_contra hnot
-  have herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32 :=
-    le_of_not_gt hnot
-  have hlower :=
-    complexity_lower_bound_of_prod_of_average_sq_le_info_of_average_info_upper
-      n p hupper hprod hxinfo hyinfo herror
-  have hcomplexity_real : (p.complexity : ℝ) ≤ k := by
-    exact_mod_cast hcomplexity
-  linarith
-
-/-- Minimax wrapper for the fixed-error public-coin randomized lower bound. The remaining
-hypotheses are the per-deterministic-protocol information-theoretic estimates from the
-disjointness proof. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hprod : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0),
-      conditionalSpecialPairLaw n p z hz =
-        TVDistance.probabilityMeasureProd
-          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
-  refine PublicCoin.minimax_lower_bound
-    (f := disjointness n) (ε := (1 / 32 : ℝ)) (n := k) (μ := inputDist n) ?_
-  intro p hp
-  exact distributionalError_gt_one_thirtytwo_of_complexity_lt_linear_bound
-    n p (hupper p) (hprod p) (hxinfo p) (hyinfo p) hp hk
-
-/-- Minimax wrapper where the product-law estimate is supplied as singleton factorization on each
-positive-mass `Z` fiber. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_singleton_factorization
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hfactor : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      ∀ z (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
-      (b : Bool × Bool),
-      ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
-          Measure (Bool × Bool)).real {b} =
-        ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
-          Measure Bool).real {b.1} *
-        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
-          Measure Bool).real {b.2})
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
-  refine publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
-    n hk hupper ?_ hxinfo hyinfo
-  intro p z hz
-  exact conditionalSpecialPairLaw_eq_prod_of_singleton_factorization n p z hz (hfactor p z hz)
-
-/-- Minimax wrapper where the product-law estimate is supplied in cross-multiplied volume form
-on each positive-mass `Z` fiber. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_fiber_volume_factorization
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
-    (hfactor : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      ∀ z (_hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
-      (b : Bool × Bool),
-      (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
-          (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b})) =
-        (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {b.1})) *
-          (volume : Measure (HardSample n)).real
-            (((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b.2})))
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
-  refine publicCoin_communicationComplexity_linear_lower_bound_of_information_estimates
-    n hk hupper ?_ hxinfo hyinfo
-  intro p z hz
-  exact conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz
-    (hfactor p z hz)
+        (∫ ω, zDistance n p (zVariable n p ω) ∂(disjointCondMeasure n)) ^ 2 := by
+    nlinarith
+  have hupper' :
+      (3 / 2 : ℝ) * specialInfo n p ≤
+        3 * (p.complexity * Real.log 2) / (n : ℝ) := by
+    calc
+      (3 / 2 : ℝ) * specialInfo n p
+          ≤ (3 / 2 : ℝ) * (2 * (p.complexity * Real.log 2) / (n : ℝ)) := by
+        exact mul_le_mul_of_nonneg_left hupper (by norm_num)
+      _ = 3 * (p.complexity * Real.log 2) / (n : ℝ) := by ring
+  have hmain :
+      (1 / 1024 : ℝ) ^ 2 <
+        3 * (p.complexity * Real.log 2) / (n : ℝ) :=
+    hsq_lt.trans_le (havg_info.trans hupper')
+  have hn_pos : 0 < (n : ℝ) := by
+    exact_mod_cast n.pos
+  have hlog_pos : 0 < 3 * Real.log 2 := by
+    positivity
+  rw [div_le_iff₀ hlog_pos]
+  rw [lt_div_iff₀ hn_pos] at hmain
+  nlinarith
 
 /-- The generated input belongs to the transcript leaf of any deterministic protocol. -/
 theorem input_mem_transcript
@@ -5218,373 +5166,98 @@ theorem fiber_volume_factorization
   field_simp [hN]
   convert hcard_real'
 
-/-- Deterministic lower-bound wrapper after proving the product-law bridge by rectangle switching.
-The remaining hypotheses are the information estimates. -/
-theorem complexity_lower_bound_of_info_upper
+/-- Deterministic lower-bound wrapper for the corrected `3 / 2` one-bit information route, after
+proving the product-law bridge by rectangle switching. -/
+theorem complexity_lower_bound_of_three_halves_info_estimates
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (hupper :
       specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
     (hxinfo :
       2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
+        (3 / 2 : ℝ) * firstInfoTerm n p)
     (hyinfo :
       2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
+        (3 / 2 : ℝ) * secondInfoTerm n p)
     (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity := by
-  refine complexity_lower_bound_of_fiber_volume_factorization_of_info_upper
-    n p hupper ?_ hxinfo hyinfo herror
-  intro z _hz b
-  exact fiber_volume_factorization n p z b
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) ≤ p.complexity := by
+  refine complexity_lower_bound_of_three_halves_info n p hupper ?_ hxinfo hyinfo herror
+  intro z hz
+  exact conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization n p z hz
+    (fun b => fiber_volume_factorization n p z b)
 
-/-- Minimax wrapper after proving the product-law bridge by rectangle switching. The remaining
-hypotheses are the per-deterministic-protocol information estimates. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_info_upper
+/-- Deterministic fixed-error disjointness lower bound from the two `3 / 2` one-bit information
+estimates and the averaged-coordinate information upper bound. The one-bit estimates are
+currently the only `sorry`-backed pieces of this route. -/
+theorem complexity_lower_bound_of_three_halves_info_estimates_proved
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (hupper :
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_three_halves_info_estimates n p hupper
+    (two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm n p)
+    (two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm n p)
+    herror
+
+/-- Deterministic fixed-error disjointness lower bound for the current whole-proof skeleton. -/
+theorem complexity_lower_bound_three_halves
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
+    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) ≤ p.complexity :=
+  complexity_lower_bound_of_three_halves_info_estimates_proved n p
+    (specialInfo_le_average_info_upper n p) herror
+
+/-- Public-coin fixed-error lower bound from the two `3 / 2` one-bit information estimates and
+the averaged-coordinate information upper bound. -/
+theorem publicCoin_lower_bound_of_three_halves_info_estimates
     {k : ℕ}
     (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2))
     (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
       specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ))
     (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
       2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
+        (3 / 2 : ℝ) * firstInfoTerm n p)
     (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
       2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
+        (3 / 2 : ℝ) * secondInfoTerm n p) :
     k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
-  refine publicCoin_communicationComplexity_linear_lower_bound_of_fiber_volume_factorization
-    n hk hupper ?_ hxinfo hyinfo
-  intro p z _hz b
-  exact fiber_volume_factorization n p z b
+  refine PublicCoin.minimax_lower_bound
+    (f := disjointness n) (ε := (1 / 32 : ℝ)) (n := k) (μ := inputDist n) ?_
+  intro p hp
+  by_contra hnot
+  have herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32 :=
+    le_of_not_gt hnot
+  have hlower :=
+    complexity_lower_bound_of_three_halves_info_estimates n p
+      (hupper p) (hxinfo p) (hyinfo p) herror
+  have hcomplexity_real : (p.complexity : ℝ) ≤ k := by
+    exact_mod_cast hp
+  linarith
 
-/-- Deterministic lower-bound wrapper after proving the product-law bridge and reducing the
-averaged-coordinate entropy upper bound to the Lemma 6.20 chain-rule comparison. -/
-theorem complexity_lower_bound_of_chain_rule_and_one_bit_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_info_upper n p
-    (specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p hchain)
-    hxinfo hyinfo herror
-
-/-- Deterministic lower-bound wrapper with the chain-rule comparison stated in projected
-coordinate-vector form. -/
-theorem complexity_lower_bound_of_projected_chain_rule_and_one_bit_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * projectedSpecialInfo n p ≤ projectedFullConditionalInfo n p)
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_one_bit_info n p
-    (mul_specialInfo_le_fullConditionalInfo_of_projected n p hchain)
-    hxinfo hyinfo herror
-
-/-- Deterministic lower-bound wrapper with the chain-rule comparison stated in
-coordinate-vector-only form. -/
-theorem complexity_lower_bound_of_coordinate_chain_rule_and_one_bit_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * coordinateSpecialInfo n p ≤ coordinateFullConditionalInfo n p)
-    (hxinfo :
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo :
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_one_bit_info n p
-    (mul_specialInfo_le_fullConditionalInfo_of_coordinate n p hchain)
-    hxinfo hyinfo herror
-
-/-- Public-coin fixed-error lower-bound wrapper after proving the product-law bridge and reducing
-the averaged-coordinate entropy upper bound to Lemma 6.20. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info
+/-- Public-coin fixed-error disjointness lower bound for the corrected `3 / 2` route, conditional
+on the averaged-coordinate information upper bound. The two one-bit information estimates are
+currently the only `sorry`-backed pieces of this route. -/
+theorem publicCoin_lower_bound_three_halves_of_info_upper
     {k : ℕ}
     (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2))
+    (hupper : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
+      specialInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ)) :
     k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_info_upper n hk
-    (fun p => specialInfo_le_average_info_upper_of_mul_le_fullConditionalInfo n p (hchain p))
-    hxinfo hyinfo
+  publicCoin_lower_bound_of_three_halves_info_estimates n hk hupper
+    (fun p => two_mul_integral_xDistance_sq_le_three_halves_firstInfoTerm n p)
+    (fun p => two_mul_integral_yDistance_sq_le_three_halves_secondInfoTerm n p)
 
-/-- Public-coin fixed-error lower-bound wrapper with the chain-rule comparison stated in
-projected coordinate-vector form. -/
-theorem publicCoin_lower_bound_of_projected_chain_rule_and_one_bit_info
+/-- Headline theorem: public-coin randomized communication complexity of disjointness is linear at
+fixed error `1 / 32`, with the concrete constant used by the current formalization skeleton. -/
+theorem publicCoin_communicationComplexity_disjointness_linear_lower_bound
     {k : ℕ}
     (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * projectedSpecialInfo n p ≤ projectedFullConditionalInfo n p)
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
+      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2)) :
     k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info n hk
-    (fun p => mul_specialInfo_le_fullConditionalInfo_of_projected n p (hchain p))
-    hxinfo hyinfo
-
-/-- Public-coin fixed-error lower-bound wrapper with the chain-rule comparison stated in
-coordinate-vector-only form. -/
-theorem publicCoin_lower_bound_of_coordinate_chain_rule_and_one_bit_info
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * coordinateSpecialInfo n p ≤ coordinateFullConditionalInfo n p)
-    (hxinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        firstInfoTerm n p)
-    (hyinfo : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      2 * (∫ ω, (yDistance n p (zVariable n p ω)) ^ 2 ∂(disjointCondMeasure n)) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info n hk
-    (fun p => mul_specialInfo_le_fullConditionalInfo_of_coordinate n p (hchain p))
-    hxinfo hyinfo
-
-/-- Deterministic lower-bound wrapper after reducing the one-bit estimates to KL-sum
-comparisons. -/
-theorem complexity_lower_bound_of_chain_rule_and_kl_sums
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
-    (hxsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_one_bit_info n p hchain
-    (two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le n p hxsum)
-    (two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le n p hysum)
-    herror
-
-/-- Deterministic lower-bound wrapper after reducing the chain-rule comparison to projected
-coordinate-vector form and the one-bit estimates to KL-sum comparisons. -/
-theorem complexity_lower_bound_of_projected_chain_rule_and_kl_sums
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * projectedSpecialInfo n p ≤ projectedFullConditionalInfo n p)
-    (hxsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_kl_sums n p
-    (mul_specialInfo_le_fullConditionalInfo_of_projected n p hchain)
-    hxsum hysum herror
-
-/-- Deterministic lower-bound wrapper after reducing the chain-rule comparison to
-coordinate-vector-only form and the one-bit estimates to KL-sum comparisons. -/
-theorem complexity_lower_bound_of_coordinate_chain_rule_and_kl_sums
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchain : (n : ℝ) * coordinateSpecialInfo n p ≤ coordinateFullConditionalInfo n p)
-    (hxsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_kl_sums n p
-    (mul_specialInfo_le_fullConditionalInfo_of_coordinate n p hchain)
-    hxsum hysum herror
-
-/-- Deterministic lower-bound wrapper after splitting Lemma 6.20 into the random-coordinate
-averaging identities and the two fixed-coordinate chain-rule inequalities. -/
-theorem complexity_lower_bound_of_fixed_sum_chain_rule_and_kl_sums
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (havgFirst : (n : ℝ) * pairFirstInfoTerm n p = fixedFirstInfoSum n p)
-    (havgSecond : (n : ℝ) * pairSecondInfoTerm n p = fixedSecondInfoSum n p)
-    (hchainFirst : fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
-    (hchainSecond : fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
-    (hxsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_chain_rule_and_kl_sums n p
-    (mul_specialInfo_le_fullConditionalInfo_of_fixed_sum n p
-      (mul_pairSpecialInfo_eq_fixedSpecialInfoSum_of_parts n p havgFirst havgSecond)
-      (fixedSpecialInfoSum_le_vectorFullConditionalInfo_of_parts n p
-        hchainFirst hchainSecond))
-    hxsum hysum herror
-
-/-- Deterministic lower-bound wrapper after proving the random-coordinate averaging identities,
-leaving the two fixed-coordinate chain-rule inequalities and KL-sum comparisons. -/
-theorem complexity_lower_bound_of_fixed_chain_rule_and_kl_sums
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (hchainFirst : fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
-    (hchainSecond : fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
-    (hxsum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum :
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p)
-    (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
-    ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2) ≤ p.complexity :=
-  complexity_lower_bound_of_fixed_sum_chain_rule_and_kl_sums n p
-    (mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
-    (mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
-    hchainFirst hchainSecond hxsum hysum herror
-
-/-- Public-coin fixed-error lower-bound wrapper after reducing the one-bit estimates to KL-sum
-comparisons. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * specialInfo n p ≤ fullConditionalInfo n p)
-    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_one_bit_info n hk hchain
-    (fun p => two_mul_integral_xDistance_sq_le_firstInfoTerm_of_sum_xFiberKL_le n p (hxsum p))
-    (fun p => two_mul_integral_yDistance_sq_le_secondInfoTerm_of_sum_yFiberKL_le n p (hysum p))
-
-/-- Public-coin fixed-error lower-bound wrapper after reducing the chain-rule comparison to
-projected coordinate-vector form and the one-bit estimates to KL-sum comparisons. -/
-theorem publicCoin_communicationComplexity_linear_lower_bound_of_projected_chain_rule_and_kl_sums
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * projectedSpecialInfo n p ≤ projectedFullConditionalInfo n p)
-    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums n hk
-    (fun p => mul_specialInfo_le_fullConditionalInfo_of_projected n p (hchain p))
-    hxsum hysum
-
-/-- Public-coin fixed-error lower-bound wrapper after reducing the chain-rule comparison to
-coordinate-vector-only form and the one-bit estimates to KL-sum comparisons. -/
-theorem publicCoin_lower_bound_of_coordinate_chain_rule_and_kl_sums
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchain : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * coordinateSpecialInfo n p ≤ coordinateFullConditionalInfo n p)
-    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums n hk
-    (fun p => mul_specialInfo_le_fullConditionalInfo_of_coordinate n p (hchain p))
-    hxsum hysum
-
-/-- Public-coin fixed-error lower-bound wrapper after splitting Lemma 6.20 into the
-random-coordinate averaging identities and the fixed-coordinate chain-rule inequalities. -/
-theorem publicCoin_lower_bound_of_fixed_sum_chain_rule_and_kl_sums
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (havgFirst : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * pairFirstInfoTerm n p = fixedFirstInfoSum n p)
-    (havgSecond : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (n : ℝ) * pairSecondInfoTerm n p = fixedSecondInfoSum n p)
-    (hchainFirst : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
-    (hchainSecond : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
-    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_communicationComplexity_linear_lower_bound_of_chain_rule_and_kl_sums n hk
-    (fun p => mul_specialInfo_le_fullConditionalInfo_of_fixed_sum n p
-      (mul_pairSpecialInfo_eq_fixedSpecialInfoSum_of_parts n p (havgFirst p) (havgSecond p))
-      (fixedSpecialInfoSum_le_vectorFullConditionalInfo_of_parts n p
-        (hchainFirst p) (hchainSecond p)))
-    hxsum hysum
-
-/-- Public-coin fixed-error lower-bound wrapper after proving the random-coordinate averaging
-identities, leaving the fixed-coordinate chain-rule inequalities and KL-sum comparisons. -/
-theorem publicCoin_lower_bound_of_fixed_chain_rule_and_kl_sums
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 1024 : ℝ) ^ 2) * (n : ℝ) / (2 * Real.log 2))
-    (hchainFirst : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      fixedFirstInfoSum n p ≤ vectorFirstFullInfo n p)
-    (hchainSecond : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      fixedSecondInfoSum n p ≤ vectorSecondFullInfo n p)
-    (hxsum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * xFiberKL n p z) ≤
-        firstInfoTerm n p)
-    (hysum : ∀ p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool,
-      (∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
-        (disjointCondMeasure n).real ((zVariable n p) ⁻¹' {z}) * yFiberKL n p z) ≤
-        secondInfoTerm n p) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_lower_bound_of_fixed_sum_chain_rule_and_kl_sums n hk
-    (fun p => mul_pairFirstInfoTerm_eq_fixedFirstInfoSum n p)
-    (fun p => mul_pairSecondInfoTerm_eq_fixedSecondInfoSum n p)
-    hchainFirst hchainSecond hxsum hysum
+  publicCoin_lower_bound_three_halves_of_info_upper n hk
+    (fun p => specialInfo_le_average_info_upper n p)
 
 end HardSample
 
