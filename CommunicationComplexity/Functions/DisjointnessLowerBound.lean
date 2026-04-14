@@ -499,6 +499,173 @@ theorem disjoint_X_Y_iff (ω : HardSample n) :
       exact h ⟨by simpa [X, xBit] using hiX, by simpa [Y, yBit] using hiY⟩
     · exact not_xBit_and_yBit_of_ne_special n ω hi ⟨hiX, hiY⟩
 
+/-- The generated disjoint coordinate-pair vector. On samples outside `D`, the special coordinate
+uses the arbitrary default built into `coordinateOfBits`. -/
+def disjointCoordinateVector (ω : HardSample n) : Fin n → DisjointCoordinate :=
+  fun i => if i = ω.T then coordinateOfBits ω.xT ω.yT else ω.other i
+
+/-- On disjoint samples, the generated coordinate vector recovers Alice's input bit at every
+coordinate. -/
+theorem disjointCoordinateVector_xBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (i : Fin n) :
+    (disjointCoordinateVector n ω i).xBit = xBit n ω i := by
+  have hbits : ¬(ω.xT = true ∧ ω.yT = true) := by
+    simpa [disjointEvent, disjoint_X_Y_iff] using hω
+  by_cases hi : i = ω.T
+  · subst i
+    simp [disjointCoordinateVector, coordinateOfBits_xBit hbits, xBit]
+  · simp [disjointCoordinateVector, xBit, hi]
+
+/-- On disjoint samples, the generated coordinate vector recovers Bob's input bit at every
+coordinate. -/
+theorem disjointCoordinateVector_yBit_of_mem_disjointEvent
+    {ω : HardSample n} (hω : ω ∈ disjointEvent n) (i : Fin n) :
+    (disjointCoordinateVector n ω i).yBit = yBit n ω i := by
+  have hbits : ¬(ω.xT = true ∧ ω.yT = true) := by
+    simpa [disjointEvent, disjoint_X_Y_iff] using hω
+  by_cases hi : i = ω.T
+  · subst i
+    simp [disjointCoordinateVector, coordinateOfBits_yBit hbits, yBit]
+  · simp [disjointCoordinateVector, yBit, hi]
+
+/-- The `other` value at the special coordinate is ignored by the generated input. -/
+def ignoredCoordinate (ω : HardSample n) : DisjointCoordinate :=
+  ω.other ω.T
+
+/-- Coordinates for the conditioned-on-disjointness sample space: the special coordinate, the
+generated disjoint coordinate-pair vector, and the ignored `other` value at the special
+coordinate. -/
+def disjointModel (ω : HardSample n) :
+    Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate :=
+  (ω.T, disjointCoordinateVector n ω, ignoredCoordinate n ω)
+
+private def disjointEventEquiv :
+    {ω : HardSample n // ω ∈ disjointEvent n} ≃
+      Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate where
+  toFun ω := disjointModel n ω.1
+  invFun p :=
+    ⟨{ T := p.1
+       xT := (p.2.1 p.1).xBit
+       yT := (p.2.1 p.1).yBit
+       other := Function.update p.2.1 p.1 p.2.2 },
+      by
+        change Disjoint
+          (X n { T := p.1
+                 xT := (p.2.1 p.1).xBit
+                 yT := (p.2.1 p.1).yBit
+                 other := Function.update p.2.1 p.1 p.2.2 })
+          (Y n { T := p.1
+                 xT := (p.2.1 p.1).xBit
+                 yT := (p.2.1 p.1).yBit
+                 other := Function.update p.2.1 p.1 p.2.2 })
+        rw [disjoint_X_Y_iff]
+        exact DisjointCoordinate.not_xBit_and_yBit (p.2.1 p.1)⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    change Disjoint (X n { T := T, xT := xT, yT := yT, other := other })
+      (Y n { T := T, xT := xT, yT := yT, other := other }) at hω
+    have hbits : ¬(xT = true ∧ yT = true) := by
+      simpa [disjoint_X_Y_iff] using hω
+    apply Subtype.ext
+    change
+      HardSample.mk T
+        (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other } T).xBit
+        (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other } T).yBit
+        (Function.update
+          (disjointCoordinateVector n { T := T, xT := xT, yT := yT, other := other }) T
+          (ignoredCoordinate n { T := T, xT := xT, yT := yT, other := other })) =
+      HardSample.mk T xT yT other
+    congr
+    · simpa [disjointCoordinateVector] using coordinateOfBits_xBit hbits
+    · simpa [disjointCoordinateVector] using coordinateOfBits_yBit hbits
+    · funext i
+      by_cases hi : i = T
+      · subst i
+        simp [ignoredCoordinate]
+      · rw [Function.update_of_ne hi]
+        simp [disjointCoordinateVector, hi]
+  right_inv p := by
+    rcases p with ⟨T, coords, junk⟩
+    ext i
+    · rfl
+    · by_cases hi : i = T
+      · subst i
+        simp [disjointModel, disjointCoordinateVector, coordinateOfBits_xBit_yBit]
+      · simp [disjointModel, disjointCoordinateVector, hi]
+    · simp [disjointModel, ignoredCoordinate]
+
+noncomputable instance disjointEventFintype :
+    Fintype {ω : HardSample n // ω ∈ disjointEvent n} :=
+  Fintype.ofEquiv (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+    (disjointEventEquiv n).symm
+
+theorem card_disjointEvent_subtype :
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
+      (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
+        Fintype.card (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :=
+      Fintype.card_congr (disjointEventEquiv n)
+    _ = (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
+      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
+      ring
+
+private def disjointEventInterDisjointModelEquiv
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} ≃ Unit where
+  toFun _ := Unit.unit
+  invFun _ :=
+    ⟨((disjointEventEquiv n).symm z).1,
+      by
+        constructor
+        · exact ((disjointEventEquiv n).symm z).2
+        · change disjointModel n ((disjointEventEquiv n).symm z).1 = z
+          exact (disjointEventEquiv n).right_inv z⟩
+  left_inv ω := by
+    apply Subtype.ext
+    change ((disjointEventEquiv n).symm z).1 = ω.1
+    have hmodel : disjointModel n ω.1 = z := by
+      simpa using ω.2.2
+    have hsub :
+        (⟨ω.1, ω.2.1⟩ : {ω : HardSample n // ω ∈ disjointEvent n}) =
+          (disjointEventEquiv n).symm z := by
+      apply (disjointEventEquiv n).injective
+      exact hmodel.trans ((disjointEventEquiv n).right_inv z).symm
+    exact (congrArg Subtype.val hsub).symm
+  right_inv _ := by
+    rfl
+
+noncomputable instance disjointEventInterDisjointModelFintype
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    Fintype {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} :=
+  Fintype.ofEquiv Unit (disjointEventInterDisjointModelEquiv n z).symm
+
+theorem card_disjointEvent_inter_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} =
+      1 := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n ∩ (disjointModel n) ⁻¹' {z}} =
+        Fintype.card Unit :=
+      Fintype.card_congr (disjointEventInterDisjointModelEquiv n z)
+    _ = 1 := by simp
+
+open Classical in
+/-- Under the hard distribution, a singleton fiber of the disjoint model together with `D` has
+one ambient sample's worth of mass. -/
+theorem measureReal_disjointEvent_inter_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    (volume (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
+      (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
+    (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype,
+    card_disjointEvent_inter_disjointModel_fiber, HardSample.card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+
 /-- Dualize the hard sample space by swapping Alice/Bob and reversing coordinate order. -/
 def dualHardSample (ω : HardSample n) : HardSample n where
   T := Fin.rev ω.T
@@ -1289,6 +1456,492 @@ noncomputable instance disjointCondMeasure_isProbabilityMeasure :
     IsProbabilityMeasure (disjointCondMeasure n) := by
   rw [disjointCondMeasure]
   exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
+
+open Classical in
+/-- Under the disjoint-conditioned distribution, the disjoint model is uniform. -/
+theorem disjointCondMeasure_measureReal_disjointModel_fiber
+    (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+    (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hnum :
+      (volume : Measure (HardSample n)).real
+          (disjointEvent n ∩ (disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent_inter_disjointModel_fiber n z
+  have hden : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  rw [hnum, hden]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  field_simp [hn, hpow]
+
+private def disjointModelFiberForCoordinateVectorEquiv
+    (coords : Fin n → DisjointCoordinate) :
+    {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate // z.2.1 = coords} ≃
+      Fin n × DisjointCoordinate where
+  toFun z := (z.1.1, z.1.2.2)
+  invFun p := ⟨(p.1, coords, p.2), rfl⟩
+  left_inv z := by
+    rcases z with ⟨⟨i, coords', junk⟩, hcoords⟩
+    subst hcoords
+    rfl
+  right_inv p := by
+    rcases p with ⟨i, junk⟩
+    rfl
+
+theorem card_disjointModel_fiber_for_coordinateVector
+    (coords : Fin n → DisjointCoordinate) :
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.2.1 = coords} =
+      (n : ℕ) * 3 := by
+  calc
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.2.1 = coords} =
+        Fintype.card (Fin n × DisjointCoordinate) :=
+      Fintype.card_congr (disjointModelFiberForCoordinateVectorEquiv n coords)
+    _ = (n : ℕ) * 3 := by
+      simp [Fintype.card_prod, DisjointCoordinate.card]
+
+open Classical in
+/-- Under the disjoint-conditioned distribution, the generated disjoint coordinate vector is
+uniform over the `3^n` disjoint coordinate vectors. -/
+theorem disjointCondMeasure_measureReal_disjointCoordinateVector_fiber
+    (coords : Fin n → DisjointCoordinate) :
+    (disjointCondMeasure n).real ((disjointCoordinateVector n) ⁻¹' {coords}) =
+      (1 / (3 ^ (n : ℕ)) : ℝ) := by
+  let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+  have hpre :=
+    FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+      (Ω := HardSample n)
+      (α := Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+      μ (disjointModel n) (fun z => z.2.1 = coords)
+  change (μ : Measure (HardSample n)).real {ω | (disjointModel n ω).2.1 = coords} =
+    (1 / (3 ^ (n : ℕ)) : ℝ)
+  rw [hpre]
+  have hfiber (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+      (μ : Measure (HardSample n)).real ((disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+    change (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ)
+    exact disjointCondMeasure_measureReal_disjointModel_fiber n z
+  simp_rw [hfiber]
+  rw [Finset.sum_ite]
+  have hcardFilter :
+      (Finset.univ.filter
+        (fun z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate =>
+          z.2.1 = coords)).card = (n : ℕ) * 3 := by
+    simpa [Fintype.card_subtype] using
+      card_disjointModel_fiber_for_coordinateVector n coords
+  simp [hcardFilter]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  field_simp [hn, hpow]
+
+/-- The uniform law on generated disjoint coordinate vectors. -/
+noncomputable def uniformDisjointCoordinateVector :
+    ProbabilityMeasure (Fin n → DisjointCoordinate) :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- The uniform law on one disjoint coordinate. -/
+noncomputable def uniformDisjointCoordinate :
+    ProbabilityMeasure DisjointCoordinate :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+open Classical in
+/-- Each generated disjoint coordinate vector has mass `3^{-n}` under the uniform law. -/
+theorem uniformDisjointCoordinateVector_singleton
+    (coords : Fin n → DisjointCoordinate) :
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)).real {coords} =
+      (1 / (3 ^ (n : ℕ)) : ℝ) := by
+  rw [uniformDisjointCoordinateVector]
+  change ((ProbabilityTheory.uniformOn Set.univ :
+      Measure (Fin n → DisjointCoordinate)) ({coords} : Set (Fin n → DisjointCoordinate))).toReal =
+    (1 / (3 ^ (n : ℕ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype]
+  have hcard :
+      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} = 1 := by
+    let e : {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} ≃ Unit := {
+      toFun _ := Unit.unit
+      invFun _ := ⟨coords, by simp⟩
+      left_inv x := by
+        apply Subtype.ext
+        simpa using x.2.symm
+      right_inv _ := rfl }
+    calc
+      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} =
+          Fintype.card Unit :=
+        Fintype.card_congr e
+      _ = 1 := by simp
+  rw [hcard]
+  simp [Fintype.card_pi, DisjointCoordinate.card]
+
+open Classical in
+/-- Each disjoint coordinate has mass `1 / 3` under the uniform one-coordinate law. -/
+theorem uniformDisjointCoordinate_singleton (c : DisjointCoordinate) :
+    ((uniformDisjointCoordinate : ProbabilityMeasure DisjointCoordinate) :
+      Measure DisjointCoordinate).real {c} = (1 / 3 : ℝ) := by
+  rw [uniformDisjointCoordinate]
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure DisjointCoordinate)
+    ({c} : Set DisjointCoordinate)).toReal = (1 / 3 : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype]
+  have hcard :
+      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} = 1 := by
+    let e : {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} ≃ Unit := {
+      toFun _ := Unit.unit
+      invFun _ := ⟨c, by simp⟩
+      left_inv x := by
+        apply Subtype.ext
+        simpa using x.2.symm
+      right_inv _ := rfl }
+    calc
+      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} =
+          Fintype.card Unit :=
+        Fintype.card_congr e
+      _ = 1 := by simp
+  rw [hcard]
+  simp [DisjointCoordinate.card]
+
+open Classical in
+/-- The uniform law on disjoint coordinate vectors is the product of the one-coordinate uniform
+laws. -/
+theorem uniformDisjointCoordinateVector_eq_pi :
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate)) =
+      Measure.pi
+        (fun _ : Fin n =>
+          ((uniformDisjointCoordinate : ProbabilityMeasure DisjointCoordinate) :
+            Measure DisjointCoordinate)) := by
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro coords
+  rw [uniformDisjointCoordinateVector_singleton]
+  rw [Measure.real, Measure.pi_singleton, ENNReal.toReal_prod]
+  change (1 / 3 ^ (n : ℕ) : ℝ) =
+    ∏ i : Fin n,
+      ((uniformDisjointCoordinate : ProbabilityMeasure DisjointCoordinate) :
+        Measure DisjointCoordinate).real {coords i}
+  simp_rw [uniformDisjointCoordinate_singleton]
+  rw [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  simp [one_div, inv_pow]
+
+/-- Under the uniform disjoint-coordinate-vector law, the coordinates are independent. -/
+theorem uniformDisjointCoordinateVector_iIndepFun :
+    iIndepFun (fun i (coords : Fin n → DisjointCoordinate) => coords i)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  rw [uniformDisjointCoordinateVector_eq_pi]
+  exact iIndepFun_pi (fun _ => aemeasurable_id)
+
+/-- Alice's bit at a fixed coordinate of a generated disjoint coordinate vector. -/
+def coordinateXBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
+  (coords i).xBit
+
+/-- Bob's bit at a fixed coordinate of a generated disjoint coordinate vector. -/
+def coordinateYBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
+  (coords i).yBit
+
+/-- Alice's coordinate-vector bits before a fixed coordinate, padded by `false` elsewhere. -/
+def coordinateXBefore (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
+  fun j => if j < i then coordinateXBit n j coords else false
+
+/-- Bob's coordinate-vector bits before a fixed coordinate, padded by `false` elsewhere. -/
+def coordinateYBefore (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
+  fun j => if j < i then coordinateYBit n j coords else false
+
+/-- Bob's coordinate-vector bits from a fixed coordinate onward, padded by `false` elsewhere. -/
+def coordinateYGe (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
+  fun j => if i ≤ j then coordinateYBit n j coords else false
+
+/-- The coordinate-vector version of Alice's fixed-coordinate Lemma 6.20 conditioning. -/
+def coordinateAliceConditioning (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    (Fin n → Bool) × (Fin n → Bool) :=
+  (coordinateXBefore n i coords, coordinateYGe n i coords)
+
+/-- The one-bit-per-coordinate version of Alice's fixed conditioning:
+use `X_j` before `i` and `Y_j` from `i` onward. -/
+def coordinateAliceCondBit (i k : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
+  if k < i then coordinateXBit n k coords else coordinateYBit n k coords
+
+/-- Alice's fixed conditioning as one bit from each coordinate. -/
+def coordinateAliceCondBits (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    Fin n → Bool :=
+  fun k => coordinateAliceCondBit n i k coords
+
+/-- The residual coordinate bit left after conditioning on `coordinateAliceCondBit`. Before `i`
+this is Bob's bit; at `i` it is Alice's bit; after `i` it is unused. -/
+def coordinateAliceResidualBit (i k : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
+  if k < i then coordinateYBit n k coords else if k = i then coordinateXBit n k coords else false
+
+/-- Recode the one-bit-per-coordinate Alice conditioning into the padded pair used in the
+information term. -/
+def coordinateAliceConditioningOfCondBits (i : Fin n) (bits : Fin n → Bool) :
+    (Fin n → Bool) × (Fin n → Bool) :=
+  (fun j => if j < i then bits j else false,
+    fun j => if i ≤ j then bits j else false)
+
+/-- The one-bit-per-coordinate conditioning recodes to the padded-pair conditioning. -/
+theorem coordinateAliceConditioning_eq_recode_condBits (i : Fin n) :
+    coordinateAliceConditioning n i =
+      coordinateAliceConditioningOfCondBits n i ∘ coordinateAliceCondBits n i := by
+  funext coords
+  ext j
+  · by_cases hlt : j < i
+    · simp [coordinateAliceConditioning, coordinateXBefore,
+        coordinateAliceConditioningOfCondBits, coordinateAliceCondBits,
+        coordinateAliceCondBit, hlt]
+    · simp [coordinateAliceConditioning, coordinateXBefore,
+        coordinateAliceConditioningOfCondBits, hlt]
+  · by_cases hge : i ≤ j
+    · have hlt : ¬j < i := not_lt_of_ge hge
+      simp [coordinateAliceConditioning, coordinateYGe,
+        coordinateAliceConditioningOfCondBits, coordinateAliceCondBits,
+        coordinateAliceCondBit, hlt, hge]
+    · have hlt : j < i := lt_of_not_ge hge
+      simp [coordinateAliceConditioning, coordinateYGe,
+        coordinateAliceConditioningOfCondBits, coordinateAliceCondBits,
+        coordinateAliceCondBit, hlt, hge]
+
+/-- The padded-pair recoding of Alice's one-bit-per-coordinate conditioning is injective. -/
+theorem coordinateAliceConditioningOfCondBits_injective (i : Fin n) :
+    Function.Injective (coordinateAliceConditioningOfCondBits n i) := by
+  intro a b h
+  funext j
+  have hpair := congrFun (Prod.ext_iff.1 h).1 j
+  have hpair' := congrFun (Prod.ext_iff.1 h).2 j
+  by_cases hlt : j < i
+  · simpa [coordinateAliceConditioningOfCondBits, hlt] using hpair
+  · have hge : i ≤ j := le_of_not_gt hlt
+    simpa [coordinateAliceConditioningOfCondBits, hge] using hpair'
+
+theorem coordinateAliceCondBits_fiber_eq_iInter (i : Fin n) (bits : Fin n → Bool) :
+    (coordinateAliceCondBits n i) ⁻¹' {bits} =
+      ⋂ k : Fin n, (coordinateAliceCondBit n i k) ⁻¹' {bits k} := by
+  ext coords
+  simp [coordinateAliceCondBits, funext_iff]
+
+def coordinateWithCondBit (i k : Fin n) (b : Bool) : DisjointCoordinate :=
+  if k < i then
+    if b then DisjointCoordinate.leftOnly else DisjointCoordinate.neither
+  else
+    if b then DisjointCoordinate.rightOnly else DisjointCoordinate.neither
+
+theorem coordinateWithCondBit_spec (i k : Fin n) (b : Bool) :
+    (if k < i then (coordinateWithCondBit n i k b).xBit
+      else (coordinateWithCondBit n i k b).yBit) = b := by
+  by_cases hlt : k < i <;> cases b <;>
+    simp [coordinateWithCondBit, hlt, DisjointCoordinate.xBit, DisjointCoordinate.yBit]
+
+open Classical in
+/-- Each single-coordinate conditioning bit has positive mass under the uniform disjoint-vector
+law. -/
+theorem uniformDisjointCoordinateVector_measure_condBit_ne_zero
+    (i k : Fin n) (b : Bool) :
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+        ((coordinateAliceCondBit n i k) ⁻¹' {b}) ≠ 0 := by
+  rw [← MeasureTheory.measureReal_ne_zero_iff]
+  let coords : Fin n → DisjointCoordinate :=
+    Function.update (fun _ => DisjointCoordinate.neither) k (coordinateWithCondBit n i k b)
+  have hmem : coords ∈ (coordinateAliceCondBit n i k) ⁻¹' ({b} : Set Bool) := by
+    simp [coords, coordinateAliceCondBit, coordinateXBit, coordinateYBit,
+      coordinateWithCondBit_spec]
+  have hsubset : ({coords} : Set (Fin n → DisjointCoordinate)) ⊆
+      (coordinateAliceCondBit n i k) ⁻¹' ({b} : Set Bool) := by
+    intro coords' hcoords'
+    rw [Set.mem_singleton_iff] at hcoords'
+    subst coords'
+    exact hmem
+  have hsingle_pos :
+      0 < ((uniformDisjointCoordinateVector n :
+          ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+          Measure (Fin n → DisjointCoordinate)).real ({coords} : Set _) := by
+    rw [uniformDisjointCoordinateVector_singleton]
+    positivity
+  have hle :=
+    measureReal_mono (μ := ((uniformDisjointCoordinateVector n :
+      ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))) hsubset
+  exact ne_of_gt (hsingle_pos.trans_le hle)
+
+open Classical in
+/-- The per-coordinate residual/conditioning pairs are independent under the product-uniform
+disjoint-coordinate law. -/
+theorem uniformDisjointCoordinateVector_residual_cond_iIndepFun (i : Fin n) :
+    iIndepFun
+      (fun k (coords : Fin n → DisjointCoordinate) =>
+        (coordinateAliceResidualBit n i k coords, coordinateAliceCondBit n i k coords))
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  simpa [coordinateAliceResidualBit, coordinateAliceCondBit, coordinateXBit, coordinateYBit]
+    using
+      (uniformDisjointCoordinateVector_iIndepFun n).comp
+        (fun k c =>
+          (if k < i then c.yBit else if k = i then c.xBit else false,
+            if k < i then c.xBit else c.yBit))
+        (fun _ => Measurable.of_discrete)
+
+open Classical in
+/-- After fixing Alice's one-bit-per-coordinate conditioning, the current Alice bit is independent
+of Bob's earlier bits under the product-uniform disjoint-coordinate law. -/
+theorem uniformDisjointCoordinateVector_indep_coordinateXBit_coordinateYBefore_condBits
+    (i : Fin n) (bits : Fin n → Bool) :
+    IndepFun (coordinateXBit n i) (coordinateYBefore n i)
+      (((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))[| (coordinateAliceCondBits n i) ⁻¹' {bits}]) := by
+  let μ : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  rw [coordinateAliceCondBits_fiber_eq_iInter]
+  let S : Finset (Fin n) := Finset.univ.filter fun k => k < i
+  have hcond_indep :
+      iIndepFun (coordinateAliceResidualBit n i)
+        (μ[|⋂ k : Fin n, (coordinateAliceCondBit n i k) ⁻¹' ({bits k} : Set Bool)]) := by
+    exact ProbabilityTheory.iIndepFun.cond
+      (μ := μ)
+      (X := coordinateAliceResidualBit n i)
+      (Y := coordinateAliceCondBit n i)
+      (t := fun k : Fin n => ({bits k} : Set Bool))
+      (fun _ => Measurable.of_discrete)
+      (by
+        simpa [μ] using uniformDisjointCoordinateVector_residual_cond_iIndepFun n i)
+      (fun k => by
+        simpa [μ] using
+          uniformDisjointCoordinateVector_measure_condBit_ne_zero n i k (bits k))
+      (fun _ => MeasurableSet.of_discrete)
+  have hraw :
+      IndepFun
+        (fun coords (k : ({i} : Finset (Fin n))) =>
+          coordinateAliceResidualBit n i k coords)
+        (fun coords (k : S) => coordinateAliceResidualBit n i k coords)
+        (μ[|⋂ k : Fin n, (coordinateAliceCondBit n i k) ⁻¹' ({bits k} : Set Bool)]) := by
+    refine hcond_indep.indepFun_finset {i} S ?_ (fun _ => Measurable.of_discrete)
+    rw [Finset.disjoint_left]
+    intro k hk hS
+    rw [Finset.mem_singleton] at hk
+    subst k
+    simp [S] at hS
+  let left :
+      ((k : ({i} : Finset (Fin n))) → Bool) → Bool :=
+    fun f => f ⟨i, by simp⟩
+  let right :
+      ((k : S) → Bool) → (Fin n → Bool) :=
+    fun f j => if hji : j < i then f ⟨j, by simp [S, hji]⟩ else false
+  have hcomp : IndepFun (left ∘ fun coords (k : ({i} : Finset (Fin n))) =>
+          coordinateAliceResidualBit n i k coords)
+        (right ∘ fun coords (k : S) => coordinateAliceResidualBit n i k coords)
+        (μ[|⋂ k : Fin n, (coordinateAliceCondBit n i k) ⁻¹' ({bits k} : Set Bool)]) :=
+    hraw.comp Measurable.of_discrete Measurable.of_discrete
+  have hleft :
+      (left ∘ fun coords (k : ({i} : Finset (Fin n))) =>
+          coordinateAliceResidualBit n i k coords) = coordinateXBit n i := by
+    funext coords
+    simp [left, coordinateAliceResidualBit, coordinateXBit]
+  have hright :
+      (right ∘ fun coords (k : S) => coordinateAliceResidualBit n i k coords) =
+        coordinateYBefore n i := by
+    funext coords j
+    by_cases hji : j < i
+    · simp [right, S, coordinateAliceResidualBit, coordinateYBefore, coordinateYBit, hji]
+    · simp [right, coordinateYBefore, hji]
+  exact IndepFun.congr hcomp (Filter.EventuallyEq.of_eq hleft)
+    (Filter.EventuallyEq.of_eq hright)
+
+open Classical in
+/-- Product-coordinate form of the textbook independence input:
+`I(X_i : Y_<i | X_<i,Y_≥i)=0`, first with the one-bit-per-coordinate conditioning. -/
+theorem uniformDisjointCoordinateVector_crossInfo_condBits_eq_zero (i : Fin n) :
+    I[coordinateXBit n i : coordinateYBefore n i | coordinateAliceCondBits n i ;
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] = 0 := by
+  let μ : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  rw [ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := μ) (X := coordinateXBit n i) (Y := coordinateYBefore n i)
+    (Z := coordinateAliceCondBits n i) Measurable.of_discrete]
+  apply Finset.sum_eq_zero
+  intro bits _
+  have hindep :=
+    uniformDisjointCoordinateVector_indep_coordinateXBit_coordinateYBefore_condBits n i bits
+  have hzero :
+      I[coordinateXBit n i : coordinateYBefore n i ;
+        μ[|(coordinateAliceCondBits n i) ⁻¹' {bits}]] = 0 :=
+    hindep.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete
+  rw [hzero, mul_zero]
+
+open Classical in
+/-- Product-coordinate form of the textbook independence input, using the padded-pair
+conditioning variable from Lemma 6.20. -/
+theorem uniformDisjointCoordinateVector_crossInfo_eq_zero (i : Fin n) :
+    I[coordinateXBit n i : coordinateYBefore n i | coordinateAliceConditioning n i ;
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate))] = 0 := by
+  let μ : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  rw [coordinateAliceConditioning_eq_recode_condBits]
+  rw [ProbabilityTheory.condMutualInfo_of_inj
+    (μ := μ)
+    (X := coordinateXBit n i) (Y := coordinateYBefore n i)
+    (Z := coordinateAliceCondBits n i)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (f := coordinateAliceConditioningOfCondBits n i)
+    (coordinateAliceConditioningOfCondBits_injective n i)]
+  exact uniformDisjointCoordinateVector_crossInfo_condBits_eq_zero n i
+
+open Classical in
+/-- Under `D`, Alice's fixed bit is the corresponding coordinate-vector projection. -/
+theorem fixedXBit_ae_eq_coordinateXBit (i : Fin n) :
+    fixedXBit n i =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateXBit n i (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  exact (disjointCoordinateVector_xBit_of_mem_disjointEvent n hω i).symm
+
+open Classical in
+/-- Under `D`, Bob's fixed prefix is the corresponding coordinate-vector projection. -/
+theorem fixedYBefore_ae_eq_coordinateYBefore (i : Fin n) :
+    fixedYBefore n i =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateYBefore n i (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  funext j
+  by_cases hji : j < i
+  · simp [fixedYBefore, coordinateYBefore, coordinateYBit, hji,
+      disjointCoordinateVector_yBit_of_mem_disjointEvent n hω j]
+  · simp [fixedYBefore, coordinateYBefore, hji]
+
+open Classical in
+/-- Under `D`, Alice's fixed conditioning is the corresponding coordinate-vector projection. -/
+theorem fixedAliceConditioning_ae_eq_coordinateAliceConditioning (i : Fin n) :
+    fixedAliceConditioning n i =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  ext j <;>
+  by_cases hji_lt : j < i <;>
+  by_cases hji_ge : i ≤ j <;>
+  simp [fixedAliceConditioning, fixedXBefore, fixedYGe, coordinateAliceConditioning,
+    coordinateXBefore, coordinateYGe, coordinateXBit, coordinateYBit, hji_lt, hji_ge,
+    disjointCoordinateVector_xBit_of_mem_disjointEvent n hω j,
+    disjointCoordinateVector_yBit_of_mem_disjointEvent n hω j]
+
+open Classical in
+/-- The generated disjoint coordinate vector under `D` has the uniform disjoint-vector law. -/
+theorem identDistrib_disjointCoordinateVector_uniform :
+    IdentDistrib (disjointCoordinateVector n) id (disjointCondMeasure n)
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  refine ⟨Measurable.of_discrete.aemeasurable, measurable_id.aemeasurable, ?_⟩
+  rw [Measure.map_id]
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro coords
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  exact (disjointCondMeasure_measureReal_disjointCoordinateVector_fiber n coords).trans
+    (uniformDisjointCoordinateVector_singleton n coords).symm
 
 /-- A measure-preserving self-map leaves every random variable identically distributed with its
 pullback along that map. -/
@@ -3114,7 +3767,51 @@ open Classical in
 `I(X_i : Y_<i | X_<i, Y_≥i, D) = 0`. -/
 theorem fixedAliceCrossInfoTerm_eq_zero (i : Fin n) :
     fixedAliceCrossInfoTerm n i = 0 := by
-  sorry
+  rw [fixedAliceCrossInfoTerm]
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let ν : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  have hcongr :
+      I[fixedXBit n i : fixedYBefore n i | fixedAliceConditioning n i ; μ] =
+        I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateYBefore n i (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μ] := by
+    exact ProbabilityTheory.condMutualInfo_congr_ae
+      (μ := μ)
+      (X := fixedXBit n i) (Y := fixedYBefore n i) (Z := fixedAliceConditioning n i)
+      (X' := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y' := fun ω => coordinateYBefore n i (disjointCoordinateVector n ω))
+      (Z' := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (fixedXBit_ae_eq_coordinateXBit n i)
+      (fixedYBefore_ae_eq_coordinateYBefore n i)
+      (fixedAliceConditioning_ae_eq_coordinateAliceConditioning n i)
+  have hpull :
+      I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateYBefore n i (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μ] =
+        I[coordinateXBit n i : coordinateYBefore n i | coordinateAliceConditioning n i ; ν] := by
+    exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+      (μ := μ) (μ' := ν)
+      (X := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y := fun ω => coordinateYBefore n i (disjointCoordinateVector n ω))
+      (Z := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      (X' := coordinateXBit n i)
+      (Y' := coordinateYBefore n i)
+      (Z' := coordinateAliceConditioning n i)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (by
+        simpa [Function.comp_def, ν] using
+          (identDistrib_disjointCoordinateVector_uniform n).comp
+            (Measurable.of_discrete
+              (f := fun coords =>
+                (coordinateXBit n i coords, coordinateYBefore n i coords,
+                  coordinateAliceConditioning n i coords))))
+  rw [hcongr, hpull]
+  exact uniformDisjointCoordinateVector_crossInfo_eq_zero n i
 
 open Classical in
 /-- Textbook Lemma 6.20 chain-rule step for the Alice summands:
@@ -3237,7 +3934,7 @@ theorem yGeSpecial_eq_yAfterSpecial_of_specialY_false
   · by_cases hle : ω.T ≤ j
     · have hEq : j = ω.T := le_antisymm (not_lt.mp hlt) hle
       subst j
-      simp [yGeSpecial, yAfterSpecial, yBit]
+      simp only [yGeSpecial, le_refl, ↓reduceIte, yBit, yAfterSpecial, lt_self_iff_false]
       change ω.yT = false at hY
       exact hY
     · simp [yGeSpecial, yAfterSpecial, hle, hlt]
@@ -3713,8 +4410,8 @@ theorem xFiberKL_integral_eq_aliceInfoTermSpecialYFalse
 
 open Classical in
 /-- Textbook Claim 6.21 reweighting:
-`(2/3) I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D) ≤
- I(X_T : M | T, X_<T, Y_≥T, D)`.
+`(2/3) I(X_T : M | T, X_< T, Y_≥T, Y_T=0, D) ≤
+ I(X_T : M | T, X_< T, Y_≥T, D)`.
 
 The factor is `Pr[Y_T=false | D] = 2/3`, and the event `Y_T=false` is determined by the
 conditioning variable because `Y_≥T` contains `Y_T`. -/
