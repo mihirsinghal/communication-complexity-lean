@@ -299,6 +299,10 @@ def bobClaimConditioning (ω : HardSample n) :
 def fixedXBit (i : Fin n) (ω : HardSample n) : Bool :=
   xBit n ω i
 
+/-- Alice's fixed-coordinate strict prefix `X_<i`, represented without padding. -/
+def fixedXStrictPrefix (i : Fin n) (ω : HardSample n) : Fin i.1 → Bool :=
+  fun j => xBit n ω ⟨j.1, lt_trans j.2 i.2⟩
+
 /-- Alice's fixed-coordinate `X_<i` prefix used in Lemma 6.20. -/
 def fixedXBefore (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
   fun j => if j < i then xBit n ω j else false
@@ -315,6 +319,47 @@ def fixedYGe (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
 def fixedAliceConditioning (i : Fin n) (ω : HardSample n) :
     (Fin n → Bool) × (Fin n → Bool) :=
   (fixedXBefore n i ω, fixedYGe n i ω)
+
+/-- The fixed-coordinate conditioning variable `(X_<i, Y)` used in the chain-rule sum in
+Lemma 6.20.  The `X_<i` prefix is represented without padding so that recodings are injective. -/
+def fixedAliceFullYConditioning (i : Fin n) (ω : HardSample n) :
+    (Fin i.1 → Bool) × (Fin n → Bool) :=
+  (fixedXStrictPrefix n i ω, yVector n ω)
+
+/-- Recode `(X_<i, Y)` as `(Y_<i, X_<i, Y_≥i)`, the conditioning variable produced by
+the textbook chain-rule split. -/
+def fixedAliceChainConditioningValue (i : Fin n)
+    (c : (Fin i.1 → Bool) × (Fin n → Bool)) :
+    (Fin n → Bool) × ((Fin n → Bool) × (Fin n → Bool)) :=
+  (fun j => if j < i then c.2 j else false,
+    (fun j => if h : j < i then c.1 ⟨j.1, h⟩ else false,
+      fun j => if i ≤ j then c.2 j else false))
+
+/-- The chain-rule conditioning `(Y_<i, X_<i, Y_≥i)` is an injective recoding of `(X_<i, Y)`. -/
+theorem fixedAliceChainConditioningValue_injective (i : Fin n) :
+    Function.Injective (fixedAliceChainConditioningValue n i) := by
+  intro a b h
+  ext j
+  · let j' : Fin n := ⟨j.1, lt_trans j.2 i.2⟩
+    have hlt : j' < i := j.2
+    have hx := congr_fun (congrArg (fun c => c.2.1) h) j'
+    simpa [fixedAliceChainConditioningValue, j', hlt] using hx
+  · by_cases hj : j < i
+    · have hy := congr_fun (congrArg Prod.fst h) j
+      simpa [fixedAliceChainConditioningValue, hj] using hy
+    · have hge : i ≤ j := le_of_not_gt hj
+      have hy := congr_fun (congrArg (fun c => c.2.2) h) j
+      simpa [fixedAliceChainConditioningValue, hj, hge] using hy
+
+/-- On hard samples, recoding `(X_<i, Y)` gives exactly `(Y_<i, X_<i, Y_≥i)`. -/
+theorem fixedAliceChainConditioningValue_fixedAliceFullYConditioning (i : Fin n) :
+    fixedAliceChainConditioningValue n i ∘ fixedAliceFullYConditioning n i =
+      fun ω => (fixedYBefore n i ω, fixedAliceConditioning n i ω) := by
+  funext ω
+  ext j <;>
+    simp [fixedAliceChainConditioningValue, fixedAliceFullYConditioning,
+      fixedXStrictPrefix, fixedYBefore, fixedAliceConditioning, fixedXBefore, fixedYGe,
+      yVector]
 
 /-- The values of Alice's corrected conditioning variable for which `Y_T = false`. -/
 def aliceClaimConditioningYFalseValues :
@@ -3758,6 +3803,13 @@ noncomputable def fixedAliceInfoTerm
   I[fixedXBit n i : message n p | fixedAliceConditioning n i ; disjointCondMeasure n]
 
 open Classical in
+/-- The fixed-coordinate term with the full `Y` vector in the conditioning. -/
+noncomputable def fixedAliceFullYInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (i : Fin n) : ℝ :=
+  I[fixedXBit n i : message n p | fixedAliceFullYConditioning n i ; disjointCondMeasure n]
+
+open Classical in
 /-- The zero cross-information term `I(X_i : Y_<i | X_<i, Y_≥i)` in Lemma 6.20. -/
 noncomputable def fixedAliceCrossInfoTerm (i : Fin n) : ℝ :=
   I[fixedXBit n i : fixedYBefore n i | fixedAliceConditioning n i ; disjointCondMeasure n]
@@ -3814,6 +3866,80 @@ theorem fixedAliceCrossInfoTerm_eq_zero (i : Fin n) :
   exact uniformDisjointCoordinateVector_crossInfo_eq_zero n i
 
 open Classical in
+/-- Fixed-coordinate chain-rule inequality from Lemma 6.20:
+`I(X_i : M | X_<i,Y_≥i) ≤ I(X_i : M | X_<i,Y)`. -/
+theorem fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (i : Fin n) :
+    fixedAliceInfoTerm n p i ≤ fixedAliceFullYInfoTerm n p i := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let Xᵢ : HardSample n → Bool := fixedXBit n i
+  let M : HardSample n → p.Leaf := message n p
+  let Ypre : HardSample n → Fin n → Bool := fixedYBefore n i
+  let A : HardSample n → (Fin n → Bool) × (Fin n → Bool) :=
+    fixedAliceConditioning n i
+  have hle_add :
+      I[Xᵢ : M | A ; μ] ≤ I[Xᵢ : (fun ω => (Ypre ω, M ω)) | A ; μ] := by
+    exact ProbabilityTheory.condMutualInfo_le_prod_right_snd
+      (μ := μ) (X := Xᵢ) (Y := Ypre) (W := M) (Z := A)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete
+  have hchain :
+      I[Xᵢ : (fun ω => (Ypre ω, M ω)) | A ; μ] =
+        I[Xᵢ : Ypre | A ; μ] + I[Xᵢ : M | (fun ω => (Ypre ω, A ω)) ; μ] := by
+    exact ProbabilityTheory.condMutualInfo_prod_right_eq_add
+      (μ := μ) (X := Xᵢ) (Y := Ypre) (W := M) (Z := A)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete
+  have hcross : I[Xᵢ : Ypre | A ; μ] = 0 := by
+    simpa [fixedAliceCrossInfoTerm, μ, Xᵢ, Ypre, A] using
+      fixedAliceCrossInfoTerm_eq_zero n i
+  have hrec :
+      I[Xᵢ : M | (fun ω => (Ypre ω, A ω)) ; μ] =
+        I[Xᵢ : M | fixedAliceFullYConditioning n i ; μ] := by
+    have h := ProbabilityTheory.condMutualInfo_of_inj
+      (μ := μ) (X := Xᵢ) (Y := M) (Z := fixedAliceFullYConditioning n i)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (fixedAliceChainConditioningValue_injective n i)
+    rw [fixedAliceChainConditioningValue_fixedAliceFullYConditioning] at h
+    simpa [Function.comp_def, Xᵢ, M, Ypre, A] using h
+  rw [fixedAliceInfoTerm, fixedAliceFullYInfoTerm]
+  calc
+    I[fixedXBit n i : message n p | fixedAliceConditioning n i ; disjointCondMeasure n]
+        ≤ I[Xᵢ : (fun ω => (Ypre ω, M ω)) | A ; μ] := by
+          simpa [μ, Xᵢ, M, A] using hle_add
+    _ = I[Xᵢ : Ypre | A ; μ] + I[Xᵢ : M | (fun ω => (Ypre ω, A ω)) ; μ] :=
+          hchain
+    _ = I[fixedXBit n i : message n p | fixedAliceFullYConditioning n i ;
+            disjointCondMeasure n] := by
+          rw [hcross, zero_add, hrec]
+
+open Classical in
+/-- Summing the fixed-coordinate inequalities from Lemma 6.20. -/
+theorem sum_fixedAliceInfoTerm_le_sum_fixedAliceFullYInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ i : Fin n, fixedAliceInfoTerm n p i) ≤
+      ∑ i : Fin n, fixedAliceFullYInfoTerm n p i := by
+  exact Finset.sum_le_sum fun i _ => fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm n p i
+
+open Classical in
+/-- Textbook chain rule for the full Alice vector:
+`∑ᵢ I(X_i : M | X_<i,Y,D) = I(X : M | Y,D)`. -/
+theorem sum_fixedAliceFullYInfoTerm_eq_xVector_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ i : Fin n, fixedAliceFullYInfoTerm n p i) =
+      I[xVector n : message n p | yVector n ; disjointCondMeasure n] := by
+  have hchain := ProbabilityTheory.condMutualInfo_boolVector_eq_sum_strictPrefix
+    (μ := disjointCondMeasure n) (X := xVector n) (Y := message n p) (Z := yVector n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+  rw [hchain]
+  apply Finset.sum_congr rfl
+  intro i _hi
+  unfold fixedAliceFullYInfoTerm fixedAliceFullYConditioning fixedXStrictPrefix fixedXBit xVector
+    ProbabilityTheory.boolVectorStrictPrefix
+  rfl
+
+open Classical in
 /-- Textbook Lemma 6.20 chain-rule step for the Alice summands:
 `∑ᵢ I(X_i : M | X_<i, Y_≥i, D) ≤ I(X : M | Y, D)`.
 
@@ -3823,7 +3949,12 @@ theorem sum_fixedAliceInfoTerm_le_xVector_info
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     (∑ i : Fin n, fixedAliceInfoTerm n p i) ≤
       I[xVector n : message n p | yVector n ; disjointCondMeasure n] := by
-  sorry
+  calc
+    (∑ i : Fin n, fixedAliceInfoTerm n p i)
+        ≤ ∑ i : Fin n, fixedAliceFullYInfoTerm n p i :=
+          sum_fixedAliceInfoTerm_le_sum_fixedAliceFullYInfoTerm n p
+    _ = I[xVector n : message n p | yVector n ; disjointCondMeasure n] :=
+          sum_fixedAliceFullYInfoTerm_eq_xVector_info n p
 
 open Classical in
 /-- Averaging over the special coordinate: conditioned on `D`, `T` is uniform and independent of

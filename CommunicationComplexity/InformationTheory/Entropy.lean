@@ -379,6 +379,76 @@ theorem condMutualInfo_prod_right_eq_add
     condMutualInfo_comm hY hX Z μ,
     condMutualInfo_comm hW hX (fun ω => (Y ω, Z ω)) μ]
 
+omit [Countable U] in
+/-- Adding an extra right-side variable cannot decrease conditional mutual information. -/
+theorem condMutualInfo_le_prod_right_snd
+    (hX : Measurable X) (hY : Measurable Y) (hW : Measurable W) (hZ : Measurable Z)
+    [IsProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange W]
+    [FiniteRange Z] :
+    I[X : W | Z ; μ] ≤ I[X : (fun ω => (Y ω, W ω)) | Z ; μ] := by
+  simpa [Function.comp_def] using
+    condMutual_comp_comp_le (μ := μ)
+      (X := X) (Y := fun ω => (Y ω, W ω)) (Z := Z)
+      hX (hY.prodMk hW) hZ (fun x : S => x) Prod.snd Measurable.of_discrete
+
+/-- The strict prefix of a boolean vector-valued random variable. -/
+def boolVectorStrictPrefix {Ω : Type*} {m : ℕ}
+    (X : Ω → Fin m → Bool) (i : Fin m) (ω : Ω) : Fin i.1 → Bool :=
+  fun j => X ω ⟨j.1, lt_trans j.2 i.2⟩
+
+open Classical in
+/-- Chain rule for conditional mutual information against a finite boolean vector, exposing
+coordinates from left to right. -/
+theorem condMutualInfo_boolVector_eq_sum_strictPrefix
+    {Ω T U : Type*} [MeasurableSpace Ω] [MeasurableSpace T] [MeasurableSpace U]
+    [MeasurableSingletonClass T] [MeasurableSingletonClass U] [Countable T] [Countable U]
+    {m : ℕ} {Y : Ω → T} {Z : Ω → U} {μ : Measure Ω}
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange Y] [FiniteRange Z]
+    (X : Ω → Fin m → Bool)
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z) :
+    I[X : Y | Z ; μ] =
+      ∑ i : Fin m,
+        I[(fun ω => X ω i) : Y | (fun ω => (boolVectorStrictPrefix X i ω, Z ω)) ; μ] := by
+  induction m with
+  | zero =>
+      have hconst : X =ᵐ[μ] fun _ => (Fin.elim0 : Fin 0 → Bool) := by
+        filter_upwards with ω
+        funext i
+        exact Fin.elim0 i
+      rw [Fin.sum_univ_zero]
+      exact ProbabilityTheory.condMutualInfo_eq_zero_of_ae_eq_const_left
+        hX hY (Fin.elim0 : Fin 0 → Bool) hconst
+  | succ m ih =>
+      let Xinit : Ω → Fin m → Bool := fun ω i => X ω i.castSucc
+      let Xlast : Ω → Bool := fun ω => X ω (Fin.last m)
+      have hXinit : Measurable Xinit := by
+        rw [measurable_pi_iff]
+        intro i
+        exact (measurable_pi_apply i.castSucc).comp hX
+      have hXlast : Measurable Xlast :=
+        (measurable_pi_apply (Fin.last m)).comp hX
+      let splitLast : (Fin (m + 1) → Bool) → (Fin m → Bool) × Bool :=
+        fun v => (fun i => v i.castSucc, v (Fin.last m))
+      have hsplitLast_inj : Function.Injective splitLast := by
+        intro a b h
+        funext k
+        cases k using Fin.lastCases with
+        | last =>
+            exact congrArg Prod.snd h
+        | cast i =>
+            exact congr_fun (congrArg Prod.fst h) i
+      have hsplit :
+          I[(fun ω => (Xinit ω, Xlast ω)) : Y | Z ; μ] = I[X : Y | Z ; μ] := by
+        simpa [splitLast, Xinit, Xlast, Function.comp_def] using
+          ProbabilityTheory.condMutualInfo_of_inj_map
+            (μ := μ) (X := X) (Y := Y) (Z := Z)
+            hX hY hZ (fun _ v => splitLast v) (fun _ => hsplitLast_inj)
+      rw [← hsplit]
+      rw [ProbabilityTheory.condMutualInfo_prod_left_eq_add hXinit hXlast hY hZ]
+      rw [ih Xinit hXinit]
+      rw [Fin.sum_univ_castSucc]
+      congr 1
+
 open Classical in
 /-- Conditioning on a larger event and then on a smaller event is the same as conditioning
 directly on the smaller event. -/
