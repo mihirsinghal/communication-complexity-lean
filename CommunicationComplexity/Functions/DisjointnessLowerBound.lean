@@ -5354,13 +5354,21 @@ theorem publicCoin_lower_bound_textbook
   linarith
 
 /-- Headline theorem: public-coin randomized communication complexity of disjointness is linear at
-fixed error `1 / 32`, with a concrete conservative constant. -/
+fixed error `1 / 32`, with a concrete conservative constant. The cutoff is the floor of the
+real number `n / 2^32`, so the asymptotic constant is stated over the reals. -/
 theorem publicCoin_communicationComplexity_disjointness_linear_lower_bound
-    {k : ℕ}
-    (hk : (k : ℝ) <
-      ((1 / 32768 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2)) :
-    k < PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) :=
-  publicCoin_lower_bound_textbook n hk
+    : Nat.floor ((n : ℝ) / (2 ^ 32 : ℝ)) <
+      PublicCoin.communicationComplexity (disjointness n) (1 / 32 : ℝ) := by
+  apply publicCoin_lower_bound_textbook n
+  have hlog_lt_one : Real.log 2 < 1 := by
+    have h := Real.log_lt_sub_one_of_pos (x := (2 : ℝ)) (by norm_num) (by norm_num)
+    linarith
+  have hscaled :
+      (n : ℝ) / (2 ^ 32 : ℝ) <
+        ((1 / 32768 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) := by
+    field_simp
+    linarith
+  exact (Nat.floor_le (by positivity)).trans_lt hscaled
 
 end RandomizedLowerBound
 
