@@ -60,6 +60,15 @@ theorem mutualInfo_le_entropy_right
   rw [mutualInfo_comm hX hY]
   exact mutualInfo_le_entropy_left hY hX
 
+omit [MeasurableSingletonClass S] [MeasurableSingletonClass T] [Countable S] [Countable T] in
+theorem mutualInfo_congr_ae
+    {X' : Ω → S} {Y' : Ω → T}
+    (hX : Measurable X) (hY : Measurable Y)
+    (hXae : X =ᵐ[μ] X') (hYae : Y =ᵐ[μ] Y') :
+    I[X : Y ; μ] = I[X' : Y' ; μ] := by
+  exact ProbabilityTheory.IdentDistrib.mutualInfo_eq
+    (IdentDistrib.of_ae_eq (hX.prodMk hY).aemeasurable (hXae.prodMk hYae))
+
 open Classical in
 /-- Mutual information is unchanged by an injective recoding of the right variable. -/
 theorem mutualInfo_comp_right_of_injective
@@ -95,6 +104,33 @@ theorem mutualInfo_eq_zero_of_ae_eq_const_right
     I[X : Y ; μ] = 0 := by
   rw [mutualInfo_comm hX hY]
   exact mutualInfo_eq_zero_of_ae_eq_const_left hY hX c hconst
+
+omit [Countable S] [Countable T] in
+open Classical in
+/-- If the left variable is almost surely constant, its conditional mutual information with any
+finite variable is zero. -/
+theorem condMutualInfo_eq_zero_of_ae_eq_const_left
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (c : S)
+    (hconst : X =ᵐ[μ] fun _ => c) :
+    I[X : Y | Z ; μ] = 0 := by
+  apply (condMutualInfo_eq_zero hX hY).mpr
+  rw [condIndepFun_iff, ae_iff_of_countable]
+  intro z _hz
+  have hconst_cond : X =ᵐ[μ[|Z ⁻¹' {z}]] fun _ => c :=
+    cond_absolutelyContinuous.ae_le hconst
+  exact IndepFun.congr (indepFun_const_left c Y)
+    (Filter.EventuallyEq.symm hconst_cond) (by rfl)
+
+/-- If the right variable is almost surely constant, its conditional mutual information with any
+finite variable is zero. -/
+theorem condMutualInfo_eq_zero_of_ae_eq_const_right
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (c : T)
+    (hconst : Y =ᵐ[μ] fun _ => c) :
+    I[X : Y | Z ; μ] = 0 := by
+  rw [condMutualInfo_comm hX hY Z μ]
+  exact condMutualInfo_eq_zero_of_ae_eq_const_left hY hX c hconst
 
 open Classical in
 /-- For finite alphabets, independence of two random variables follows from factorization on
@@ -206,6 +242,62 @@ theorem condMutualInfo_conditioning_prod_function_eq
     condMutualInfo_of_inj hX hY hZ μ
       (f := fun z => (z, f z)) (fun _ _ h => (Prod.ext_iff.1 h).1)
 
+open Classical in
+/-- Conditioning additionally on a deterministic function of the left variable and the existing
+conditioning data cannot increase conditional mutual information. -/
+theorem condMutualInfo_conditioning_prod_left_function_le
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (f : U → S → V) (hf : Measurable (Function.uncurry f)) :
+    I[X : Y | (fun ω => (Z ω, f (Z ω) (X ω))) ; μ] ≤
+      I[X : Y | Z ; μ] := by
+  let A : Ω → U × V := fun ω => (Z ω, f (Z ω) (X ω))
+  let XZ : Ω → S × U := fun ω => (X ω, Z ω)
+  let recode : S × U → S × (U × V) := fun xu => (xu.1, (xu.2, f xu.2 xu.1))
+  have hA : Measurable A := by
+    exact hZ.prodMk (hf.comp (hZ.prodMk hX))
+  haveI : FiniteRange (fun ω => f (Z ω) (X ω)) := by
+    change FiniteRange (Function.uncurry f ∘ fun ω => (Z ω, X ω))
+    infer_instance
+  haveI : FiniteRange A := by
+    dsimp only [A]
+    infer_instance
+  haveI : FiniteRange XZ := by
+    dsimp only [XZ]
+    infer_instance
+  have hfirst : H[Y | A ; μ] ≤ H[Y | Z ; μ] := by
+    have hge :=
+      condEntropy_comp_ge (μ := μ) (X := A) (Y := Y)
+        hA hY (fun a : U × V => a.1)
+    simpa [A, Function.comp_def] using hge
+  have hrec_inj : Function.Injective recode := by
+    intro a b h
+    exact Prod.ext (Prod.ext_iff.1 h).1 (Prod.ext_iff.1 (Prod.ext_iff.1 h).2).1
+  have hrec_meas : Measurable (recode ∘ XZ) := by
+    simpa [recode, XZ, A, Function.comp_def] using hX.prodMk hA
+  have hsecond :
+      H[Y | (fun ω => (X ω, A ω)) ; μ] = H[Y | XZ ; μ] := by
+    simpa [recode, XZ, A, Function.comp_def] using
+      condEntropy_of_injective' μ hY (hX.prodMk hZ) recode hrec_inj hrec_meas
+  rw [condMutualInfo_comm hX hY A μ, condMutualInfo_comm hX hY Z μ,
+    condMutualInfo_eq' hY hX hA μ, condMutualInfo_eq' hY hX hZ μ]
+  rw [hsecond]
+  linarith
+
+open Classical in
+/-- Conditioning additionally on a deterministic function of the right variable and the existing
+conditioning data cannot increase conditional mutual information. -/
+theorem condMutualInfo_conditioning_prod_right_function_le
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    (f : U → T → V) (hf : Measurable (Function.uncurry f)) :
+    I[X : Y | (fun ω => (Z ω, f (Z ω) (Y ω))) ; μ] ≤
+      I[X : Y | Z ; μ] := by
+  rw [condMutualInfo_comm hX hY (fun ω => (Z ω, f (Z ω) (Y ω))) μ,
+    condMutualInfo_comm hX hY Z μ]
+  exact condMutualInfo_conditioning_prod_left_function_le
+    (μ := μ) (X := Y) (Y := X) (Z := Z) hY hX hZ f hf
+
 /-- If a coarse conditioning variable is a deterministic function of a finer one, and the finer
 conditioning variable carries no conditional information about `X` beyond the coarse variable,
 then the finer conditioning can only increase `I[X : Y | -]`. -/
@@ -312,6 +404,39 @@ theorem mutualInfo_prod_right_eq_add
     mutualInfo_eq_entropy_sub_condEntropy hX hY μ,
     condMutualInfo_eq' hX hW hY μ, hswap]
   ring
+
+open Classical in
+/-- Chain-rule rearrangement: if conditioning on `Y` does not increase the dependence between
+`X` and `W`, then conditioning on `W` cannot increase the information that `Y` has about `X`
+beyond the unconditioned `I[X : Y]`. -/
+theorem condMutualInfo_le_mutualInfo_of_condDependence_le
+    (hX : Measurable X) (hY : Measurable Y) (hW : Measurable W)
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y] [FiniteRange W]
+    (hdep : I[X : W|Y;μ] ≤ I[X : W ; μ]) :
+    I[X : Y|W;μ] ≤ I[X : Y ; μ] := by
+  let swap : T × V → V × T := fun p => (p.2, p.1)
+  have hswap_inj : Function.Injective swap := by
+    intro a b h
+    rcases a with ⟨aY, aW⟩
+    rcases b with ⟨bY, bW⟩
+    simp only [swap, Prod.mk.injEq] at h ⊢
+    exact ⟨h.2, h.1⟩
+  have hswap :
+      I[X : (fun ω => (W ω, Y ω)) ; μ] =
+        I[X : (fun ω => (Y ω, W ω)) ; μ] := by
+    simpa [swap, Function.comp_def] using
+      ProbabilityTheory.mutualInfo_comp_right_of_injective
+        (μ := μ) (X := X) (Y := fun ω => (Y ω, W ω))
+        hX (hY.prodMk hW) swap Measurable.of_discrete hswap_inj
+  have hYW :
+      I[X : (fun ω => (Y ω, W ω)) ; μ] =
+        I[X : Y ; μ] + I[X : W | Y ; μ] :=
+    mutualInfo_prod_right_eq_add hX hY hW
+  have hWY :
+      I[X : (fun ω => (W ω, Y ω)) ; μ] =
+        I[X : W ; μ] + I[X : Y | W ; μ] :=
+    mutualInfo_prod_right_eq_add hX hW hY
+  linarith
 
 /-- Conditional entropy is unchanged when both variables are replaced by almost-everywhere equal
 variables. -/
