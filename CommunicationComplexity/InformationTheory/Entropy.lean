@@ -60,6 +60,70 @@ theorem mutualInfo_le_entropy_right
   rw [mutualInfo_comm hX hY]
   exact mutualInfo_le_entropy_left hY hX
 
+open Classical in
+/-- Mutual information is unchanged by an injective recoding of the right variable. -/
+theorem mutualInfo_comp_right_of_injective
+    {V : Type*} [MeasurableSpace V] [MeasurableSingletonClass V] [Countable V]
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y]
+    (hX : Measurable X) (hY : Measurable Y)
+    (f : T → V) (hf : Measurable f) (hfinj : Function.Injective f) :
+    I[X : f ∘ Y ; μ] = I[X : Y ; μ] := by
+  rw [mutualInfo_eq_entropy_sub_condEntropy hX (hf.comp hY),
+    mutualInfo_eq_entropy_sub_condEntropy hX hY]
+  rw [condEntropy_of_injective' μ hX hY f hfinj (hf.comp hY)]
+
+omit [Countable S] [Countable T] in
+/-- If the left variable is almost surely constant, its mutual information with any finite
+variable is zero. -/
+theorem mutualInfo_eq_zero_of_ae_eq_const_left
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y]
+    (hX : Measurable X) (hY : Measurable Y) (c : S)
+    (hconst : X =ᵐ[μ] fun _ => c) :
+    I[X : Y ; μ] = 0 := by
+  have hindepConst : (fun _ : Ω => c) ⟂ᵢ[μ] Y :=
+    indepFun_const_left c Y
+  have hindep : X ⟂ᵢ[μ] Y :=
+    IndepFun.congr hindepConst hconst.symm (by rfl)
+  exact hindep.mutualInfo_eq_zero hX hY
+
+/-- If the right variable is almost surely constant, its mutual information with any finite
+variable is zero. -/
+theorem mutualInfo_eq_zero_of_ae_eq_const_right
+    [IsZeroOrProbabilityMeasure μ] [FiniteRange X] [FiniteRange Y]
+    (hX : Measurable X) (hY : Measurable Y) (c : T)
+    (hconst : Y =ᵐ[μ] fun _ => c) :
+    I[X : Y ; μ] = 0 := by
+  rw [mutualInfo_comm hX hY]
+  exact mutualInfo_eq_zero_of_ae_eq_const_left hY hX c hconst
+
+open Classical in
+/-- For finite alphabets, independence of two random variables follows from factorization on
+singleton fibers. -/
+theorem indepFun_of_measureReal_inter_preimage_singleton_eq_mul
+    {Ω S T : Type*} [MeasurableSpace Ω] [MeasurableSpace S] [MeasurableSpace T]
+    [MeasurableSingletonClass S] [MeasurableSingletonClass T]
+    [Finite S] [Finite T] (μ : Measure Ω) [IsFiniteMeasure μ]
+    (X : Ω → S) (Y : Ω → T) (hX : Measurable X) (hY : Measurable Y)
+    (h : ∀ x y,
+      μ.real (X ⁻¹' {x} ∩ Y ⁻¹' {y}) =
+        μ.real (X ⁻¹' {x}) * μ.real (Y ⁻¹' {y})) :
+    IndepFun X Y μ := by
+  rw [indepFun_iff_map_prod_eq_prod_map_map hX.aemeasurable hY.aemeasurable]
+  rw [Measure.ext_iff_measureReal_singleton_finiteSupport]
+  rintro ⟨x, y⟩
+  rw [MeasureTheory.map_measureReal_apply (hX.prodMk hY) MeasurableSet.of_discrete]
+  rw [show (fun ω => (X ω, Y ω)) ⁻¹' ({(x, y)} : Set (S × T)) =
+      X ⁻¹' ({x} : Set S) ∩ Y ⁻¹' ({y} : Set T) by
+    ext ω
+    simp [Prod.ext_iff]]
+  rw [h x y]
+  rw [show ({(x, y)} : Set (S × T)) = ({x} : Set S) ×ˢ ({y} : Set T) by
+    ext z
+    simp [Prod.ext_iff]]
+  rw [MeasureTheory.measureReal_prod_prod]
+  rw [MeasureTheory.map_measureReal_apply hX MeasurableSet.of_discrete]
+  rw [MeasureTheory.map_measureReal_apply hY MeasurableSet.of_discrete]
+
 /-- Conditional mutual information is bounded by the left conditional entropy. -/
 theorem condMutualInfo_le_condEntropy_left
     (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
