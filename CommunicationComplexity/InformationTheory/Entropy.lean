@@ -379,6 +379,23 @@ theorem condMutualInfo_prod_right_eq_add
     condMutualInfo_comm hY hX Z μ,
     condMutualInfo_comm hW hX (fun ω => (Y ω, Z ω)) μ]
 
+open Classical in
+/-- If an event is determined by the conditioning variable, then the contribution of the
+conditional mutual information on that event is bounded by the original conditional mutual
+information.  This is the information-theoretic reweighting used in Claim 6.21. -/
+theorem measureReal_mul_cond_condMutualInfo_le_condMutualInfo_of_event_eq_preimage
+    {Ω₀ S₀ T₀ U₀ : Type*}
+    [MeasurableSpace Ω₀] [MeasurableSpace S₀] [MeasurableSpace T₀] [MeasurableSpace U₀]
+    [MeasurableSingletonClass S₀] [MeasurableSingletonClass T₀]
+    [MeasurableSingletonClass U₀] [Countable S₀] [Countable T₀] [Countable U₀]
+    (μ : Measure Ω₀) [IsProbabilityMeasure μ]
+    (X : Ω₀ → S₀) (Y : Ω₀ → T₀) (Z : Ω₀ → U₀)
+    (hX : Measurable X) (hY : Measurable Y) (hZ : Measurable Z)
+    [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
+    {A : Set Ω₀} {B : Set U₀} (hB : MeasurableSet B) (hA : A = Z ⁻¹' B) :
+    μ.real A * I[X : Y | Z ; μ[|A]] ≤ I[X : Y | Z ; μ] := by
+  sorry
+
 /-- Chain rule for mutual information, splitting a pair on the right. -/
 theorem mutualInfo_prod_right_eq_add
     (hX : Measurable X) (hY : Measurable Y) (hW : Measurable W)

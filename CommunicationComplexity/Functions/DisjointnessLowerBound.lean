@@ -286,6 +286,45 @@ def bobClaimConditioning (ω : HardSample n) :
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (specialCoordinate n ω, xLeSpecial n ω, yAfterSpecial n ω)
 
+/-- Alice's fixed-coordinate bit used in Lemma 6.20. -/
+def fixedXBit (i : Fin n) (ω : HardSample n) : Bool :=
+  xBit n ω i
+
+/-- Alice's fixed-coordinate `X_<i` prefix used in Lemma 6.20. -/
+def fixedXBefore (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if j < i then xBit n ω j else false
+
+/-- Bob's fixed-coordinate `Y_<i` prefix used in Lemma 6.20. -/
+def fixedYBefore (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if j < i then yBit n ω j else false
+
+/-- Bob's fixed-coordinate `Y_≥i` suffix used in Lemma 6.20. -/
+def fixedYGe (i : Fin n) (ω : HardSample n) : Fin n → Bool :=
+  fun j => if i ≤ j then yBit n ω j else false
+
+/-- The fixed-coordinate Alice conditioning variable `X_<i, Y_≥i` from Lemma 6.20. -/
+def fixedAliceConditioning (i : Fin n) (ω : HardSample n) :
+    (Fin n → Bool) × (Fin n → Bool) :=
+  (fixedXBefore n i ω, fixedYGe n i ω)
+
+/-- The values of Alice's corrected conditioning variable for which `Y_T = false`. -/
+def aliceClaimConditioningYFalseValues :
+    Set (Fin n × (Fin n → Bool) × (Fin n → Bool)) :=
+  {c | c.2.2 c.1 = false}
+
+/-- The `Y_≥T` component of Alice's corrected conditioning contains the bit `Y_T`. -/
+theorem yGeSpecial_specialCoordinate (ω : HardSample n) :
+    yGeSpecial n ω (specialCoordinate n ω) = specialY n ω := by
+  simp [yGeSpecial, specialCoordinate, specialY, yBit]
+
+/-- The event `Y_T=false` is determined by Alice's corrected conditioning variable. -/
+theorem specialY_false_eq_preimage_aliceClaimConditioningYFalseValues :
+    (((specialY n) ⁻¹' {false}) : Set (HardSample n)) =
+      (aliceClaimConditioning n) ⁻¹' aliceClaimConditioningYFalseValues n := by
+  ext ω
+  simp [aliceClaimConditioningYFalseValues, aliceClaimConditioning,
+    yGeSpecial_specialCoordinate]
+
 /-- The conditioning-value recoding induced by reversing coordinates and swapping Alice/Bob. -/
 def dualConditioningValue
     (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
@@ -2462,6 +2501,47 @@ theorem claimInfo_dualProtocol
     bobInfoTerm_dualProtocol_eq_aliceInfoTerm, claimInfo, add_comm]
 
 open Classical in
+/-- The fixed-coordinate summand `I(X_i : M | X_<i, Y_≥i)` in Lemma 6.20. -/
+noncomputable def fixedAliceInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (i : Fin n) : ℝ :=
+  I[fixedXBit n i : message n p | fixedAliceConditioning n i ; disjointCondMeasure n]
+
+open Classical in
+/-- The zero cross-information term `I(X_i : Y_<i | X_<i, Y_≥i)` in Lemma 6.20. -/
+noncomputable def fixedAliceCrossInfoTerm (i : Fin n) : ℝ :=
+  I[fixedXBit n i : fixedYBefore n i | fixedAliceConditioning n i ; disjointCondMeasure n]
+
+open Classical in
+/-- Textbook Lemma 6.20 independence input for the hard distribution conditioned on `D`:
+`I(X_i : Y_<i | X_<i, Y_≥i, D) = 0`. -/
+theorem fixedAliceCrossInfoTerm_eq_zero (i : Fin n) :
+    fixedAliceCrossInfoTerm n i = 0 := by
+  sorry
+
+open Classical in
+/-- Textbook Lemma 6.20 chain-rule step for the Alice summands:
+`∑ᵢ I(X_i : M | X_<i, Y_≥i, D) ≤ I(X : M | Y, D)`.
+
+This is the proof-specific instance of Lemma 6.20; its only probabilistic input is
+`fixedAliceCrossInfoTerm_eq_zero`. -/
+theorem sum_fixedAliceInfoTerm_le_xVector_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∑ i : Fin n, fixedAliceInfoTerm n p i) ≤
+      I[xVector n : message n p | yVector n ; disjointCondMeasure n] := by
+  sorry
+
+open Classical in
+/-- Averaging over the special coordinate: conditioned on `D`, `T` is uniform and independent of
+`(X,Y,M)`, so the Alice term in (6.6) is the average of the fixed-coordinate Lemma 6.20
+summands. -/
+theorem aliceInfoTerm_eq_average_fixedAliceInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    aliceInfoTerm n p =
+      (∑ i : Fin n, fixedAliceInfoTerm n p i) / (n : ℝ) := by
+  sorry
+
+open Classical in
 /-- Alice half of Lemma 6.20, after conditioning on disjointness and averaging over the uniform
 special coordinate:
 `I(X_T : M | T, X_<T, Y_≥T, D) ≤ I(X : M | Y, D) / n`. -/
@@ -2469,7 +2549,8 @@ theorem aliceInfoTerm_le_average_xVector_info
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     aliceInfoTerm n p ≤
       I[xVector n : message n p | yVector n ; disjointCondMeasure n] / (n : ℝ) := by
-  sorry
+  rw [aliceInfoTerm_eq_average_fixedAliceInfoTerm]
+  exact div_le_div_of_nonneg_right (sum_fixedAliceInfoTerm_le_xVector_info n p) (by positivity)
 
 open Classical in
 /-- Bob half of Lemma 6.20, after conditioning on disjointness and averaging over the uniform
@@ -2547,13 +2628,61 @@ theorem claimInfo_le_average_info_upper
     _ = 2 * (p.complexity * Real.log 2) / (n : ℝ) := by ring
 
 open Classical in
+/-- The Claim 6.21 Alice information term after additionally conditioning on `Y_T=false`:
+`I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D)`. -/
+noncomputable def aliceInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialX n : message n p | aliceClaimConditioning n ; disjointSpecialYFalseMeasure n]
+
+open Classical in
+/-- Textbook Claim 6.21 identification of the average Alice one-bit fiber KL with the conditional
+mutual information under `Y_T=false`.  This packages the step
+`p(x_t | z) = p(x_t | z, y_t=0) = p(x_t | z, y_t=0, D)` coming from independence and the
+rectangle property of the transcript. -/
+theorem xFiberKL_integral_eq_aliceInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) =
+      aliceInfoTermSpecialYFalse n p := by
+  sorry
+
+open Classical in
+/-- Textbook Claim 6.21 reweighting:
+`(2/3) I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D) ≤
+ I(X_T : M | T, X_<T, Y_≥T, D)`.
+
+The factor is `Pr[Y_T=false | D] = 2/3`, and the event `Y_T=false` is determined by the
+conditioning variable because `Y_≥T` contains `Y_T`. -/
+theorem two_thirds_mul_aliceInfoTermSpecialYFalse_le_aliceInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (2 / 3 : ℝ) * aliceInfoTermSpecialYFalse n p ≤ aliceInfoTerm n p := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let Y0 : Set (HardSample n) := (specialY n) ⁻¹' {false}
+  haveI : IsProbabilityMeasure μ := by
+    simpa [μ] using disjointCondMeasure_isProbabilityMeasure n
+  have hmass : μ.real Y0 = (2 / 3 : ℝ) := by
+    simpa [μ, Y0] using disjointCondMeasure_measureReal_specialY_false n
+  have hdet : Y0 = (aliceClaimConditioning n) ⁻¹' aliceClaimConditioningYFalseValues n := by
+    simpa [Y0] using specialY_false_eq_preimage_aliceClaimConditioningYFalseValues n
+  have h :=
+    ProbabilityTheory.measureReal_mul_cond_condMutualInfo_le_condMutualInfo_of_event_eq_preimage
+      (μ := μ)
+      (X := specialX n) (Y := message n p) (Z := aliceClaimConditioning n)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (A := Y0) (B := aliceClaimConditioningYFalseValues n)
+      MeasurableSet.of_discrete hdet
+  simpa [μ, Y0, hmass, aliceInfoTermSpecialYFalse, aliceInfoTerm,
+    disjointSpecialYFalseMeasure] using h
+
+open Classical in
 /-- Textbook Claim 6.21, Alice information step under `D ∧ Y_T=false`: the average one-bit KL
 cost is bounded by Alice's term from (6.6), with the `2/3` conditioning factor. -/
 theorem claim621_x_fiberKL_disjointSpecialYFalse_le_three_halves_aliceInfoTerm
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) ≤
       (3 / 2 : ℝ) * aliceInfoTerm n p := by
-  sorry
+  rw [xFiberKL_integral_eq_aliceInfoTermSpecialYFalse]
+  have h := two_thirds_mul_aliceInfoTermSpecialYFalse_le_aliceInfoTerm n p
+  nlinarith
 
 open Classical in
 /-- Textbook Claim 6.21, Alice information step under `D ∧ Y_T=false`: the average one-bit KL
