@@ -380,6 +380,32 @@ theorem condMutualInfo_prod_right_eq_add
     condMutualInfo_comm hW hX (fun ω => (Y ω, Z ω)) μ]
 
 open Classical in
+/-- Conditioning on a larger event and then on a smaller event is the same as conditioning
+directly on the smaller event. -/
+theorem cond_cond_eq_cond_of_subset
+    {Ω₀ : Type*} [MeasurableSpace Ω₀] (μ : Measure Ω₀) [IsFiniteMeasure μ]
+    {A F : Set Ω₀} (hA : MeasurableSet A) (hF : MeasurableSet F) (hFA : F ⊆ A) :
+    μ[|A][|F] = μ[|F] := by
+  rw [ProbabilityTheory.cond_cond_eq_cond_inter hA hF μ]
+  rw [Set.inter_eq_right.mpr hFA]
+
+open Classical in
+/-- Real masses obey the same reweighting identity for nested conditioning events. -/
+theorem measureReal_mul_cond_real_eq_measureReal_of_subset
+    {Ω₀ : Type*} [MeasurableSpace Ω₀] (μ : Measure Ω₀) [IsFiniteMeasure μ]
+    {A F : Set Ω₀} (hA : MeasurableSet A) (hFA : F ⊆ A) :
+    μ.real A * (μ[|A]).real F = μ.real F := by
+  rw [ProbabilityTheory.cond_real_apply hA]
+  rw [Set.inter_eq_right.mpr hFA]
+  by_cases hmass : μ.real A = 0
+  · have hFmass : μ.real F = 0 := by
+      have hle : μ.real F ≤ μ.real A := measureReal_mono hFA
+      have hnonneg : 0 ≤ μ.real F := measureReal_nonneg
+      linarith
+    simp [hmass, hFmass]
+  · field_simp [hmass]
+
+open Classical in
 /-- If an event is determined by the conditioning variable, then the contribution of the
 conditional mutual information on that event is bounded by the original conditional mutual
 information.  This is the information-theoretic reweighting used in Claim 6.21. -/
@@ -394,7 +420,54 @@ theorem measureReal_mul_cond_condMutualInfo_le_condMutualInfo_of_event_eq_preima
     [FiniteRange X] [FiniteRange Y] [FiniteRange Z]
     {A : Set Ω₀} {B : Set U₀} (hB : MeasurableSet B) (hA : A = Z ⁻¹' B) :
     μ.real A * I[X : Y | Z ; μ[|A]] ≤ I[X : Y | Z ; μ] := by
-  sorry
+  have hAmeas : MeasurableSet A := by
+    rw [hA]
+    exact hZ hB
+  rw [condMutualInfo_eq_sum (μ := μ[|A]) hZ]
+  rw [condMutualInfo_eq_sum (μ := μ) hZ]
+  rw [Finset.mul_sum]
+  apply Finset.sum_le_sum
+  intro z hzrange
+  let F : Set Ω₀ := Z ⁻¹' ({z} : Set U₀)
+  have hFmeas : MeasurableSet F := hZ MeasurableSet.of_discrete
+  by_cases hzB : z ∈ B
+  · have hFA : F ⊆ A := by
+      intro ω hω
+      rw [hA]
+      have hz : Z ω = z := by simpa [F] using hω
+      simpa [hz] using hzB
+    have hcond :
+        μ[|A][|F] = μ[|F] :=
+      cond_cond_eq_cond_of_subset μ hAmeas hFmeas hFA
+    have hmass :
+        μ.real A * (μ[|A]).real F = μ.real F :=
+      measureReal_mul_cond_real_eq_measureReal_of_subset μ hAmeas hFA
+    exact le_of_eq (by
+      simpa [F] using
+        (calc
+          μ.real A * ((μ[|A]).real F * I[X : Y ; μ[|A][|F]])
+              = (μ.real A * (μ[|A]).real F) * I[X : Y ; μ[|A][|F]] := by ring
+          _ = μ.real F * I[X : Y ; μ[|F]] := by rw [hmass, hcond]))
+  · have hAF_empty : A ∩ F = ∅ := by
+      ext ω
+      constructor
+      · intro hω
+        rw [hA] at hω
+        have hz : Z ω = z := by simpa [F] using hω.2
+        exact False.elim (hzB (by simpa [hz] using hω.1))
+      · intro hω
+        simp at hω
+    have hcondReal : (μ[|A]).real F = 0 := by
+      rw [ProbabilityTheory.cond_real_apply hAmeas, hAF_empty]
+      simp
+    have hright_nonneg :
+        0 ≤ μ.real F * I[X : Y ; μ[|F]] :=
+      mul_nonneg measureReal_nonneg (mutualInfo_nonneg hX hY _)
+    calc
+      μ.real A * ((μ[|A]).real F * I[X : Y ; μ[|A][|F]]) = 0 := by
+        rw [hcondReal]
+        ring
+      _ ≤ μ.real F * I[X : Y ; μ[|F]] := hright_nonneg
 
 /-- Chain rule for mutual information, splitting a pair on the right. -/
 theorem mutualInfo_prod_right_eq_add

@@ -225,6 +225,10 @@ def specialIntersect : Set (HardSample n) :=
 def specialBitsEvent (bx bY : Bool) : Set (HardSample n) :=
   {ω | ω.xT = bx ∧ ω.yT = bY}
 
+/-- The event that the special coordinate has a prescribed value. -/
+def specialCoordinateEvent (i : Fin n) : Set (HardSample n) :=
+  {ω | ω.T = i}
+
 /-- The event that both special-coordinate bits are zero. -/
 def specialZeroZero : Set (HardSample n) :=
   specialBitsEvent n false false
@@ -241,6 +245,11 @@ noncomputable instance specialIntersectFintype :
 noncomputable instance specialBitsEventFintype (bx bY : Bool) :
     Fintype {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} := by
   unfold specialBitsEvent
+  infer_instance
+
+noncomputable instance specialCoordinateEventFintype (i : Fin n) :
+    Fintype {ω : HardSample n // ω ∈ specialCoordinateEvent n i} := by
+  unfold specialCoordinateEvent
   infer_instance
 
 /-- The special coordinate selected by the hard distribution. -/
@@ -839,6 +848,49 @@ private def specialBitsEventEquiv (bx bY : Bool) :
     rcases p with ⟨T, other⟩
     rfl
 
+private def specialCoordinateEventEquiv (i : Fin n) :
+    {ω : HardSample n // ω ∈ specialCoordinateEvent n i} ≃
+      Bool × Bool × (Fin n → DisjointCoordinate) where
+  toFun ω := (ω.1.xT, ω.1.yT, ω.1.other)
+  invFun p :=
+    ⟨{ T := i
+       xT := p.1
+       yT := p.2.1
+       other := p.2.2 }, by simp [specialCoordinateEvent]⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    simp only [specialCoordinateEvent, Set.mem_setOf_eq] at hω
+    subst T
+    rfl
+  right_inv p := by
+    rcases p with ⟨xT, yT, other⟩
+    rfl
+
+private def specialCoordinateEventInterSpecialIntersectEquiv (i : Fin n) :
+    {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} ≃
+      (Fin n → DisjointCoordinate) where
+  toFun ω := ω.1.other
+  invFun other :=
+    ⟨{ T := i
+       xT := true
+       yT := true
+       other := other }, by simp [specialCoordinateEvent, specialIntersect]⟩
+  left_inv ω := by
+    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+    rcases hω with ⟨hT, hxT, hyT⟩
+    simp [specialCoordinateEvent] at hT
+    simp only at hxT hyT
+    subst T
+    subst xT
+    subst yT
+    rfl
+  right_inv other := rfl
+
+noncomputable instance specialCoordinateEventInterSpecialIntersectFintype (i : Fin n) :
+    Fintype {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} :=
+  Fintype.ofEquiv (Fin n → DisjointCoordinate)
+    (specialCoordinateEventInterSpecialIntersectEquiv n i).symm
+
 theorem card_specialIntersect :
     Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
       (n : ℕ) * 3 ^ (n : ℕ) := by
@@ -858,6 +910,27 @@ theorem card_specialBitsEvent (bx bY : Bool) :
       Fintype.card_congr (specialBitsEventEquiv n bx bY)
     _ = (n : ℕ) * 3 ^ (n : ℕ) := by
       simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
+
+theorem card_specialCoordinateEvent (i : Fin n) :
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
+      4 * 3 ^ (n : ℕ) := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
+        Fintype.card (Bool × Bool × (Fin n → DisjointCoordinate)) :=
+      Fintype.card_congr (specialCoordinateEventEquiv n i)
+    _ = 4 * 3 ^ (n : ℕ) := by
+      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
+      ring
+
+theorem card_specialCoordinateEvent_inter_specialIntersect (i : Fin n) :
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} =
+      3 ^ (n : ℕ) := by
+  calc
+    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} =
+        Fintype.card (Fin n → DisjointCoordinate) :=
+      Fintype.card_congr (specialCoordinateEventInterSpecialIntersectEquiv n i)
+    _ = 3 ^ (n : ℕ) := by
+      simp [Fintype.card_pi, DisjointCoordinate.card]
 
 open Classical in
 /-- The hard distribution creates an intersection with probability `1 / 4`. -/
@@ -900,6 +973,34 @@ theorem measureReal_specialBitsEvent (bx bY : Bool) :
         (Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} : ℝ) := by
     exact_mod_cast hfilter
   rw [hfilter_real, card_specialBitsEvent, HardSample.card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+
+open Classical in
+/-- Under the hard distribution, the special coordinate is uniform. -/
+theorem measureReal_specialCoordinateEvent (i : Fin n) :
+    (volume (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype, card_specialCoordinateEvent, HardSample.card]
+  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
+  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+
+open Classical in
+/-- Under the hard distribution, `T=i` and the special bits intersect with probability
+`1/(4n)`. -/
+theorem measureReal_specialCoordinateEvent_inter_specialIntersect (i : Fin n) :
+    (volume (specialCoordinateEvent n i ∩ specialIntersect n)).toReal =
+      (1 / (4 * (n : ℝ)) : ℝ) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
+      (specialCoordinateEvent n i ∩ specialIntersect n)).toReal =
+    (1 / (4 * (n : ℝ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype,
+    card_specialCoordinateEvent_inter_specialIntersect, HardSample.card]
   have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
   have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
   norm_num [Nat.cast_mul, Nat.cast_pow]
@@ -955,6 +1056,34 @@ theorem measureReal_disjointEvent :
     simpa [Measure.real] using measureReal_specialIntersect n]
   norm_num
 
+open Classical in
+/-- Under the hard distribution, `T=i` and disjointness have probability `3/(4n)`. -/
+theorem measureReal_specialCoordinateEvent_inter_disjointEvent (i : Fin n) :
+    (volume (specialCoordinateEvent n i ∩ disjointEvent n)).toReal =
+      (3 / (4 * (n : ℝ)) : ℝ) := by
+  have hset :
+      specialCoordinateEvent n i ∩ disjointEvent n =
+        specialCoordinateEvent n i \ (specialCoordinateEvent n i ∩ specialIntersect n) := by
+    rw [disjointEvent_eq_compl_specialIntersect]
+    ext ω
+    simp
+  change (volume : Measure (HardSample n)).real (specialCoordinateEvent n i ∩ disjointEvent n) =
+    (3 / (4 * (n : ℝ)) : ℝ)
+  rw [hset]
+  rw [measureReal_diff]
+  · rw [show (volume : Measure (HardSample n)).real (specialCoordinateEvent n i) =
+        (1 / (n : ℝ) : ℝ) by
+      simpa [Measure.real] using measureReal_specialCoordinateEvent n i]
+    rw [show (volume : Measure (HardSample n)).real
+        (specialCoordinateEvent n i ∩ specialIntersect n) =
+          (1 / (4 * (n : ℝ)) : ℝ) by
+      simpa [Measure.real] using measureReal_specialCoordinateEvent_inter_specialIntersect n i]
+    have hn : (n : ℝ) ≠ 0 := by positivity
+    field_simp [hn]
+    ring
+  · exact Set.inter_subset_left
+  · exact MeasurableSet.of_discrete
+
 /-- The disjoint event has positive measure under the hard distribution. -/
 theorem measure_disjointEvent_ne_zero :
     (volume : Measure (HardSample n)) (disjointEvent n) ≠ 0 := by
@@ -967,6 +1096,56 @@ theorem measure_disjointEvent_ne_zero :
 /-- The hard distribution conditioned on the generated input being disjoint. -/
 noncomputable def disjointCondMeasure : Measure (HardSample n) :=
   (volume : Measure (HardSample n))[|disjointEvent n]
+
+open Classical in
+/-- Under the disjoint-conditioned hard distribution, the special coordinate remains uniform. -/
+theorem disjointCondMeasure_measureReal_specialCoordinateEvent (i : Fin n) :
+    (disjointCondMeasure n).real (specialCoordinateEvent n i) =
+      (1 / (n : ℝ) : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hinter :
+      disjointEvent n ∩ specialCoordinateEvent n i =
+        specialCoordinateEvent n i ∩ disjointEvent n := by
+    rw [Set.inter_comm]
+  have hnum :
+      (volume : Measure (HardSample n)).real (specialCoordinateEvent n i ∩ disjointEvent n) =
+        (3 / (4 * (n : ℝ)) : ℝ) := by
+    simpa [Measure.real] using measureReal_specialCoordinateEvent_inter_disjointEvent n i
+  have hden : (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) := by
+    simpa [Measure.real] using measureReal_disjointEvent n
+  rw [hinter, hnum, hden]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  field_simp [hn]
+
+/-- The special-coordinate singleton event is the corresponding named event. -/
+theorem specialCoordinate_preimage_singleton (i : Fin n) :
+    (specialCoordinate n) ⁻¹' {i} = specialCoordinateEvent n i := by
+  ext ω
+  simp [specialCoordinate, specialCoordinateEvent]
+
+open Classical in
+/-- Under the disjoint-conditioned distribution, preimages of special-coordinate singletons
+have the uniform mass. -/
+theorem disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton (i : Fin n) :
+    (disjointCondMeasure n).real ((specialCoordinate n) ⁻¹' {i}) =
+      (1 / (n : ℝ) : ℝ) := by
+  rw [specialCoordinate_preimage_singleton,
+    disjointCondMeasure_measureReal_specialCoordinateEvent]
+
+open Classical in
+/-- Under disjoint conditioning, integrating a function of `T` is the uniform coordinate
+average. -/
+theorem integral_specialCoordinate_disjointCondMeasure (f : Fin n → ℝ) :
+    (∫ ω, f (specialCoordinate n ω) ∂(disjointCondMeasure n)) =
+      (1 / (n : ℝ) : ℝ) * ∑ i : Fin n, f i := by
+  haveI : IsProbabilityMeasure (disjointCondMeasure n) := by
+    rw [disjointCondMeasure]
+    exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
+  rw [FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointCondMeasure n) (Z := specialCoordinate n) (f := f)]
+  simp_rw [disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton]
+  rw [Finset.mul_sum]
 
 /-- Under the measure conditioned on disjointness, the disjointness event holds almost surely. -/
 theorem disjointCondMeasure_ae_disjointEvent :
@@ -983,6 +1162,17 @@ theorem mem_disjointEvent_of_specialY_eq_false
   intro hboth
   rw [show ω.yT = false by simpa [specialY] using hY] at hboth
   simp at hboth
+
+/-- A prescribed special-coordinate bit pair is disjoint exactly when it is not `(true,true)`. -/
+theorem specialBitsEvent_subset_disjointEvent
+    (bx bY : Bool) (hbits : ¬(bx = true ∧ bY = true)) :
+    specialBitsEvent n bx bY ⊆ disjointEvent n := by
+  intro ω hω
+  rw [specialBitsEvent] at hω
+  change Disjoint (X n ω) (Y n ω)
+  rw [disjoint_X_Y_iff]
+  intro hspecial
+  exact hbits ⟨hω.1.symm.trans hspecial.1, hω.2.symm.trans hspecial.2⟩
 
 /-- The `(X_T,Y_T)=(0,0)` slice is contained in the disjoint event. -/
 theorem specialZeroZero_subset_disjointEvent :
@@ -1004,6 +1194,24 @@ theorem disjointCondMeasure_measureReal_specialZeroZero :
     simpa [Measure.real] using measureReal_disjointEvent n]
   rw [show (volume : Measure (HardSample n)).real (specialZeroZero n) = (1 / 4 : ℝ) by
     simpa [Measure.real] using measureReal_specialZeroZero n]
+  norm_num
+
+open Classical in
+/-- Under the disjoint-conditioned hard distribution, each non-intersecting special bit-pair has
+mass `1/3`. -/
+theorem disjointCondMeasure_measureReal_specialBitsEvent
+    (bx bY : Bool) (hbits : ¬(bx = true ∧ bY = true)) :
+    (disjointCondMeasure n).real (specialBitsEvent n bx bY) = (1 / 3 : ℝ) := by
+  rw [disjointCondMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hinter :
+      disjointEvent n ∩ specialBitsEvent n bx bY = specialBitsEvent n bx bY := by
+    exact Set.inter_eq_right.mpr (specialBitsEvent_subset_disjointEvent n bx bY hbits)
+  rw [hinter]
+  rw [show (volume : Measure (HardSample n)).real (disjointEvent n) = (3 / 4 : ℝ) by
+    simpa [Measure.real] using measureReal_disjointEvent n]
+  rw [show (volume : Measure (HardSample n)).real (specialBitsEvent n bx bY) = (1 / 4 : ℝ) by
+    simpa [Measure.real] using measureReal_specialBitsEvent n bx bY]
   norm_num
 
 /-- Under the disjoint-conditioned hard distribution, `Y_T=false` has mass `2 / 3`. -/
@@ -1045,6 +1253,37 @@ theorem disjointSpecialYFalseMeasure_isProbabilityMeasure :
   rw [← MeasureTheory.measureReal_ne_zero_iff]
   rw [disjointCondMeasure_measureReal_specialY_false]
   norm_num
+
+open Classical in
+/-- Under `D ∧ Y_T=false`, Alice's special bit is uniform. -/
+theorem disjointSpecialYFalseMeasure_measureReal_specialX_singleton (b : Bool) :
+    (disjointSpecialYFalseMeasure n).real ((specialX n) ⁻¹' {b}) = (1 / 2 : ℝ) := by
+  rw [disjointSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hden :
+      (disjointCondMeasure n).real (((specialY n) ⁻¹' {false}) : Set (HardSample n)) =
+        (2 / 3 : ℝ) :=
+    disjointCondMeasure_measureReal_specialY_false n
+  cases b
+  · have hinter :
+        ((specialY n) ⁻¹' {false} : Set (HardSample n)) ∩ ((specialX n) ⁻¹' {false}) =
+          specialZeroZero n := by
+      ext ω
+      rcases ω with ⟨T, xT, yT, other⟩
+      cases xT <;> cases yT <;> simp [specialX, specialY, specialZeroZero, specialBitsEvent]
+    rw [hinter, disjointCondMeasure_measureReal_specialZeroZero, hden]
+    norm_num
+  · have hinter :
+        ((specialY n) ⁻¹' {false} : Set (HardSample n)) ∩ ((specialX n) ⁻¹' {true}) =
+          specialBitsEvent n true false := by
+      ext ω
+      rcases ω with ⟨T, xT, yT, other⟩
+      cases xT <;> cases yT <;> simp [specialX, specialY, specialBitsEvent]
+    rw [hinter]
+    rw [disjointCondMeasure_measureReal_specialBitsEvent]
+    · rw [hden]
+      norm_num
+    · simp
 
 noncomputable instance disjointCondMeasure_isProbabilityMeasure :
     IsProbabilityMeasure (disjointCondMeasure n) := by
@@ -1363,6 +1602,25 @@ theorem uniformBool_singleton (b : Bool) :
   rw [Measure.real, ProbabilityTheory.uniformOn_univ]
   norm_num
 
+open Classical in
+/-- The law of `X_T` under `D ∧ Y_T=false` is the uniform bit law. -/
+theorem disjointSpecialYFalseMeasure_specialX_law_eq_uniformBool :
+    ProbabilityMeasure.map
+        (⟨disjointSpecialYFalseMeasure n, disjointSpecialYFalseMeasure_isProbabilityMeasure n⟩ :
+          ProbabilityMeasure (HardSample n))
+        (Measurable.of_discrete.aemeasurable (f := specialX n)) =
+      uniformBool := by
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro b
+  rw [Measure.real]
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  change (disjointSpecialYFalseMeasure n).real ((specialX n) ⁻¹' {b}) =
+    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b}
+  rw [disjointSpecialYFalseMeasure_measureReal_specialX_singleton,
+    uniformBool_singleton]
+
 /-- The uniform law on one bit has full support. -/
 theorem uniformBool_toPMF_ne_zero (b : Bool) :
     ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).toPMF b ≠ 0 := by
@@ -1373,6 +1631,49 @@ theorem uniformBool_toPMF_ne_zero (b : Bool) :
     simpa [Measure.toPMF_apply, Measure.real] using uniformBool_singleton b
   rw [hb] at hreal
   norm_num at hreal
+
+open Classical in
+/-- On one-bit probability measures, Mathlib's `klDiv` to the uniform bit law agrees with the
+real-valued PFR `KLDiv` used by the entropy API. -/
+theorem toReal_klDiv_bool_uniform_eq_KLDiv (μ : ProbabilityMeasure Bool) :
+    (InformationTheory.klDiv (μ : Measure Bool)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal =
+      KL[id ; (μ : Measure Bool) # id ;
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)] := by
+  have hnonneg :
+      0 ≤ KL[id ; (μ : Measure Bool) # id ;
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)] := by
+    exact KLDiv_nonneg (μ := (μ : Measure Bool))
+      (μ' := ((uniformBool : ProbabilityMeasure Bool) : Measure Bool))
+      (X := id) (Y := id) Measurable.of_discrete Measurable.of_discrete
+      (fun b hb => False.elim (uniformBool_toPMF_ne_zero b (by
+        simpa [Measure.toPMF_apply] using hb)))
+  rw [FiniteMeasureSpace.probabilityMeasure_klDiv_eq_sum_log μ uniformBool]
+  rw [if_neg]
+  · rw [ENNReal.toReal_ofReal]
+    · rw [KLDiv_eq_sum]
+      simp [Measure.toPMF_apply, Measure.real]
+    · simpa [KLDiv_eq_sum, Measure.toPMF_apply, Measure.real] using hnonneg
+  · rintro ⟨b, hb, -⟩
+    exact uniformBool_toPMF_ne_zero b hb
+
+open Classical in
+/-- Positive conditional fibers let the Mathlib one-bit KL be read as the PFR real-valued
+`KLDiv` of the corresponding random variable. -/
+theorem toReal_klDiv_map_bool_uniform_eq_KLDiv_of_measureReal_ne_zero
+    {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsFiniteMeasure μ]
+    (X : Ω → Bool) (S : Set Ω) (hX : Measurable X) (hS : μ.real S ≠ 0) :
+    (InformationTheory.klDiv (Measure.map X (μ[|S]))
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal =
+      KL[X ; μ[|S] # id ;
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)] := by
+  let μS : ProbabilityMeasure Ω :=
+    ⟨μ[|S], ProbabilityTheory.cond_isProbabilityMeasure
+      ((MeasureTheory.measureReal_ne_zero_iff (μ := μ) (s := S)).mp hS)⟩
+  have h :=
+    toReal_klDiv_bool_uniform_eq_KLDiv
+      (ProbabilityMeasure.map μS hX.aemeasurable)
+  simpa [μS, KLDiv] using h
 
 /-- Uniform law on a bit-pair. -/
 noncomputable def uniformBoolPair : ProbabilityMeasure (Bool × Bool) :=
@@ -1441,6 +1742,138 @@ theorem zFiberMeasure_real_apply
         (volume : Measure (HardSample n)).real (((zVariable n p) ⁻¹' {z}) ∩ S) := by
   rw [zFiberMeasure]
   exact ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete _ S
+
+open Classical in
+/-- The mass of a `Z` fiber under the Alice-side conditioned measure, with the `3/2` scaling
+from `Pr_D[Y_T=false]=2/3` made explicit. -/
+theorem disjointSpecialYFalseMeasure_measureReal_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) =
+      (3 / 2 : ℝ) *
+        (disjointCondMeasure n).real
+          (((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})) := by
+  rw [disjointSpecialYFalseMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  rw [disjointCondMeasure_measureReal_specialY_false]
+  ring
+
+open Classical in
+/-- Conditioning first on `Y_T=false` under `D`, then on a `Z` value, is the same as
+conditioning under `D` on the intersection of those events. -/
+theorem disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] =
+      (disjointCondMeasure n)[|
+        ((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z})] := by
+  rw [disjointSpecialYFalseMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (disjointCondMeasure n)
+
+open Classical in
+/-- Conditioning a `Z=z` fiber further on a special Bob-bit value is the same as conditioning the
+ambient hard distribution on the intersection of those two fiber events. -/
+theorem zFiberMeasure_cond_specialY_eq_volume_cond_inter
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (b : Bool) :
+    (zFiberMeasure n p z)[|(specialY n) ⁻¹' {b}] =
+      (volume : Measure (HardSample n))[|
+        ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {b})] := by
+  rw [zFiberMeasure]
+  exact ProbabilityTheory.cond_cond_eq_cond_inter
+    MeasurableSet.of_discrete MeasurableSet.of_discrete (volume : Measure (HardSample n))
+
+/-- The event `Z=z ∧ Y_T=false` is contained in the disjoint-input event. -/
+theorem zVariable_inter_specialYFalse_subset_disjointEvent
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {false}) ⊆ disjointEvent n := by
+  intro ω hω
+  exact mem_disjointEvent_of_specialY_eq_false n (by simpa using hω.2)
+
+open Classical in
+/-- Conditioning a `Z=z` fiber further on `Y_T=false` agrees with conditioning the
+`D ∧ Y_T=false` measure on the same `Z` fiber. -/
+theorem zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
+    (zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}] =
+      (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] := by
+  rw [zFiberMeasure_cond_specialY_eq_volume_cond_inter]
+  rw [show ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {false}) =
+      ((specialY n) ⁻¹' {false}) ∩ ((zVariable n p) ⁻¹' {z}) by
+    ext ω
+    simp [and_comm]]
+  rw [disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter]
+  rw [← volume_cond_eq_disjointCondMeasure_cond_of_subset_disjointEvent n
+    (by
+      intro ω hω
+      exact mem_disjointEvent_of_specialY_eq_false n (by simpa using hω.1))]
+
+open Classical in
+/-- A positive `Z=z` fiber under `D ∧ Y_T=false` has positive ambient hard-distribution volume. -/
+theorem volume_zFiber_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 := by
+  have hac_y : disjointSpecialYFalseMeasure n ≪ disjointCondMeasure n := by
+    rw [disjointSpecialYFalseMeasure]
+    exact ProbabilityTheory.cond_absolutelyContinuous
+  have hac_d : disjointCondMeasure n ≪ (volume : Measure (HardSample n)) := by
+    rw [disjointCondMeasure]
+    exact ProbabilityTheory.cond_absolutelyContinuous
+  have hac : disjointSpecialYFalseMeasure n ≪ (volume : Measure (HardSample n)) :=
+    hac_y.trans hac_d
+  intro hvol
+  have hy_zero :
+      (disjointSpecialYFalseMeasure n) ((zVariable n p) ⁻¹' {z}) = 0 :=
+    hac hvol
+  exact hz (by simp [Measure.real, hy_zero])
+
+open Classical in
+/-- A positive `Z=z` fiber under `D ∧ Y_T=false` makes the `Y_T=false` branch of the ambient
+`Z=z` fiber positive. -/
+theorem zFiberMeasure_specialYFalse_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0 := by
+  let Z : Set (HardSample n) := (zVariable n p) ⁻¹' {z}
+  let Y0 : Set (HardSample n) := (specialY n) ⁻¹' {false}
+  have hfactor := disjointSpecialYFalseMeasure_measureReal_zVariable n p z
+  have hμD_real_ne : (disjointCondMeasure n).real (Y0 ∩ Z) ≠ 0 := by
+    intro hzero
+    apply hz
+    rw [hfactor]
+    simp [Y0, Z, hzero]
+  have hac_d : disjointCondMeasure n ≪ (volume : Measure (HardSample n)) := by
+    rw [disjointCondMeasure]
+    exact ProbabilityTheory.cond_absolutelyContinuous
+  have hμD_ne : (disjointCondMeasure n) (Y0 ∩ Z) ≠ 0 :=
+    (MeasureTheory.measureReal_ne_zero_iff
+      (μ := disjointCondMeasure n) (s := Y0 ∩ Z)).mp hμD_real_ne
+  have hvol_inter_ne : (volume : Measure (HardSample n)) (Y0 ∩ Z) ≠ 0 := by
+    intro hvol
+    exact hμD_ne (hac_d hvol)
+  have hvol_inter_real_ne : (volume : Measure (HardSample n)).real (Z ∩ Y0) ≠ 0 := by
+    rw [Set.inter_comm]
+    exact (MeasureTheory.measureReal_ne_zero_iff
+      (μ := (volume : Measure (HardSample n))) (s := Y0 ∩ Z)).mpr hvol_inter_ne
+  have hzvol :
+      (volume : Measure (HardSample n)) Z ≠ 0 :=
+    volume_zFiber_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero n p z (by simpa [Z] using hz)
+  have hzvol_real : (volume : Measure (HardSample n)).real Z ≠ 0 :=
+    (MeasureTheory.measureReal_ne_zero_iff
+      (μ := (volume : Measure (HardSample n))) (s := Z)).mpr hzvol
+  rw [zFiberMeasure]
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  change
+    ((volume : Measure (HardSample n)).real Z)⁻¹ *
+      (volume : Measure (HardSample n)).real (Z ∩ Y0) ≠ 0
+  exact mul_ne_zero (inv_ne_zero hzvol_real) hvol_inter_real_ne
 
 /-- The conditional law of the special bit-pair on a positive-mass `Z=z` fiber. -/
 noncomputable def conditionalSpecialPairLaw
@@ -2284,6 +2717,170 @@ theorem conditionalSpecialPairLaw_eq_prod
     (fiber_volume_factorization n p z)
 
 open Classical in
+/-- A product special-pair law gives singleton factorization of the conditional bit laws on the
+same `Z` fiber. -/
+theorem conditionalSpecialPairLaw_singleton_factorization_of_eq_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hprod :
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (b : Bool × Bool) :
+    ((conditionalSpecialPairLaw n p z hz : ProbabilityMeasure (Bool × Bool)) :
+        Measure (Bool × Bool)).real {b} =
+      ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {b.1} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {b.2} := by
+  rw [hprod]
+  rcases b with ⟨bX, bY⟩
+  rw [TVDistance.probabilityMeasureProd]
+  change
+    (((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).prod
+      ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool) ({(bX, bY)})).toReal =
+      ((conditionalSpecialXLaw n p z hz : ProbabilityMeasure Bool) :
+        Measure Bool).real {bX} *
+        ((conditionalSpecialYLaw n p z hz : ProbabilityMeasure Bool) :
+          Measure Bool).real {bY}
+  rw [show ({(bX, bY)} : Set (Bool × Bool)) = ({bX} : Set Bool) ×ˢ ({bY} : Set Bool) by
+    ext b
+    simp [Prod.ext_iff]]
+  rw [Measure.prod_prod, ENNReal.toReal_mul]
+  rfl
+
+open Classical in
+/-- On a product-law `Z` fiber, conditioning on one Bob special-bit value does not change Alice's
+special-bit law. -/
+theorem conditionalSpecialXLaw_eq_cond_specialY_of_prod
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hprod :
+      conditionalSpecialPairLaw n p z hz =
+        TVDistance.probabilityMeasureProd
+          (conditionalSpecialXLaw n p z hz) (conditionalSpecialYLaw n p z hz))
+    (bY : Bool)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {bY}) ≠ 0) :
+    conditionalSpecialXLaw n p z hz =
+      ProbabilityMeasure.map
+        (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}],
+          ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+          ProbabilityMeasure (HardSample n))
+        (Measurable.of_discrete.aemeasurable (f := specialX n)) := by
+  let ν : ProbabilityMeasure (HardSample n) :=
+    ⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}],
+      ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩
+  change conditionalSpecialXLaw n p z hz =
+    ProbabilityMeasure.map ν (Measurable.of_discrete.aemeasurable (f := specialX n))
+  apply ProbabilityMeasure.toMeasure_injective
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro bX
+  rw [conditionalSpecialXLaw_singleton]
+  rw [Measure.real]
+  change ((zFiberMeasure n p z) ((specialX n) ⁻¹' {bX})).toReal =
+    (((ProbabilityMeasure.map ν
+      (Measurable.of_discrete.aemeasurable (f := specialX n)) : ProbabilityMeasure Bool) :
+      Measure Bool) {bX}).toReal
+  rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  change (zFiberMeasure n p z).real ((specialX n) ⁻¹' {bX}) =
+    ((zFiberMeasure n p z)[|(specialY n) ⁻¹' {bY}]).real ((specialX n) ⁻¹' {bX})
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hpair :
+      ((specialY n) ⁻¹' {bY}) ∩ ((specialX n) ⁻¹' {bX}) =
+        (specialPair n) ⁻¹' {(bX, bY)} := by
+    ext ω
+    simp [specialPair, specialX, specialY, and_comm]
+  have hfactor :=
+    conditionalSpecialPairLaw_singleton_factorization_of_eq_prod n p z hz hprod (bX, bY)
+  rw [conditionalSpecialPairLaw_singleton, conditionalSpecialXLaw_singleton,
+    conditionalSpecialYLaw_singleton] at hfactor
+  rw [hpair, hfactor]
+  field_simp [hY]
+
+open Classical in
+/-- Rectangle switching implies the textbook fiber identity
+`p(X_T | Z=z) = p(X_T | Z=z, Y_T=false)`. -/
+theorem conditionalSpecialXLaw_eq_cond_specialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    conditionalSpecialXLaw n p z hz =
+      ProbabilityMeasure.map
+        (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}],
+          ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+          ProbabilityMeasure (HardSample n))
+        (Measurable.of_discrete.aemeasurable (f := specialX n)) :=
+  conditionalSpecialXLaw_eq_cond_specialY_of_prod n p z hz
+    (conditionalSpecialPairLaw_eq_prod n p z hz) false hY
+
+open Classical in
+/-- After rectangle switching, Alice's `xFiberKL` can be computed by first conditioning on
+`Y_T=false` inside the `Z=z` fiber. -/
+theorem xFiberKL_eq_cond_specialYFalse_klDiv
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    xFiberKL n p z =
+      (InformationTheory.klDiv
+        ((ProbabilityMeasure.map
+          (⟨(zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}],
+            ProbabilityTheory.cond_isProbabilityMeasure_of_real hY⟩ :
+            ProbabilityMeasure (HardSample n))
+          (Measurable.of_discrete.aemeasurable (f := specialX n)) :
+          ProbabilityMeasure Bool) : Measure Bool)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [xFiberKL, dif_pos hz]
+  rw [conditionalSpecialXLaw_eq_cond_specialYFalse n p z hz hY]
+
+open Classical in
+/-- Alice's `xFiberKL` can be rewritten as KL for the special Alice bit under
+`D ∧ Y_T=false` conditioned on the same `Z=z` fiber. -/
+theorem xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
+    (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
+    xFiberKL n p z =
+      (InformationTheory.klDiv
+        (Measure.map (specialX n)
+          ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [xFiberKL_eq_cond_specialYFalse_klDiv n p z hz hY]
+  change
+    (InformationTheory.klDiv
+      (Measure.map (specialX n)
+        ((zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}]))
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal =
+    (InformationTheory.klDiv
+      (Measure.map (specialX n)
+        ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
+  rw [zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zVariable]
+
+open Classical in
+/-- Positive mass under `D ∧ Y_T=false` supplies the positivity hypotheses needed to rewrite
+Alice's fiber KL using the `D ∧ Y_T=false, Z=z` conditional law. -/
+theorem xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv_of_ne_zero
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)))
+    (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
+    xFiberKL n p z =
+      (InformationTheory.klDiv
+        (Measure.map (specialX n)
+          ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  exact xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv n p z
+    (volume_zFiber_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero n p z hz)
+    (zFiberMeasure_specialYFalse_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero n p z hz)
+
+open Classical in
 /-- Product-distribution step in Lemma 6.22 for `Z` fibers.  This uses the textbook rectangle
 fact: conditioned on a transcript rectangle and the coarse data, the special bits are independent,
 so the pair TV distance is controlled by the two one-bit TV distances. -/
@@ -2628,11 +3225,479 @@ theorem claimInfo_le_average_info_upper
     _ = 2 * (p.complexity * Real.log 2) / (n : ℝ) := by ring
 
 open Classical in
+/-- On the branch `Y_T=false`, the corrected Alice suffix `Y_≥T` is the same information as
+the coarse suffix `Y_>T`, since the missing coordinate is fixed to `false`. -/
+theorem yGeSpecial_eq_yAfterSpecial_of_specialY_false
+    {ω : HardSample n} (hY : specialY n ω = false) :
+    yGeSpecial n ω = yAfterSpecial n ω := by
+  funext j
+  by_cases hlt : ω.T < j
+  · have hle : ω.T ≤ j := le_of_lt hlt
+    simp [yGeSpecial, yAfterSpecial, hle, hlt]
+  · by_cases hle : ω.T ≤ j
+    · have hEq : j = ω.T := le_antisymm (not_lt.mp hlt) hle
+      subst j
+      simp [yGeSpecial, yAfterSpecial, yBit]
+      change ω.yT = false at hY
+      exact hY
+    · simp [yGeSpecial, yAfterSpecial, hle, hlt]
+
+open Classical in
+/-- On the branch `Y_T=false`, Alice's corrected Claim 6.21 conditioning is exactly the coarse
+conditioning from the textbook `Z=(M,T,X_<T,Y_>T)`. -/
+theorem aliceClaimConditioning_eq_coarseConditioning_of_specialY_false
+    {ω : HardSample n} (hY : specialY n ω = false) :
+    aliceClaimConditioning n ω = coarseConditioning n ω := by
+  simp [aliceClaimConditioning, coarseConditioning,
+    yGeSpecial_eq_yAfterSpecial_of_specialY_false n hY]
+
+open Classical in
+/-- Under `D ∧ Y_T=false`, Bob's special bit is almost surely `false`. -/
+theorem disjointSpecialYFalseMeasure_ae_specialY_false :
+    ∀ᵐ ω ∂disjointSpecialYFalseMeasure n, specialY n ω = false := by
+  rw [disjointSpecialYFalseMeasure]
+  filter_upwards [ae_cond_mem MeasurableSet.of_discrete] with ω hω
+  simpa using hω
+
+open Classical in
+/-- Under `D ∧ Y_T=false`, Alice's fine conditioning variable is a.e. the coarse conditioning
+variable. -/
+theorem aliceClaimConditioning_ae_eq_coarseConditioning_disjointSpecialYFalse :
+    aliceClaimConditioning n =ᵐ[disjointSpecialYFalseMeasure n] coarseConditioning n := by
+  filter_upwards [disjointSpecialYFalseMeasure_ae_specialY_false n] with ω hY
+  exact aliceClaimConditioning_eq_coarseConditioning_of_specialY_false n hY
+
+open Classical in
 /-- The Claim 6.21 Alice information term after additionally conditioning on `Y_T=false`:
 `I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D)`. -/
 noncomputable def aliceInfoTermSpecialYFalse
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
   I[specialX n : message n p | aliceClaimConditioning n ; disjointSpecialYFalseMeasure n]
+
+open Classical in
+/-- The same Alice `Y_T=false` information term using the textbook coarse conditioning
+`T, X_<T, Y_>T`. -/
+noncomputable def aliceCoarseInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+  I[specialX n : message n p | coarseConditioning n ; disjointSpecialYFalseMeasure n]
+
+open Classical in
+/-- Since `X_T` is uniform under `D ∧ Y_T=false`, the conditional KL average to the uniform bit
+law is the mutual information between `X_T` and the full `Z=(M,T,X_<T,Y_>T)` variable. -/
+theorem condKLDiv_specialX_zVariable_eq_mutualInfo_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    condKLDiv (specialX n) id (zVariable n p) (disjointSpecialYFalseMeasure n)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) =
+      I[specialX n : zVariable n p ; disjointSpecialYFalseMeasure n] := by
+  haveI : IsProbabilityMeasure (disjointSpecialYFalseMeasure n) :=
+    disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  have hmap : Measure.map (specialX n) (disjointSpecialYFalseMeasure n) =
+      ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) := by
+    simpa using congrArg (fun ν : ProbabilityMeasure Bool => ((ν : Measure Bool)))
+      (disjointSpecialYFalseMeasure_specialX_law_eq_uniformBool n)
+  have hKL0 :
+      KL[specialX n ; disjointSpecialYFalseMeasure n # id ;
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)] = 0 := by
+    simp [KLDiv, hmap]
+  have hcond := condKLDiv_eq
+    (μ := disjointSpecialYFalseMeasure n)
+    (μ' := ((uniformBool : ProbabilityMeasure Bool) : Measure Bool))
+    (X := specialX n) (Y := id) (Z := zVariable n p)
+    Measurable.of_discrete Measurable.of_discrete
+    (fun b hb => False.elim (uniformBool_toPMF_ne_zero b (by
+      simpa [Measure.toPMF_apply] using hb)))
+  rw [hKL0] at hcond
+  rw [ProbabilityTheory.mutualInfo_eq_entropy_sub_condEntropy
+    Measurable.of_discrete Measurable.of_discrete]
+  simpa using hcond
+
+open Classical in
+/-- The fine `Y_≥T` and coarse `Y_>T` versions of the Alice `Y_T=false` information term agree,
+because `Y_T` is fixed on the conditioned measure. -/
+theorem aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    aliceInfoTermSpecialYFalse n p = aliceCoarseInfoTermSpecialYFalse n p := by
+  haveI : IsProbabilityMeasure (disjointSpecialYFalseMeasure n) :=
+    disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  rw [aliceInfoTermSpecialYFalse, aliceCoarseInfoTermSpecialYFalse]
+  exact ProbabilityTheory.condMutualInfo_congr_ae
+    (μ := disjointSpecialYFalseMeasure n)
+    (X := specialX n) (Y := message n p) (Z := aliceClaimConditioning n)
+    (X' := specialX n) (Y' := message n p) (Z' := coarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+    (by rfl) (by rfl) (aliceClaimConditioning_ae_eq_coarseConditioning_disjointSpecialYFalse n)
+
+open Classical in
+/-- The averaged Alice fiber KL cost under `D ∧ Y_T=false`, as a finite sum over `Z` values. -/
+theorem integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) *
+          xFiberKL n p z := by
+  haveI : IsProbabilityMeasure (disjointSpecialYFalseMeasure n) :=
+    disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  exact FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
+    (μ := disjointSpecialYFalseMeasure n) (Z := zVariable n p) (f := xFiberKL n p)
+
+open Classical in
+/-- The averaged Alice fiber KL cost under `D ∧ Y_T=false` as a finite sum of actual KL
+divergences for the conditional `Z=z` laws. -/
+theorem integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable_klDiv
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
+      ∑ z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)),
+        (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) *
+          (InformationTheory.klDiv
+            (Measure.map (specialX n)
+              ((disjointSpecialYFalseMeasure n)[|zVariable n p ← z]))
+            ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal := by
+  rw [integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable]
+  apply Finset.sum_congr rfl
+  intro z _
+  by_cases hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) = 0
+  · simp [hz]
+  · rw [xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv_of_ne_zero n p z hz]
+
+open Classical in
+/-- The averaged Alice fiber KL under `D ∧ Y_T=false`, rewritten as the PFR real conditional KL
+used by the entropy API. -/
+theorem integral_xFiberKL_disjointSpecialYFalse_eq_condKLDiv_zVariable
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
+      condKLDiv (specialX n) id (zVariable n p) (disjointSpecialYFalseMeasure n)
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) := by
+  haveI : IsProbabilityMeasure (disjointSpecialYFalseMeasure n) :=
+    disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  rw [integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable_klDiv]
+  rw [condKLDiv, tsum_fintype]
+  apply Finset.sum_congr rfl
+  intro z _
+  by_cases hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) = 0
+  · simp [hz]
+  · rw [toReal_klDiv_map_bool_uniform_eq_KLDiv_of_measureReal_ne_zero
+      (μ := disjointSpecialYFalseMeasure n) (X := specialX n)
+      (S := (zVariable n p) ⁻¹' {z}) Measurable.of_discrete hz]
+
+open Classical in
+/-- Flip only Alice's special-coordinate bit.  This preserves the coarse Claim 6.21 data
+`T, X_<T, Y_>T` and toggles `X_T`. -/
+def flipSpecialX (ω : HardSample n) : HardSample n where
+  T := ω.T
+  xT := !ω.xT
+  yT := ω.yT
+  other := ω.other
+
+theorem flipSpecialX_flipSpecialX (ω : HardSample n) :
+    flipSpecialX n (flipSpecialX n ω) = ω := by
+  rcases ω with ⟨T, xT, yT, other⟩
+  cases xT <;> rfl
+
+theorem flipSpecialX_preimage_singleton (ω : HardSample n) :
+    (flipSpecialX n) ⁻¹' ({ω} : Set (HardSample n)) = {flipSpecialX n ω} := by
+  ext η
+  constructor
+  · intro hη
+    simp only [Set.mem_preimage, Set.mem_singleton_iff] at hη
+    rw [← hη]
+    simp [flipSpecialX_flipSpecialX]
+  · intro hη
+    simp only [Set.mem_preimage, Set.mem_singleton_iff] at hη ⊢
+    rw [hη, flipSpecialX_flipSpecialX]
+
+theorem volume_measureReal_singleton_flipSpecialX (ω : HardSample n) :
+    (volume : Measure (HardSample n)).real ({flipSpecialX n ω} : Set (HardSample n)) =
+      (volume : Measure (HardSample n)).real ({ω} : Set (HardSample n)) := by
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)).real
+      ({flipSpecialX n ω} : Set (HardSample n))) =
+    ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)).real
+      ({ω} : Set (HardSample n)))
+  repeat rw [Measure.real]
+  rw [uniformOn_univ_measureReal_eq_card_subtype,
+    uniformOn_univ_measureReal_eq_card_subtype]
+  simp
+
+theorem volume_measurePreserving_flipSpecialX :
+    MeasurePreserving (flipSpecialX n)
+      (volume : Measure (HardSample n)) (volume : Measure (HardSample n)) := by
+  refine ⟨Measurable.of_discrete, ?_⟩
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro ω
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real, flipSpecialX_preimage_singleton,
+    volume_measureReal_singleton_flipSpecialX]
+
+theorem specialX_flipSpecialX (ω : HardSample n) :
+    specialX n (flipSpecialX n ω) = !specialX n ω := by
+  simp [flipSpecialX, specialX]
+
+theorem specialY_flipSpecialX (ω : HardSample n) :
+    specialY n (flipSpecialX n ω) = specialY n ω := by
+  simp [flipSpecialX, specialY]
+
+theorem xBeforeSpecial_flipSpecialX (ω : HardSample n) :
+    xBeforeSpecial n (flipSpecialX n ω) = xBeforeSpecial n ω := by
+  funext i
+  by_cases hlt : i < ω.T
+  · have hi : i ≠ ω.T := ne_of_lt hlt
+    simp [xBeforeSpecial, xBit, flipSpecialX, hlt, hi]
+  · simp [xBeforeSpecial, flipSpecialX, hlt]
+
+theorem yAfterSpecial_flipSpecialX (ω : HardSample n) :
+    yAfterSpecial n (flipSpecialX n ω) = yAfterSpecial n ω := by
+  funext i
+  simp [yAfterSpecial, yBit, flipSpecialX]
+
+theorem coarseConditioning_flipSpecialX (ω : HardSample n) :
+    coarseConditioning n (flipSpecialX n ω) = coarseConditioning n ω := by
+  unfold coarseConditioning
+  rw [show specialCoordinate n (flipSpecialX n ω) = specialCoordinate n ω by
+      simp [specialCoordinate, flipSpecialX],
+    xBeforeSpecial_flipSpecialX, yAfterSpecial_flipSpecialX]
+
+open Classical in
+/-- Flipping Alice's special bit bijects the two `X_T` branches inside every
+`Y_T=false, coarse=c` fiber. -/
+theorem card_specialYFalse_coarseConditioning_specialX_false_eq_true
+    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    Fintype.card {ω : HardSample n //
+        ω ∈ ((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c}) ∩
+          ((specialX n) ⁻¹' {false})} =
+      Fintype.card {ω : HardSample n //
+        ω ∈ ((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c}) ∩
+          ((specialX n) ⁻¹' {true})} := by
+  refine Fintype.card_congr
+    { toFun := ?toFun
+      invFun := ?invFun
+      left_inv := ?left_inv
+      right_inv := ?right_inv }
+  · intro ω
+    refine ⟨flipSpecialX n ω.1, ?_⟩
+    rcases ω.2 with ⟨⟨hY, hC⟩, hX⟩
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · simpa [specialY_flipSpecialX] using hY
+    · simpa [coarseConditioning_flipSpecialX] using hC
+    · have hx : specialX n (flipSpecialX n ω.1) = true := by
+        rw [specialX_flipSpecialX, hX]
+        rfl
+      simpa using hx
+  · intro ω
+    refine ⟨flipSpecialX n ω.1, ?_⟩
+    rcases ω.2 with ⟨⟨hY, hC⟩, hX⟩
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · simpa [specialY_flipSpecialX] using hY
+    · simpa [coarseConditioning_flipSpecialX] using hC
+    · have hx : specialX n (flipSpecialX n ω.1) = false := by
+        rw [specialX_flipSpecialX, hX]
+        rfl
+      simpa using hx
+  · intro ω
+    apply Subtype.ext
+    exact flipSpecialX_flipSpecialX n ω.1
+  · intro ω
+    apply Subtype.ext
+    exact flipSpecialX_flipSpecialX n ω.1
+
+open Classical in
+/-- In every `Y_T=false, coarse=c` fiber of the ambient hard distribution, each value of `X_T`
+has half the mass. -/
+theorem volume_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX
+    (b : Bool) (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (volume : Measure (HardSample n)).real
+        (((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c}) ∩
+          ((specialX n) ⁻¹' {b})) =
+      (1 / 2 : ℝ) *
+        (volume : Measure (HardSample n)).real
+          (((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c})) := by
+  let Y0 : Set (HardSample n) := (specialY n) ⁻¹' {false}
+  let C : Set (HardSample n) := (coarseConditioning n) ⁻¹' {c}
+  let XF : Set (HardSample n) := (specialX n) ⁻¹' {false}
+  let XT : Set (HardSample n) := (specialX n) ⁻¹' {true}
+  have hfalse_true :
+      (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XF) =
+        (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XT) := by
+    have hpre : (flipSpecialX n) ⁻¹' (Y0 ∩ C ∩ XT) = Y0 ∩ C ∩ XF := by
+      ext ω
+      simp [Y0, C, XF, XT, specialY_flipSpecialX, coarseConditioning_flipSpecialX,
+        specialX_flipSpecialX]
+    have hpre_measure :
+        (volume : Measure (HardSample n)) ((flipSpecialX n) ⁻¹' (Y0 ∩ C ∩ XT)) =
+          (volume : Measure (HardSample n)) (Y0 ∩ C ∩ XT) :=
+      Measure.measure_preimage_of_map_eq_self
+        (volume_measurePreserving_flipSpecialX n).map_eq
+        MeasurableSet.of_discrete.nullMeasurableSet
+    change ((volume : Measure (HardSample n)) (Y0 ∩ C ∩ XF)).toReal =
+      ((volume : Measure (HardSample n)) (Y0 ∩ C ∩ XT)).toReal
+    rw [← hpre, hpre_measure]
+  have hunion : Y0 ∩ C = (Y0 ∩ C ∩ XF) ∪ (Y0 ∩ C ∩ XT) := by
+    ext ω
+    by_cases hx : specialX n ω = false
+    · simp [Y0, C, XF, XT, hx]
+    · have hxtrue : specialX n ω = true := by
+        cases h : specialX n ω
+        · exact False.elim (hx h)
+        · rfl
+      simp [Y0, C, XF, XT, hx]
+  have hdisj : Disjoint (Y0 ∩ C ∩ XF) (Y0 ∩ C ∩ XT) := by
+    rw [Set.disjoint_left]
+    intro ω hF hT
+    have hfalse : specialX n ω = false := by simpa [XF] using hF.2
+    have htrue : specialX n ω = true := by simpa [XT] using hT.2
+    rw [hfalse] at htrue
+    simp at htrue
+  have hsum :
+      (volume : Measure (HardSample n)).real (Y0 ∩ C) =
+        (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XF) +
+          (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XT) := by
+    simpa [← hunion] using
+      (measureReal_union hdisj MeasurableSet.of_discrete :
+        (volume : Measure (HardSample n)).real
+            ((Y0 ∩ C ∩ XF) ∪ (Y0 ∩ C ∩ XT)) =
+          (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XF) +
+            (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XT))
+  cases b
+  · change (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XF) =
+      (1 / 2 : ℝ) * (volume : Measure (HardSample n)).real (Y0 ∩ C)
+    linarith
+  · change (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ XT) =
+      (1 / 2 : ℝ) * (volume : Measure (HardSample n)).real (Y0 ∩ C)
+    linarith
+
+open Classical in
+/-- The preceding ambient counting identity remains true after conditioning on `Y_T=false`. -/
+theorem disjointSpecialYFalseMeasure_measureReal_specialX_inter_coarseConditioning
+    (b : Bool) (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
+    (disjointSpecialYFalseMeasure n).real
+        (((specialX n) ⁻¹' {b}) ∩ ((coarseConditioning n) ⁻¹' {c})) =
+      (1 / 2 : ℝ) *
+        (disjointSpecialYFalseMeasure n).real ((coarseConditioning n) ⁻¹' {c}) := by
+  let Y0 : Set (HardSample n) := (specialY n) ⁻¹' {false}
+  let Xb : Set (HardSample n) := (specialX n) ⁻¹' {b}
+  let C : Set (HardSample n) := (coarseConditioning n) ⁻¹' {c}
+  have hleft :
+      (disjointSpecialYFalseMeasure n).real (Xb ∩ C) =
+        ((disjointCondMeasure n).real Y0)⁻¹ *
+          (disjointCondMeasure n).real (Y0 ∩ (Xb ∩ C)) := by
+    rw [disjointSpecialYFalseMeasure]
+    exact ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete _ (Xb ∩ C)
+  have hright :
+      (disjointSpecialYFalseMeasure n).real C =
+        ((disjointCondMeasure n).real Y0)⁻¹ *
+          (disjointCondMeasure n).real (Y0 ∩ C) := by
+    rw [disjointSpecialYFalseMeasure]
+    exact ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete _ C
+  have hbranch_volume :
+      (volume : Measure (HardSample n)).real (Y0 ∩ C ∩ Xb) =
+        (1 / 2 : ℝ) * (volume : Measure (HardSample n)).real (Y0 ∩ C) := by
+    simpa [Y0, C, Xb, Set.inter_assoc, Set.inter_left_comm, Set.inter_comm] using
+      volume_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX n b c
+  have hbranch :
+      (disjointCondMeasure n).real (Y0 ∩ C ∩ Xb) =
+        (1 / 2 : ℝ) * (disjointCondMeasure n).real (Y0 ∩ C) := by
+    rw [disjointCondMeasure]
+    repeat rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+    have hY0C_subset_D : Y0 ∩ C ⊆ disjointEvent n := by
+      intro ω hω
+      exact mem_disjointEvent_of_specialY_eq_false n (by simpa [Y0] using hω.1)
+    have hY0CX_subset_D : Y0 ∩ C ∩ Xb ⊆ disjointEvent n := by
+      intro ω hω
+      exact hY0C_subset_D ⟨hω.1.1, hω.1.2⟩
+    rw [Set.inter_eq_right.mpr hY0CX_subset_D, Set.inter_eq_right.mpr hY0C_subset_D]
+    rw [hbranch_volume]
+    ring
+  rw [hleft, hright]
+  have hsets : Y0 ∩ (Xb ∩ C) = Y0 ∩ C ∩ Xb := by
+    ext ω
+    simp only [Set.mem_inter_iff]
+    tauto
+  rw [hsets, hbranch]
+  ring
+
+open Classical in
+/-- Under `D ∧ Y_T=false`, the coarse data `T, X_<T, Y_>T` is independent of `X_T`.
+This is the sampling independence used in Claim 6.21 before adding the transcript rectangle. -/
+theorem mutualInfo_specialX_coarseConditioning_disjointSpecialYFalse_eq_zero :
+    I[specialX n : coarseConditioning n ; disjointSpecialYFalseMeasure n] = 0 := by
+  let μ : Measure (HardSample n) := disjointSpecialYFalseMeasure n
+  haveI : IsProbabilityMeasure μ := by
+    simpa [μ] using disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  apply (ProbabilityTheory.mutualInfo_eq_zero Measurable.of_discrete Measurable.of_discrete).mpr
+  apply ProbabilityTheory.indepFun_of_measureReal_inter_preimage_singleton_eq_mul
+    (μ := μ) (X := specialX n) (Y := coarseConditioning n)
+    Measurable.of_discrete Measurable.of_discrete
+  intro b c
+  rw [show
+      μ.real ((specialX n) ⁻¹' {b} ∩ (coarseConditioning n) ⁻¹' {c}) =
+        (disjointSpecialYFalseMeasure n).real
+          (((specialX n) ⁻¹' {b}) ∩ ((coarseConditioning n) ⁻¹' {c})) by rfl]
+  rw [disjointSpecialYFalseMeasure_measureReal_specialX_inter_coarseConditioning]
+  rw [disjointSpecialYFalseMeasure_measureReal_specialX_singleton]
+
+open Classical in
+/-- The full `Z=(M,coarse)` mutual information is the coarse Claim 6.21 information term,
+because the coarse part alone is independent of `X_T` under `D ∧ Y_T=false`. -/
+theorem mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    I[specialX n : zVariable n p ; disjointSpecialYFalseMeasure n] =
+      aliceCoarseInfoTermSpecialYFalse n p := by
+  let μ : Measure (HardSample n) := disjointSpecialYFalseMeasure n
+  haveI : IsProbabilityMeasure μ := by
+    simpa [μ] using disjointSpecialYFalseMeasure_isProbabilityMeasure n
+  let swappedZ : HardSample n → (Fin n × (Fin n → Bool) × (Fin n → Bool)) × p.Leaf :=
+    fun ω => (coarseConditioning n ω, message n p ω)
+  let swapZ :
+      p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool)) →
+        (Fin n × (Fin n → Bool) × (Fin n → Bool)) × p.Leaf :=
+    fun z => (z.2, z.1)
+  have hswap_fun : swappedZ = swapZ ∘ zVariable n p := by
+    funext ω
+    simp [swappedZ, swapZ, zVariable, message]
+  have hrec :
+      I[specialX n : swappedZ ; μ] =
+        I[specialX n : zVariable n p ; μ] := by
+    rw [hswap_fun]
+    exact ProbabilityTheory.mutualInfo_comp_right_of_injective
+      (μ := μ) (X := specialX n) (Y := zVariable n p)
+      Measurable.of_discrete Measurable.of_discrete
+      swapZ Measurable.of_discrete
+      (by
+        intro z z' h
+        rcases z with ⟨m, c⟩
+        rcases z' with ⟨m', c'⟩
+        simp only [Prod.ext_iff, swapZ] at h ⊢
+        exact ⟨h.2, h.1⟩)
+  have hchain :
+      I[specialX n : swappedZ ; μ] =
+        I[specialX n : coarseConditioning n ; μ] +
+          I[specialX n : message n p | coarseConditioning n ; μ] := by
+    simpa [swappedZ, μ] using
+      ProbabilityTheory.mutualInfo_prod_right_eq_add
+        (μ := disjointSpecialYFalseMeasure n)
+        (X := specialX n) (Y := coarseConditioning n) (W := message n p)
+        Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+  calc
+    I[specialX n : zVariable n p ; disjointSpecialYFalseMeasure n]
+        = I[specialX n : swappedZ ; μ] := by
+          simpa [μ] using hrec.symm
+    _ = I[specialX n : coarseConditioning n ; μ] +
+          I[specialX n : message n p | coarseConditioning n ; μ] := hchain
+    _ = aliceCoarseInfoTermSpecialYFalse n p := by
+          rw [mutualInfo_specialX_coarseConditioning_disjointSpecialYFalse_eq_zero]
+          simp [aliceCoarseInfoTermSpecialYFalse, μ]
+
+open Classical in
+/-- Textbook Claim 6.21 KL identification with the coarse `Z` conditioning:
+the average Alice one-bit fiber KL is the conditional mutual information
+`I(X_T : M | T,X_<T,Y_>T,Y_T=0,D)`. -/
+theorem xFiberKL_integral_eq_aliceCoarseInfoTermSpecialYFalse
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) =
+      aliceCoarseInfoTermSpecialYFalse n p := by
+  rw [integral_xFiberKL_disjointSpecialYFalse_eq_condKLDiv_zVariable]
+  rw [condKLDiv_specialX_zVariable_eq_mutualInfo_zVariable]
+  exact mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse n p
 
 open Classical in
 /-- Textbook Claim 6.21 identification of the average Alice one-bit fiber KL with the conditional
@@ -2643,7 +3708,8 @@ theorem xFiberKL_integral_eq_aliceInfoTermSpecialYFalse
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) =
       aliceInfoTermSpecialYFalse n p := by
-  sorry
+  rw [aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse]
+  exact xFiberKL_integral_eq_aliceCoarseInfoTermSpecialYFalse n p
 
 open Classical in
 /-- Textbook Claim 6.21 reweighting:
