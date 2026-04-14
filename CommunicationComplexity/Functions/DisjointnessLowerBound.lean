@@ -290,6 +290,19 @@ def aliceClaimConditioning (ω : HardSample n) :
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
   (specialCoordinate n ω, xBeforeSpecial n ω, yGeSpecial n ω)
 
+/-- Alice's corrected conditioning data without the special coordinate:
+`X_<T, Y_≥T`. -/
+def aliceDynamicConditioning (ω : HardSample n) :
+    (Fin n → Bool) × (Fin n → Bool) :=
+  (xBeforeSpecial n ω, yGeSpecial n ω)
+
+/-- Alice's corrected conditioning is the special coordinate together with the remaining
+conditioning data. -/
+theorem aliceClaimConditioning_eq_specialCoordinate_prod_dynamic :
+    aliceClaimConditioning n =
+      fun ω => (specialCoordinate n ω, aliceDynamicConditioning n ω) := by
+  rfl
+
 /-- The corrected Bob conditioning variable from (6.6): `T, X_≤T, Y_>T`. -/
 def bobClaimConditioning (ω : HardSample n) :
     Fin n × (Fin n → Bool) × (Fin n → Bool) :=
@@ -1551,6 +1564,34 @@ theorem card_disjointModel_fiber_for_coordinateVector
     _ = (n : ℕ) * 3 := by
       simp [Fintype.card_prod, DisjointCoordinate.card]
 
+private def disjointModelFiberForSpecialCoordinateCoordinateVectorEquiv
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+      z.1 = i ∧ z.2.1 = coords} ≃ DisjointCoordinate where
+  toFun z := z.1.2.2
+  invFun junk := ⟨(i, coords, junk), by simp⟩
+  left_inv z := by
+    rcases z with ⟨⟨T, coords', junk⟩, h⟩
+    simp only at h
+    rcases h with ⟨rfl, rfl⟩
+    rfl
+  right_inv junk := rfl
+
+theorem card_disjointModel_fiber_for_specialCoordinate_coordinateVector
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.1 = i ∧ z.2.1 = coords} =
+      3 := by
+  calc
+    Fintype.card
+        {z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate //
+          z.1 = i ∧ z.2.1 = coords} =
+        Fintype.card DisjointCoordinate :=
+      Fintype.card_congr
+        (disjointModelFiberForSpecialCoordinateCoordinateVectorEquiv n i coords)
+    _ = 3 := DisjointCoordinate.card
+
 open Classical in
 /-- Under the disjoint-conditioned distribution, the generated disjoint coordinate vector is
 uniform over the `3^n` disjoint coordinate vectors. -/
@@ -1582,6 +1623,54 @@ theorem disjointCondMeasure_measureReal_disjointCoordinateVector_fiber
     simpa [Fintype.card_subtype] using
       card_disjointModel_fiber_for_coordinateVector n coords
   simp [hcardFilter]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  field_simp [hn, hpow]
+
+open Classical in
+/-- Under `D` and `T=i`, the generated disjoint coordinate vector is still uniform over the
+`3^n` disjoint coordinate vectors. -/
+theorem disjointCondMeasure_cond_specialCoordinate_measureReal_disjointCoordinateVector_fiber
+    (i : Fin n) (coords : Fin n → DisjointCoordinate) :
+    ((disjointCondMeasure n)[|specialCoordinate n ← i]).real
+        ((disjointCoordinateVector n) ⁻¹' {coords}) =
+      (1 / (3 ^ (n : ℕ)) : ℝ) := by
+  rw [ProbabilityTheory.cond_real_apply MeasurableSet.of_discrete]
+  have hden :
+      (disjointCondMeasure n).real ((specialCoordinate n) ⁻¹' {i}) =
+        (1 / (n : ℝ) : ℝ) :=
+    disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton n i
+  have hnum :
+      (disjointCondMeasure n).real
+          (((specialCoordinate n) ⁻¹' {i}) ∩
+            ((disjointCoordinateVector n) ⁻¹' {coords})) =
+        (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ) := by
+    let μ : ProbabilityMeasure (HardSample n) := ⟨disjointCondMeasure n, inferInstance⟩
+    have hpre :=
+      FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+        (Ω := HardSample n)
+        (α := Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
+        μ (disjointModel n) (fun z => z.1 = i ∧ z.2.1 = coords)
+    change (μ : Measure (HardSample n)).real
+        {ω | (disjointModel n ω).1 = i ∧ (disjointModel n ω).2.1 = coords} =
+      (1 / ((n : ℝ) * 3 ^ (n : ℕ)) : ℝ)
+    rw [hpre]
+    have hfiber (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
+        (μ : Measure (HardSample n)).real ((disjointModel n) ⁻¹' {z}) =
+          (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ) := by
+      change (disjointCondMeasure n).real ((disjointModel n) ⁻¹' {z}) =
+        (1 / ((n : ℝ) * 3 ^ (n : ℕ) * 3) : ℝ)
+      exact disjointCondMeasure_measureReal_disjointModel_fiber n z
+    simp_rw [hfiber]
+    rw [Finset.sum_ite]
+    have hcardFilter :
+        (Finset.univ.filter
+          (fun z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate =>
+            z.1 = i ∧ z.2.1 = coords)).card = 3 := by
+      simpa [Fintype.card_subtype] using
+        card_disjointModel_fiber_for_specialCoordinate_coordinateVector n i coords
+    simp [hcardFilter]
+  rw [hnum, hden]
   have hn : (n : ℝ) ≠ 0 := by positivity
   have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
   field_simp [hn, hpow]
@@ -1688,6 +1777,24 @@ def coordinateXBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
 /-- Bob's bit at a fixed coordinate of a generated disjoint coordinate vector. -/
 def coordinateYBit (i : Fin n) (coords : Fin n → DisjointCoordinate) : Bool :=
   (coords i).yBit
+
+/-- Alice's input set represented by a generated disjoint coordinate vector. -/
+def coordinateXSet (coords : Fin n → DisjointCoordinate) : Set (Fin n) :=
+  {i | coordinateXBit n i coords = true}
+
+/-- Bob's input set represented by a generated disjoint coordinate vector. -/
+def coordinateYSet (coords : Fin n → DisjointCoordinate) : Set (Fin n) :=
+  {i | coordinateYBit n i coords = true}
+
+/-- The input pair represented by a generated disjoint coordinate vector. -/
+def coordinateInput (coords : Fin n → DisjointCoordinate) : Set (Fin n) × Set (Fin n) :=
+  (coordinateXSet n coords, coordinateYSet n coords)
+
+/-- The protocol transcript as a function of the generated disjoint coordinate vector. -/
+noncomputable def coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (coords : Fin n → DisjointCoordinate) : p.Leaf :=
+  p.transcript (coordinateInput n coords)
 
 /-- Alice's coordinate-vector bits before a fixed coordinate, padded by `false` elsewhere. -/
 def coordinateXBefore (i : Fin n) (coords : Fin n → DisjointCoordinate) : Fin n → Bool :=
@@ -1988,6 +2095,26 @@ theorem identDistrib_disjointCoordinateVector_uniform :
   exact (disjointCondMeasure_measureReal_disjointCoordinateVector_fiber n coords).trans
     (uniformDisjointCoordinateVector_singleton n coords).symm
 
+open Classical in
+/-- Even after conditioning on `T=i`, the generated disjoint coordinate vector has the uniform
+disjoint-vector law. -/
+theorem identDistrib_disjointCoordinateVector_uniform_cond_specialCoordinate (i : Fin n) :
+    IdentDistrib (disjointCoordinateVector n) id
+      ((disjointCondMeasure n)[|specialCoordinate n ← i])
+      ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+        Measure (Fin n → DisjointCoordinate)) := by
+  refine ⟨Measurable.of_discrete.aemeasurable, measurable_id.aemeasurable, ?_⟩
+  rw [Measure.map_id]
+  rw [MeasureTheory.ext_iff_measureReal_singleton]
+  intro coords
+  rw [Measure.real]
+  rw [Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete]
+  rw [← Measure.real]
+  exact
+    (disjointCondMeasure_cond_specialCoordinate_measureReal_disjointCoordinateVector_fiber
+      n i coords).trans
+      (uniformDisjointCoordinateVector_singleton n coords).symm
+
 /-- A measure-preserving self-map leaves every random variable identically distributed with its
 pullback along that map. -/
 theorem identDistrib_self_comp_measurePreserving
@@ -2150,6 +2277,22 @@ noncomputable def message
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
     (ω : HardSample n) : p.Leaf :=
   p.transcript (input n ω)
+
+open Classical in
+/-- Under `D`, the transcript is a function of the generated disjoint coordinate vector. -/
+theorem message_ae_eq_coordinateMessage
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    message n p =ᵐ[disjointCondMeasure n]
+      fun ω => coordinateMessage n p (disjointCoordinateVector n ω) := by
+  filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
+  unfold message coordinateMessage input coordinateInput
+  congr
+  · ext j
+    simp [X, coordinateXSet, coordinateXBit,
+      disjointCoordinateVector_xBit_of_mem_disjointEvent n hω j]
+  · ext j
+    simp [Y, coordinateYSet, coordinateYBit,
+      disjointCoordinateVector_yBit_of_mem_disjointEvent n hω j]
 
 /-- The transcript entropy is at most the protocol length in bits, for any ambient measure. -/
 theorem entropy_message_le_complexity_mul_log_two_of_measure
@@ -3957,6 +4100,161 @@ theorem sum_fixedAliceInfoTerm_le_xVector_info
           sum_fixedAliceFullYInfoTerm_eq_xVector_info n p
 
 open Classical in
+/-- Expanding Alice's random-coordinate information term by the special coordinate `T`. -/
+theorem aliceInfoTerm_eq_sum_specialCoordinate_fiber_info
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    aliceInfoTerm n p =
+      ∑ i : Fin n,
+        (1 / (n : ℝ) : ℝ) *
+          I[specialX n : message n p | aliceDynamicConditioning n ;
+            (disjointCondMeasure n)[|specialCoordinate n ← i]] := by
+  rw [aliceInfoTerm, aliceClaimConditioning_eq_specialCoordinate_prod_dynamic]
+  rw [ProbabilityTheory.condMutualInfo_prod_conditioning_eq_sum
+    (μ := disjointCondMeasure n)
+    (X := specialX n) (Y := message n p)
+    (K := specialCoordinate n) (Z := aliceDynamicConditioning n)
+    Measurable.of_discrete Measurable.of_discrete]
+  simp_rw [disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton]
+
+open Classical in
+/-- Textbook uniformity/independence step for the special coordinate: after conditioning on
+`T=i`, the random-coordinate Alice information term is the fixed-coordinate summand. -/
+theorem aliceDynamicConditioning_fiber_info_eq_fixedAliceInfoTerm
+    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) (i : Fin n) :
+    I[specialX n : message n p | aliceDynamicConditioning n ;
+      (disjointCondMeasure n)[|specialCoordinate n ← i]] =
+      fixedAliceInfoTerm n p i := by
+  let μ : Measure (HardSample n) := disjointCondMeasure n
+  let μi : Measure (HardSample n) := μ[|specialCoordinate n ← i]
+  let ν : Measure (Fin n → DisjointCoordinate) :=
+    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+      Measure (Fin n → DisjointCoordinate))
+  haveI : IsProbabilityMeasure μi := by
+    dsimp [μi, μ]
+    apply ProbabilityTheory.cond_isProbabilityMeasure
+    rw [← MeasureTheory.measureReal_ne_zero_iff]
+    rw [disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton]
+    positivity
+  have hspecial_fixed : specialX n =ᵐ[μi] fixedXBit n i := by
+    dsimp [μi, μ]
+    filter_upwards [ae_cond_mem MeasurableSet.of_discrete] with ω hω
+    have hT : ω.T = i := by
+      simpa [specialCoordinate] using hω
+    simp [specialX, fixedXBit, xBit, hT]
+  have hspecial_coord :
+      specialX n =ᵐ[μi]
+        fun ω => coordinateXBit n i (disjointCoordinateVector n ω) := by
+    exact hspecial_fixed.trans
+      (by
+        simpa [μi, μ] using
+          (cond_absolutelyContinuous.ae_le (fixedXBit_ae_eq_coordinateXBit n i)))
+  have hmessage_coord_cond :
+      message n p =ᵐ[μi]
+        fun ω => coordinateMessage n p (disjointCoordinateVector n ω) := by
+    simpa [μi, μ] using
+      (cond_absolutelyContinuous.ae_le (message_ae_eq_coordinateMessage n p))
+  have hdyn_fixed :
+      aliceDynamicConditioning n =ᵐ[μi] fixedAliceConditioning n i := by
+    dsimp [μi, μ]
+    filter_upwards [ae_cond_mem MeasurableSet.of_discrete] with ω hω
+    have hT : ω.T = i := by
+      simpa [specialCoordinate] using hω
+    ext j <;>
+      simp [aliceDynamicConditioning, fixedAliceConditioning, xBeforeSpecial,
+        yGeSpecial, fixedXBefore, fixedYGe, hT]
+  have hdyn_coord :
+      aliceDynamicConditioning n =ᵐ[μi]
+        fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω) := by
+    exact hdyn_fixed.trans
+      (by
+        simpa [μi, μ] using
+          (cond_absolutelyContinuous.ae_le
+            (fixedAliceConditioning_ae_eq_coordinateAliceConditioning n i)))
+  have hleft_congr :
+      I[specialX n : message n p | aliceDynamicConditioning n ; μi] =
+        I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateMessage n p (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μi] := by
+    exact ProbabilityTheory.condMutualInfo_congr_ae
+      (μ := μi)
+      (X := specialX n) (Y := message n p) (Z := aliceDynamicConditioning n)
+      (X' := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y' := fun ω => coordinateMessage n p (disjointCoordinateVector n ω))
+      (Z' := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      hspecial_coord hmessage_coord_cond hdyn_coord
+  have hleft_pull :
+      I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateMessage n p (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μi] =
+        I[coordinateXBit n i : coordinateMessage n p | coordinateAliceConditioning n i ; ν] := by
+    exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+      (μ := μi) (μ' := ν)
+      (X := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y := fun ω => coordinateMessage n p (disjointCoordinateVector n ω))
+      (Z := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      (X' := coordinateXBit n i)
+      (Y' := coordinateMessage n p)
+      (Z' := coordinateAliceConditioning n i)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (by
+        simpa [Function.comp_def, μi, μ, ν] using
+          (identDistrib_disjointCoordinateVector_uniform_cond_specialCoordinate n i).comp
+            (Measurable.of_discrete
+              (f := fun coords =>
+                (coordinateXBit n i coords, coordinateMessage n p coords,
+                  coordinateAliceConditioning n i coords))))
+  have hright_congr :
+      fixedAliceInfoTerm n p i =
+        I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateMessage n p (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μ] := by
+    rw [fixedAliceInfoTerm]
+    exact ProbabilityTheory.condMutualInfo_congr_ae
+      (μ := μ)
+      (X := fixedXBit n i) (Y := message n p) (Z := fixedAliceConditioning n i)
+      (X' := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y' := fun ω => coordinateMessage n p (disjointCoordinateVector n ω))
+      (Z' := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (fixedXBit_ae_eq_coordinateXBit n i)
+      (message_ae_eq_coordinateMessage n p)
+      (fixedAliceConditioning_ae_eq_coordinateAliceConditioning n i)
+  have hright_pull :
+      I[(fun ω => coordinateXBit n i (disjointCoordinateVector n ω)) :
+          (fun ω => coordinateMessage n p (disjointCoordinateVector n ω)) |
+          (fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω)) ; μ] =
+        I[coordinateXBit n i : coordinateMessage n p | coordinateAliceConditioning n i ; ν] := by
+    exact ProbabilityTheory.IdentDistrib.condMutualInfo_eq
+      (μ := μ) (μ' := ν)
+      (X := fun ω => coordinateXBit n i (disjointCoordinateVector n ω))
+      (Y := fun ω => coordinateMessage n p (disjointCoordinateVector n ω))
+      (Z := fun ω => coordinateAliceConditioning n i (disjointCoordinateVector n ω))
+      (X' := coordinateXBit n i)
+      (Y' := coordinateMessage n p)
+      (Z' := coordinateAliceConditioning n i)
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
+      (by
+        simpa [Function.comp_def, ν] using
+          (identDistrib_disjointCoordinateVector_uniform n).comp
+            (Measurable.of_discrete
+              (f := fun coords =>
+                (coordinateXBit n i coords, coordinateMessage n p coords,
+                  coordinateAliceConditioning n i coords))))
+  calc
+    I[specialX n : message n p | aliceDynamicConditioning n ;
+        (disjointCondMeasure n)[|specialCoordinate n ← i]]
+        = I[specialX n : message n p | aliceDynamicConditioning n ; μi] := by
+          rfl
+    _ = I[coordinateXBit n i : coordinateMessage n p | coordinateAliceConditioning n i ; ν] :=
+          hleft_congr.trans hleft_pull
+    _ = fixedAliceInfoTerm n p i := (hright_congr.trans hright_pull).symm
+
+open Classical in
 /-- Averaging over the special coordinate: conditioned on `D`, `T` is uniform and independent of
 `(X,Y,M)`, so the Alice term in (6.6) is the average of the fixed-coordinate Lemma 6.20
 summands. -/
@@ -3964,7 +4262,10 @@ theorem aliceInfoTerm_eq_average_fixedAliceInfoTerm
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
     aliceInfoTerm n p =
       (∑ i : Fin n, fixedAliceInfoTerm n p i) / (n : ℝ) := by
-  sorry
+  rw [aliceInfoTerm_eq_sum_specialCoordinate_fiber_info]
+  simp_rw [aliceDynamicConditioning_fiber_info_eq_fixedAliceInfoTerm]
+  rw [← Finset.mul_sum]
+  ring
 
 open Classical in
 /-- Alice half of Lemma 6.20, after conditioning on disjointness and averaging over the uniform

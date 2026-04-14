@@ -476,6 +476,61 @@ theorem measureReal_mul_cond_real_eq_measureReal_of_subset
   · field_simp [hmass]
 
 open Classical in
+/-- If the conditioning variable is a pair `(K, Z)`, conditional mutual information is the
+average over the fibers of `K` of the conditional mutual information given `Z`. -/
+theorem condMutualInfo_prod_conditioning_eq_sum
+    {Ω₀ S₀ T₀ A U₀ : Type*}
+    [MeasurableSpace Ω₀] [MeasurableSpace S₀] [MeasurableSpace T₀]
+    [MeasurableSpace A] [MeasurableSpace U₀]
+    [MeasurableSingletonClass S₀] [MeasurableSingletonClass T₀]
+    [MeasurableSingletonClass A] [MeasurableSingletonClass U₀]
+    [Countable S₀] [Countable T₀] [Fintype A] [Finite U₀]
+    {X : Ω₀ → S₀} {Y : Ω₀ → T₀} {K : Ω₀ → A} {Z : Ω₀ → U₀}
+    {μ : Measure Ω₀} [IsFiniteMeasure μ]
+    (hK : Measurable K) (hZ : Measurable Z)
+    [FiniteRange X] [FiniteRange Y] :
+    I[X : Y | (fun ω => (K ω, Z ω)) ; μ] =
+      ∑ k : A, μ.real (K ⁻¹' {k}) * I[X : Y | Z ; μ[|K ← k]] := by
+  letI := Fintype.ofFinite U₀
+  rw [ProbabilityTheory.condMutualInfo_eq_sum'
+    (μ := μ) (X := X) (Y := Y) (Z := fun ω => (K ω, Z ω)) (hK.prodMk hZ)]
+  simp_rw [ProbabilityTheory.condMutualInfo_eq_sum'
+    (X := X) (Y := Y) (Z := Z) hZ]
+  simp_rw [Finset.mul_sum]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro k _hk
+  apply Finset.sum_congr rfl
+  intro z _hz
+  let Aset : Set Ω₀ := K ⁻¹' ({k} : Set A)
+  let Zset : Set Ω₀ := Z ⁻¹' ({z} : Set U₀)
+  have hAmeas : MeasurableSet Aset := hK MeasurableSet.of_discrete
+  have hZmeas : MeasurableSet Zset := hZ MeasurableSet.of_discrete
+  have hpair :
+      (fun ω => (K ω, Z ω)) ⁻¹' ({(k, z)} : Set (A × U₀)) = Aset ∩ Zset := by
+    ext ω
+    simp [Aset, Zset, Prod.ext_iff]
+  have hmass :
+      μ.real Aset * (μ[|K ← k]).real Zset = μ.real (Aset ∩ Zset) := by
+    have hsupport :
+        (μ[|K ← k]).real Zset = (μ[|K ← k]).real (Aset ∩ Zset) := by
+      have hset : Aset ∩ Zset = Aset ∩ (Aset ∩ Zset) := by
+        ext ω
+        simp
+      rw [ProbabilityTheory.cond_real_apply hAmeas,
+        ProbabilityTheory.cond_real_apply hAmeas]
+      exact congrArg (fun s : Set Ω₀ => (μ.real Aset)⁻¹ * μ.real s) hset
+    rw [hsupport]
+    exact ProbabilityTheory.measureReal_mul_cond_real_eq_measureReal_of_subset
+      μ hAmeas Set.inter_subset_left
+  have hcond :
+      μ[|K ← k][|Z ← z] = μ[|Aset ∩ Zset] := by
+    rw [ProbabilityTheory.cond_cond_eq_cond_inter hAmeas hZmeas]
+  rw [hpair, hcond]
+  rw [← hmass]
+  ring
+
+open Classical in
 /-- If an event is determined by the conditioning variable, then the contribution of the
 conditional mutual information on that event is bounded by the original conditional mutual
 information.  This is the information-theoretic reweighting used in Claim 6.21. -/
