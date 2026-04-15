@@ -96,11 +96,6 @@ theorem xBit_swap (c : DisjointCoordinate) :
     xBit (swap c) = yBit c := by
   cases c <;> rfl
 
-/-- After swapping a disjoint coordinate, Bob sees Alice's original bit. -/
-theorem yBit_swap (c : DisjointCoordinate) :
-    yBit (swap c) = xBit c := by
-  cases c <;> rfl
-
 end DisjointCoordinate
 
 /-- The sample space for the hard distribution.  The `other` coordinate at `T` is ignored; keeping
@@ -439,12 +434,6 @@ def dualProtocol
     Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool :=
   p.swap.comap (reverseSet n) (reverseSet n)
 
-/-- Dualizing a protocol preserves its communication complexity. -/
-theorem dualProtocol_complexity
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    (dualProtocol n p).complexity = p.complexity := by
-  simp [dualProtocol]
-
 /-- The leaf-level map induced by protocol duality. -/
 noncomputable def dualProtocolLeafMap
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -467,22 +456,6 @@ theorem dualProtocolLeafMap_injective
       (reverseSet n yx.1, reverseSet n yx.2) ∈ A) hset
   simpa [dualProtocolLeafMap, Deterministic.Protocol.leafComap,
     Deterministic.Protocol.preimageInputSet, reverseSet_reverseSet] using hmem
-
-theorem mem_X (ω : HardSample n) (i : Fin n) :
-    i ∈ X n ω ↔ xBit n ω i = true :=
-  Iff.rfl
-
-theorem mem_Y (ω : HardSample n) (i : Fin n) :
-    i ∈ Y n ω ↔ yBit n ω i = true :=
-  Iff.rfl
-
-theorem xBit_special (ω : HardSample n) :
-    xBit n ω ω.T = ω.xT := by
-  simp [xBit]
-
-theorem yBit_special (ω : HardSample n) :
-    yBit n ω ω.T = ω.yT := by
-  simp [yBit]
 
 theorem xBit_of_ne_special (ω : HardSample n) {i : Fin n} (hi : i ≠ ω.T) :
     xBit n ω i = (ω.other i).xBit := by
@@ -531,17 +504,6 @@ def mix (ωX ωY : HardSample n) : HardSample n where
   other := fun i =>
     if i = ωX.T then ωX.other i
     else coordinateOfBits (xBit n ωX i) (yBit n ωY i)
-
-/-- Mixing a sample with itself recovers the original sample. -/
-theorem mix_self (ω : HardSample n) :
-    mix n ω ω = ω := by
-  rcases ω with ⟨T, xT, yT, other⟩
-  simp only [mix, xBit, yBit]
-  congr
-  funext i
-  by_cases hi : i = T
-  · simp [hi]
-  · simp [hi, coordinateOfBits_xBit_yBit]
 
 /-- The generated sets are disjoint exactly when the two special-coordinate bits are not both
 `true`. -/
@@ -656,17 +618,6 @@ noncomputable instance disjointEventFintype :
     Fintype {ω : HardSample n // ω ∈ disjointEvent n} :=
   Fintype.ofEquiv (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate)
     (disjointEventEquiv n).symm
-
-theorem card_disjointEvent_subtype :
-    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
-      (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
-  calc
-    Fintype.card {ω : HardSample n // ω ∈ disjointEvent n} =
-        Fintype.card (Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :=
-      Fintype.card_congr (disjointEventEquiv n)
-    _ = (n : ℕ) * 3 ^ (n : ℕ) * 3 := by
-      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
-      ring
 
 private def disjointEventInterDisjointModelEquiv
     (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
@@ -1357,20 +1308,6 @@ theorem disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton (i 
       (1 / (n : ℝ) : ℝ) := by
   rw [specialCoordinate_preimage_singleton,
     disjointCondMeasure_measureReal_specialCoordinateEvent]
-
-open Classical in
-/-- Under disjoint conditioning, integrating a function of `T` is the uniform coordinate
-average. -/
-theorem integral_specialCoordinate_disjointCondMeasure (f : Fin n → ℝ) :
-    (∫ ω, f (specialCoordinate n ω) ∂(disjointCondMeasure n)) =
-      (1 / (n : ℝ) : ℝ) * ∑ i : Fin n, f i := by
-  haveI : IsProbabilityMeasure (disjointCondMeasure n) := by
-    rw [disjointCondMeasure]
-    exact ProbabilityTheory.cond_isProbabilityMeasure (measure_disjointEvent_ne_zero n)
-  rw [FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
-    (μ := disjointCondMeasure n) (Z := specialCoordinate n) (f := f)]
-  simp_rw [disjointCondMeasure_measureReal_specialCoordinate_preimage_singleton]
-  rw [Finset.mul_sum]
 
 /-- Under the measure conditioned on disjointness, the disjointness event holds almost surely. -/
 theorem disjointCondMeasure_ae_disjointEvent :
@@ -2626,14 +2563,6 @@ theorem zFiberMeasure_cond_specialY_eq_volume_cond_inter
   exact ProbabilityTheory.cond_cond_eq_cond_inter
     MeasurableSet.of_discrete MeasurableSet.of_discrete (volume : Measure (HardSample n))
 
-/-- The event `Z=z ∧ Y_T=false` is contained in the disjoint-input event. -/
-theorem zVariable_inter_specialYFalse_subset_disjointEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    ((zVariable n p) ⁻¹' {z}) ∩ ((specialY n) ⁻¹' {false}) ⊆ disjointEvent n := by
-  intro ω hω
-  exact mem_disjointEvent_of_specialY_eq_false n (by simpa using hω.2)
-
 open Classical in
 /-- Conditioning a `Z=z` fiber further on `Y_T=false` agrees with conditioning the
 `D ∧ Y_T=false` measure on the same `Z` fiber. -/
@@ -2826,16 +2755,6 @@ noncomputable def yDistance
     0
 
 open Classical in
-/-- The conditional pair TV distance is nonnegative, including the zero-mass fallback case. -/
-theorem zDistance_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    0 ≤ zDistance n p z := by
-  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
-  · simp [zDistance, hz, TVDistance.tvDistance_nonneg]
-  · simp [zDistance, hz]
-
-open Classical in
 /-- Alice's one-bit conditional TV distance is nonnegative, including the zero-mass fallback
 case. -/
 theorem xDistance_nonneg
@@ -2845,16 +2764,6 @@ theorem xDistance_nonneg
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
   · simp [xDistance, hz, TVDistance.tvDistance_nonneg]
   · simp [xDistance, hz]
-
-open Classical in
-/-- Bob's one-bit conditional TV distance is nonnegative, including the zero-mass fallback case. -/
-theorem yDistance_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    0 ≤ yDistance n p z := by
-  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
-  · simp [yDistance, hz, TVDistance.tvDistance_nonneg]
-  · simp [yDistance, hz]
 
 /-- Pulling a dual `Z` fiber intersected with a dual Alice-special-bit event back along
 hard-sample duality gives the corresponding original Bob-special-bit event. -/
@@ -3011,16 +2920,6 @@ noncomputable def xFiberKL
       ((uniformBool : ProbabilityMeasure Bool) : Measure Bool)).toReal
   else
     0
-
-open Classical in
-/-- Alice's one-bit fiber KL cost is nonnegative, including the zero-mass fallback case. -/
-theorem xFiberKL_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
-    (z : p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))) :
-    0 ≤ xFiberKL n p z := by
-  by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
-  · simp [xFiberKL, hz]
-  · simp [xFiberKL, hz]
 
 open Classical in
 /-- Pointwise Pinsker for Alice, with zero-mass `Z` fibers handled by `xFiberKL`. -/
@@ -3766,17 +3665,6 @@ noncomputable def claimInfo
   aliceInfoTerm n p + bobInfoTerm n p
 
 open Classical in
-/-- Alice's corrected information term is nonnegative. -/
-theorem aliceInfoTerm_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    0 ≤ aliceInfoTerm n p := by
-  rw [aliceInfoTerm]
-  exact ProbabilityTheory.condMutualInfo_nonneg
-    (μ := disjointCondMeasure n)
-    (X := specialX n) (Y := message n p) (Z := aliceClaimConditioning n)
-    Measurable.of_discrete Measurable.of_discrete
-
-open Classical in
 /-- Bob's corrected information term is nonnegative. -/
 theorem bobInfoTerm_nonneg
     (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
@@ -3793,13 +3681,6 @@ theorem aliceInfoTerm_le_claimInfo
     aliceInfoTerm n p ≤ claimInfo n p := by
   rw [claimInfo]
   linarith [bobInfoTerm_nonneg n p]
-
-/-- Bob's information term is bounded by the total corrected information. -/
-theorem bobInfoTerm_le_claimInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    bobInfoTerm n p ≤ claimInfo n p := by
-  rw [claimInfo]
-  linarith [aliceInfoTerm_nonneg n p]
 
 open Classical in
 /-- Alice's corrected information term for the dual protocol is Bob's corrected information term
@@ -4587,49 +4468,6 @@ theorem coarseConditioning_flipSpecialX (ω : HardSample n) :
     xBeforeSpecial_flipSpecialX, yAfterSpecial_flipSpecialX]
 
 open Classical in
-/-- Flipping Alice's special bit bijects the two `X_T` branches inside every
-`Y_T=false, coarse=c` fiber. -/
-theorem card_specialYFalse_coarseConditioning_specialX_false_eq_true
-    (c : Fin n × (Fin n → Bool) × (Fin n → Bool)) :
-    Fintype.card {ω : HardSample n //
-        ω ∈ ((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c}) ∩
-          ((specialX n) ⁻¹' {false})} =
-      Fintype.card {ω : HardSample n //
-        ω ∈ ((specialY n) ⁻¹' {false}) ∩ ((coarseConditioning n) ⁻¹' {c}) ∩
-          ((specialX n) ⁻¹' {true})} := by
-  refine Fintype.card_congr
-    { toFun := ?toFun
-      invFun := ?invFun
-      left_inv := ?left_inv
-      right_inv := ?right_inv }
-  · intro ω
-    refine ⟨flipSpecialX n ω.1, ?_⟩
-    rcases ω.2 with ⟨⟨hY, hC⟩, hX⟩
-    refine ⟨⟨?_, ?_⟩, ?_⟩
-    · simpa [specialY_flipSpecialX] using hY
-    · simpa [coarseConditioning_flipSpecialX] using hC
-    · have hx : specialX n (flipSpecialX n ω.1) = true := by
-        rw [specialX_flipSpecialX, hX]
-        rfl
-      simpa using hx
-  · intro ω
-    refine ⟨flipSpecialX n ω.1, ?_⟩
-    rcases ω.2 with ⟨⟨hY, hC⟩, hX⟩
-    refine ⟨⟨?_, ?_⟩, ?_⟩
-    · simpa [specialY_flipSpecialX] using hY
-    · simpa [coarseConditioning_flipSpecialX] using hC
-    · have hx : specialX n (flipSpecialX n ω.1) = false := by
-        rw [specialX_flipSpecialX, hX]
-        rfl
-      simpa using hx
-  · intro ω
-    apply Subtype.ext
-    exact flipSpecialX_flipSpecialX n ω.1
-  · intro ω
-    apply Subtype.ext
-    exact flipSpecialX_flipSpecialX n ω.1
-
-open Classical in
 /-- In every `Y_T=false, coarse=c` fiber of the ambient hard distribution, each value of `X_T`
 has half the mass. -/
 theorem volume_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX
@@ -5278,13 +5116,6 @@ theorem distributionalError_lower_bound_of_goodZEvent
   rw [distributionalError_inputDist_eq_protocolErrorEvent]
   exact protocolErrorEvent_measureReal_lower_bound_of_goodZEvent n p hγ hγ_small
 
-/-- The concrete constant calculation used to turn Claim 6.21 into a fixed information lower
-bound. -/
-theorem textbook_error_lower_bound_at_one_over_sixty_four :
-    ((1 / 4 : ℝ) * (1 - 4 * (1 / 64 : ℝ))) *
-        ((1 / 4 : ℝ) - 2 * (1 / 64 : ℝ)) > 1 / 32 := by
-  norm_num
-
 open Classical in
 /-- Textbook Claim 6.21 and the final error calculation: a deterministic protocol with
 distributional error at most `1 / 32` must reveal a constant amount of the corrected information
@@ -5312,7 +5143,6 @@ theorem fixed_error_claimInfo_lower_bound
         (volume : Measure (HardSample n)).real (goodZEvent n p (1 / 64 : ℝ)) *
           ((1 / 4 : ℝ) - 2 * (1 / 64 : ℝ)) :=
     mul_le_mul_of_nonneg_right hgood hfactor_nonneg
-  have hgt := textbook_error_lower_bound_at_one_over_sixty_four
   linarith
 
 /-- Deterministic fixed-error disjointness lower bound from (6.6) and Lemma 6.20. -/
@@ -5325,10 +5155,8 @@ theorem deterministic_complexity_lower_bound_textbook
   have hmain :
       (1 / 32768 : ℝ) ^ 2 < 2 * (p.complexity * Real.log 2) / (n : ℝ) :=
     hinfo_lt.trans_le hupper
-  have hn_pos : 0 < (n : ℝ) := by
-    exact_mod_cast n.pos
-  have hlog_pos : 0 < 3 * Real.log 2 := by
-    positivity
+  have hn_pos : 0 < (n : ℝ) := by positivity
+  have hlog_pos : 0 < 3 * Real.log 2 := by positivity
   have hcomplexity_nonneg : 0 ≤ (p.complexity : ℝ) := by
     exact_mod_cast Nat.zero_le p.complexity
   rw [div_le_iff₀ hlog_pos]
