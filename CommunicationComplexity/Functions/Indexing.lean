@@ -54,11 +54,19 @@ theorem oneWayCommunicationComplexity_le :
       Fintype.card_pi, Fintype.card_bool, Finset.prod_const, Finset.card_univ,
       Fintype.card_fin, Nat.one_lt_ofNat, Nat.clog_pow]
 
-/-- Deterministic upper bound for indexing induced by the one-way protocol. -/
+/-- Deterministic upper bound for indexing: Bob can send his index and then
+Alice can send the output bit. -/
 theorem communicationComplexity_le :
-    Deterministic.communicationComplexity (indexing n) ≤ (n : ℕ) + 1 := by
-  exact OneWay.deterministic_communicationComplexity_le_of_oneWay_le_bool
-    (f := indexing n) (n := n) (oneWayCommunicationComplexity_le n)
+    Deterministic.communicationComplexity (indexing n) ≤ Nat.clog 2 (n : ℕ) + 1 := by
+  have hbool : Nat.clog 2 2 = 1 := by decide
+  calc
+    Deterministic.communicationComplexity (indexing n)
+      ≤ Nat.clog 2 (Nat.card (Fin n)) + Nat.clog 2 (Nat.card Bool) :=
+        Deterministic.communicationComplexity_le_clog_card_Y_alpha (indexing n)
+    _ = Nat.clog 2 (n : ℕ) + 1 := by
+        simp only [Nat.card_eq_fintype_card, Fintype.card_fin, Fintype.card_bool]
+        rw [hbool]
+        norm_cast
 
 /-- One-way lower bound for indexing: any correct deterministic one-way protocol
 must send at least `n` bits. -/
