@@ -407,14 +407,18 @@ theorem dualConditioningValue_injective :
   have h' := congrArg (dualConditioningValue n) h
   simpa [dualConditioningValue_dualConditioningValue] using h'
 
+/-- The deterministic protocol type for disjointness inputs of length `n`. -/
+abbrev ProtocolType : Type :=
+  Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool
+
 /-- The type of values of the `Z = (M, T, X_<T, Y_>T)` variable for a protocol. -/
 abbrev ZType
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : Type :=
+    (p : ProtocolType n) : Type :=
   p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))
 
 /-- The `Z = (M, T, X_<T, Y_>T)` variable used in Claim 6.21. -/
 noncomputable def zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (ω : HardSample n) : ZType n p :=
   (p.transcript (input n ω), coarseConditioning n ω)
 
@@ -434,13 +438,13 @@ noncomputable def inputDist :
 
 /-- The protocol dual swaps Alice/Bob and reverses both coordinate sets. -/
 def dualProtocol
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
-    Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool :=
+    (p : ProtocolType n) :
+    ProtocolType n :=
   p.swap.comap (reverseSet n) (reverseSet n)
 
 /-- The leaf-level map induced by protocol duality. -/
 noncomputable def dualProtocolLeafMap
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     p.Leaf → (dualProtocol n p).Leaf :=
   fun leaf =>
     Deterministic.Protocol.leafComap p.swap (reverseSet n) (reverseSet n)
@@ -448,7 +452,7 @@ noncomputable def dualProtocolLeafMap
 
 /-- The leaf-level map induced by protocol duality is injective. -/
 theorem dualProtocolLeafMap_injective
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     Function.Injective (dualProtocolLeafMap n p) := by
   intro R S h
   apply (Deterministic.Protocol.leafSwap p).injective
@@ -1733,7 +1737,7 @@ def coordinateInput (coords : Fin n → DisjointCoordinate) : Set (Fin n) × Set
 
 /-- The protocol transcript as a function of the generated disjoint coordinate vector. -/
 noncomputable def coordinateMessage
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (coords : Fin n → DisjointCoordinate) : p.Leaf :=
   p.transcript (coordinateInput n coords)
 
@@ -2215,14 +2219,14 @@ theorem volume_cond_specialZeroZero_measureReal_le_two_mul_disjointSpecialYFalse
 
 /-- The transcript random variable induced by a deterministic protocol on the hard sample space. -/
 noncomputable def message
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (ω : HardSample n) : p.Leaf :=
   p.transcript (input n ω)
 
 open Classical in
 /-- Under `D`, the transcript is a function of the generated disjoint coordinate vector. -/
 theorem message_ae_eq_coordinateMessage
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     message n p =ᵐ[disjointCondMeasure n]
       fun ω => coordinateMessage n p (disjointCoordinateVector n ω) := by
   filter_upwards [disjointCondMeasure_ae_disjointEvent n] with ω hω
@@ -2237,7 +2241,7 @@ theorem message_ae_eq_coordinateMessage
 
 /-- The transcript entropy is at most the protocol length in bits, for any ambient measure. -/
 theorem entropy_message_le_complexity_mul_log_two_of_measure
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (μ : Measure (HardSample n)) :
     H[message n p ; μ] ≤
       p.complexity * Real.log 2 := by
@@ -2249,7 +2253,7 @@ theorem entropy_message_le_complexity_mul_log_two_of_measure
 /-- The dual protocol transcript on the dual hard sample is the original transcript recoded
 through protocol duality. -/
 theorem message_dualProtocol_dualHardSample
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (ω : HardSample n) :
     message n (dualProtocol n p) (dualHardSample n ω) =
       dualProtocolLeafMap n p (message n p ω) := by
@@ -2266,14 +2270,14 @@ theorem message_dualProtocol_dualHardSample
 /-- Dualize a `Z = (M,T,X_<T,Y_>T)` value by recoding the leaf and the coarse conditioning
 data. -/
 noncomputable def dualZValue
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     ZType n (dualProtocol n p) :=
   (dualProtocolLeafMap n p z.1, dualConditioningValue n z.2)
 
 /-- The `Z`-value recoding induced by protocol and hard-sample duality is injective. -/
 theorem dualZValue_injective
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     Function.Injective (dualZValue n p) := by
   intro z z' h
   rcases z with ⟨leaf, c⟩
@@ -2283,7 +2287,7 @@ theorem dualZValue_injective
 
 /-- The `Z` variable for the dual protocol and hard sample is the recoded original `Z`. -/
 theorem zVariable_dualProtocol_dualHardSample
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (ω : HardSample n) :
     zVariable n (dualProtocol n p) (dualHardSample n ω) =
       dualZValue n p (zVariable n p ω) := by
@@ -2296,7 +2300,7 @@ theorem zVariable_dualProtocol_dualHardSample
 /-- Pulling a recoded dual `Z` fiber back along hard-sample duality gives the original `Z`
 fiber. -/
 theorem zVariable_dualProtocol_preimage_dualZValue
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (dualHardSample n) ⁻¹'
         ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
@@ -2310,7 +2314,7 @@ theorem zVariable_dualProtocol_preimage_dualZValue
 /-- The ambient hard-sample measure gives corresponding original and dual `Z` fibers the same
 mass. -/
 theorem volume_zVariable_dualProtocol_dualZValue
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (volume : Measure (HardSample n))
         ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
@@ -2329,7 +2333,7 @@ theorem volume_zVariable_dualProtocol_dualZValue
 
 /-- Real-valued version of `volume_zVariable_dualProtocol_dualZValue`. -/
 theorem volume_measureReal_zVariable_dualProtocol_dualZValue
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (volume : Measure (HardSample n)).real
         ((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) =
@@ -2354,13 +2358,13 @@ theorem inputDist_measureReal_eq_preimage (S : Set (Set (Fin n) × Set (Fin n)))
 
 /-- The sample-space event where a deterministic protocol errs on disjointness. -/
 def protocolErrorEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : Set (HardSample n) :=
+    (p : ProtocolType n) : Set (HardSample n) :=
   {ω | p.run (X n ω) (Y n ω) ≠ disjointness n (X n ω) (Y n ω)}
 
 /-- Distributional error under the hard input distribution is the probability of the named
 sample-space error event. -/
 theorem distributionalError_inputDist_eq_protocolErrorEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     p.distributionalError (inputDist n) (disjointness n) =
       (volume (protocolErrorEvent n p)).toReal := by
   rw [Deterministic.Protocol.distributionalError]
@@ -2500,13 +2504,13 @@ theorem uniformBoolPair_eq_prod :
 
 /-- The hard-distribution measure conditioned on a `Z=z` fiber. -/
 noncomputable def zFiberMeasure
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     Measure (HardSample n) :=
   (volume : Measure (HardSample n))[|(zVariable n p) ⁻¹' {z}]
 
 noncomputable instance zFiberMeasure_isProbabilityMeasure
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     IsProbabilityMeasure (zFiberMeasure n p z) := by
@@ -2516,7 +2520,7 @@ noncomputable instance zFiberMeasure_isProbabilityMeasure
 /-- Conditional probabilities under a `Z=z` fiber are computed by intersecting with the fiber and
 dividing by its mass. -/
 theorem zFiberMeasure_real_apply
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (S : Set (HardSample n)) :
     (zFiberMeasure n p z).real S =
@@ -2529,7 +2533,7 @@ open Classical in
 /-- The mass of a `Z` fiber under the Alice-side conditioned measure, with the `3/2` scaling
 from `Pr_D[Y_T=false]=2/3` made explicit. -/
 theorem disjointSpecialYFalseMeasure_measureReal_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) =
       (3 / 2 : ℝ) *
@@ -2544,7 +2548,7 @@ open Classical in
 /-- Conditioning first on `Y_T=false` under `D`, then on a `Z` value, is the same as
 conditioning under `D` on the intersection of those events. -/
 theorem disjointSpecialYFalseMeasure_cond_zVariable_eq_cond_inter
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] =
       (disjointCondMeasure n)[|
@@ -2557,7 +2561,7 @@ open Classical in
 /-- Conditioning a `Z=z` fiber further on a special Bob-bit value is the same as conditioning the
 ambient hard distribution on the intersection of those two fiber events. -/
 theorem zFiberMeasure_cond_specialY_eq_volume_cond_inter
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (b : Bool) :
     (zFiberMeasure n p z)[|(specialY n) ⁻¹' {b}] =
@@ -2571,7 +2575,7 @@ open Classical in
 /-- Conditioning a `Z=z` fiber further on `Y_T=false` agrees with conditioning the
 `D ∧ Y_T=false` measure on the same `Z` fiber. -/
 theorem zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     (zFiberMeasure n p z)[|(specialY n) ⁻¹' {false}] =
       (disjointSpecialYFalseMeasure n)[|zVariable n p ← z] := by
@@ -2589,7 +2593,7 @@ theorem zFiberMeasure_cond_specialYFalse_eq_disjointSpecialYFalseMeasure_cond_zV
 open Classical in
 /-- A positive `Z=z` fiber under `D ∧ Y_T=false` has positive ambient hard-distribution volume. -/
 theorem volume_zFiber_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 := by
@@ -2611,7 +2615,7 @@ open Classical in
 /-- A positive `Z=z` fiber under `D ∧ Y_T=false` makes the `Y_T=false` branch of the ambient
 `Z=z` fiber positive. -/
 theorem zFiberMeasure_specialYFalse_ne_zero_of_disjointSpecialYFalseMeasure_ne_zero
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0 := by
@@ -2651,7 +2655,7 @@ theorem zFiberMeasure_specialYFalse_ne_zero_of_disjointSpecialYFalseMeasure_ne_z
 
 /-- The conditional law of the special bit-pair on a positive-mass `Z=z` fiber. -/
 noncomputable def conditionalSpecialPairLaw
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     ProbabilityMeasure (Bool × Bool) :=
@@ -2663,7 +2667,7 @@ noncomputable def conditionalSpecialPairLaw
 /-- On a positive-mass `Z=z` fiber, the conditional `specialPair` singleton mass is the
 corresponding preimage probability under the fiber measure. -/
 theorem conditionalSpecialPairLaw_singleton
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (b : Bool × Bool) :
@@ -2677,7 +2681,7 @@ theorem conditionalSpecialPairLaw_singleton
 
 /-- The conditional law of Alice's special bit on a positive-mass `Z=z` fiber. -/
 noncomputable def conditionalSpecialXLaw
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     ProbabilityMeasure Bool :=
@@ -2688,7 +2692,7 @@ noncomputable def conditionalSpecialXLaw
 
 /-- The conditional law of Bob's special bit on a positive-mass `Z=z` fiber. -/
 noncomputable def conditionalSpecialYLaw
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     ProbabilityMeasure Bool :=
@@ -2700,7 +2704,7 @@ noncomputable def conditionalSpecialYLaw
 /-- On a positive-mass `Z=z` fiber, Alice's conditional special-bit singleton mass is the
 corresponding preimage probability under the fiber measure. -/
 theorem conditionalSpecialXLaw_singleton
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (b : Bool) :
@@ -2714,7 +2718,7 @@ theorem conditionalSpecialXLaw_singleton
 /-- On a positive-mass `Z=z` fiber, Bob's conditional special-bit singleton mass is the
 corresponding preimage probability under the fiber measure. -/
 theorem conditionalSpecialYLaw_singleton
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (b : Bool) :
@@ -2729,7 +2733,7 @@ open Classical in
 /-- The TV distance between the conditional special-pair law on a `Z=z` fiber and the uniform
 bit-pair law, set to `0` on zero-mass fibers. -/
 noncomputable def zDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) : ℝ :=
   if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
     tvDistance (conditionalSpecialPairLaw n p z hz) uniformBoolPair
@@ -2740,7 +2744,7 @@ open Classical in
 /-- The TV distance between Alice's conditional special-bit law and a uniform bit, set to `0` on
 zero-mass fibers. -/
 noncomputable def xDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) : ℝ :=
   if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
     tvDistance (conditionalSpecialXLaw n p z hz) uniformBool
@@ -2751,7 +2755,7 @@ open Classical in
 /-- The TV distance between Bob's conditional special-bit law and a uniform bit, set to `0` on
 zero-mass fibers. -/
 noncomputable def yDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) : ℝ :=
   if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
     tvDistance (conditionalSpecialYLaw n p z hz) uniformBool
@@ -2762,7 +2766,7 @@ open Classical in
 /-- Alice's one-bit conditional TV distance is nonnegative, including the zero-mass fallback
 case. -/
 theorem xDistance_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     0 ≤ xDistance n p z := by
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
@@ -2772,7 +2776,7 @@ theorem xDistance_nonneg
 /-- Pulling a dual `Z` fiber intersected with a dual Alice-special-bit event back along
 hard-sample duality gives the corresponding original Bob-special-bit event. -/
 theorem dualHardSample_preimage_zVariable_dualZValue_inter_specialX
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) (b : Bool) :
     (dualHardSample n) ⁻¹'
         (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
@@ -2789,7 +2793,7 @@ theorem dualHardSample_preimage_zVariable_dualZValue_inter_specialX
 /-- The ambient hard-sample measure gives corresponding original and dual one-bit `Z`-fiber
 events the same mass. -/
 theorem volume_zVariable_dualProtocol_dualZValue_inter_specialX
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) (b : Bool) :
     (volume : Measure (HardSample n))
         (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
@@ -2812,7 +2816,7 @@ theorem volume_zVariable_dualProtocol_dualZValue_inter_specialX
 /-- Real-valued version of
 `volume_zVariable_dualProtocol_dualZValue_inter_specialX`. -/
 theorem volume_measureReal_zVariable_dualProtocol_dualZValue_inter_specialX
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) (b : Bool) :
     (volume : Measure (HardSample n)).real
         (((zVariable n (dualProtocol n p)) ⁻¹' {dualZValue n p z}) ∩
@@ -2826,7 +2830,7 @@ open Classical in
 /-- The Alice one-bit law on the dual protocol's recoded `Z` fiber is Bob's one-bit law on the
 original `Z` fiber. -/
 theorem conditionalSpecialXLaw_dualProtocol_dualZValue
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hzDual :
       (volume : Measure (HardSample n))
@@ -2846,7 +2850,7 @@ open Classical in
 /-- The Alice one-bit distance for the dual protocol at the recoded `Z` value is the original
 Bob one-bit distance. -/
 theorem xDistance_dualProtocol_dualZValue_eq_yDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     xDistance n (dualProtocol n p) (dualZValue n p z) = yDistance n p z := by
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
@@ -2865,7 +2869,7 @@ theorem xDistance_dualProtocol_dualZValue_eq_yDistance
 open Classical in
 /-- The dual Alice bad event on the `X_T=Y_T=false` slice is the original Bob bad event. -/
 theorem volume_specialZeroZero_inter_xDistance_dualProtocol_eq_yDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (γ : ℝ) :
     (volume : Measure (HardSample n)).real
         (specialZeroZero n ∩
@@ -2900,7 +2904,7 @@ theorem volume_specialZeroZero_inter_xDistance_dualProtocol_eq_yDistance
 open Classical in
 /-- Pinsker for Alice's one-bit fiber distance against the uniform bit. -/
 theorem two_mul_xDistance_sq_le_toReal_klDiv_uniformBool
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     2 * xDistance n p z ^ 2 ≤
@@ -2916,7 +2920,7 @@ theorem two_mul_xDistance_sq_le_toReal_klDiv_uniformBool
 open Classical in
 /-- Alice's one-bit fiber KL cost on a `Z=z` fiber, set to `0` on zero-mass fibers. -/
 noncomputable def xFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) : ℝ :=
   if hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0 then
     (InformationTheory.klDiv
@@ -2928,7 +2932,7 @@ noncomputable def xFiberKL
 open Classical in
 /-- Pointwise Pinsker for Alice, with zero-mass `Z` fibers handled by `xFiberKL`. -/
 theorem two_mul_xDistance_sq_le_xFiberKL
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     2 * xDistance n p z ^ 2 ≤ xFiberKL n p z := by
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
@@ -2938,7 +2942,7 @@ theorem two_mul_xDistance_sq_le_xFiberKL
 open Classical in
 /-- Integrated Alice Pinsker bound over the `D ∧ Y_T=false` conditioned measure. -/
 theorem two_mul_integral_xDistance_sq_le_integral_xFiberKL_disjointSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     2 * (∫ ω, (xDistance n p (zVariable n p ω)) ^ 2
         ∂(disjointSpecialYFalseMeasure n)) ≤
       ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) := by
@@ -2958,7 +2962,7 @@ open Classical in
 /-- Jensen's inequality converts a squared Alice-side average-distance estimate under
 `D ∧ Y_T=false` into the average-distance estimate used before Markov. -/
 theorem disjointSpecialYFalseMeasure_integral_xDistance_le_of_integral_sq_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hsq :
       ∫ ω, (xDistance n p (zVariable n p ω)) ^ 2 ∂(disjointSpecialYFalseMeasure n) ≤
@@ -2989,7 +2993,7 @@ open Classical in
 /-- Markov's inequality converts the textbook Alice-side average-distance estimate under
 `D ∧ Y_T=false` into a bad-`Z` probability bound. -/
 theorem disjointSpecialYFalseMeasure_xDistance_bad_le_of_integral_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (havg :
@@ -3027,27 +3031,27 @@ theorem disjointSpecialYFalseMeasure_xDistance_bad_le_of_integral_le
 /-- A `Z` value is good when the conditional special-pair law on its fiber is within `2γ` of
 uniform; zero-mass fibers use the `zDistance = 0` fallback. -/
 def goodZ
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (γ : ℝ)
     (z : ZType n p) : Prop :=
   zDistance n p z ≤ 2 * γ
 
 /-- The good-fiber event `𝓖` in Claim 6.21, pulled back to the hard sample space through `Z`. -/
 def goodZEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) (γ : ℝ) :
+    (p : ProtocolType n) (γ : ℝ) :
     Set (HardSample n) :=
   {ω | goodZ n p γ (zVariable n p ω)}
 
 /-- The generated input belongs to the transcript leaf of any deterministic protocol. -/
 theorem input_mem_transcript
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) (ω : HardSample n) :
+    (p : ProtocolType n) (ω : HardSample n) :
     input n ω ∈
       (message n p ω : Set (Set (Fin n) × Set (Fin n))) :=
   Deterministic.Protocol.mem_transcript p (input n ω)
 
 /-- If a sample has `Z=z`, its generated input lies in the transcript leaf `z.1`. -/
 theorem input_mem_leaf_of_zVariable_eq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
@@ -3058,7 +3062,7 @@ theorem input_mem_leaf_of_zVariable_eq
 
 /-- Equal `Z` value fixes the special coordinate. -/
 theorem specialCoordinate_eq_of_zVariable_eq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
@@ -3067,7 +3071,7 @@ theorem specialCoordinate_eq_of_zVariable_eq
 
 /-- Equal `Z` value fixes Alice's bits before the special coordinate. -/
 theorem xBeforeSpecial_eq_of_zVariable_eq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
@@ -3076,7 +3080,7 @@ theorem xBeforeSpecial_eq_of_zVariable_eq
 
 /-- Equal `Z` value fixes Bob's bits after the special coordinate. -/
 theorem yAfterSpecial_eq_of_zVariable_eq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
@@ -3086,7 +3090,7 @@ theorem yAfterSpecial_eq_of_zVariable_eq
 /-- The transcript leaf component of `Z` is a rectangle: two samples in the same `Z` fiber also
 contain the two mixed input pairs in that leaf. -/
 theorem mixed_inputs_mem_leaf_of_zVariable_eq
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
@@ -3106,7 +3110,7 @@ theorem mixed_inputs_mem_leaf_of_zVariable_eq
 
 /-- Two samples in the same `Z` fiber have the same special coordinate. -/
 theorem specialCoordinate_eq_of_same_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
@@ -3118,7 +3122,7 @@ theorem specialCoordinate_eq_of_same_zVariable
 
 /-- Two samples in the same `Z` fiber have the same `X_<T` conditioning data. -/
 theorem xBeforeSpecial_eq_of_same_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
@@ -3130,7 +3134,7 @@ theorem xBeforeSpecial_eq_of_same_zVariable
 
 /-- Two samples in the same `Z` fiber have the same `Y_>T` conditioning data. -/
 theorem yAfterSpecial_eq_of_same_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
@@ -3142,7 +3146,7 @@ theorem yAfterSpecial_eq_of_same_zVariable
 
 /-- The mixed sample of two samples in the same `Z` fiber remains in that `Z` fiber. -/
 theorem zVariable_mix_eq_of_same_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ωX ωY : HardSample n}
     (hωX : zVariable n p ωX = z)
@@ -3174,7 +3178,7 @@ theorem zVariable_mix_eq_of_same_zVariable
 second has Bob special bit `bY`, then their mix is in the same fiber with special pair
 `(bX, bY)`. -/
 theorem mix_mem_fiber_inter_specialPair_of_mem_specialX_specialY
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ωX ωY : HardSample n} {bX bY : Bool}
     (hωX : ωX ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {bX}))
@@ -3190,7 +3194,7 @@ theorem mix_mem_fiber_inter_specialPair_of_mem_specialX_specialY
 
 /-- The swapped mix of two samples in a `Z=z` fiber remains in that fiber. -/
 theorem mix_swap_mem_fiber_of_mem_specialX_specialY
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ωX ωY : HardSample n} {bX bY : Bool}
     (hωX : ωX ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialX n) ⁻¹' {bX}))
@@ -3203,7 +3207,7 @@ theorem mix_swap_mem_fiber_of_mem_specialX_specialY
 /-- If one sample in a fiber has special pair `b` and the other is just in the fiber, mixing with
 the special-pair sample on Alice's side lands in the fiber with Alice special bit `b.1`. -/
 theorem mix_mem_fiber_inter_specialX_of_mem_specialPair_fiber
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ωPair ω : HardSample n} {b : Bool × Bool}
     (hωPair : ωPair ∈ ((zVariable n p) ⁻¹' {z}) ∩ ((specialPair n) ⁻¹' {b}))
@@ -3221,7 +3225,7 @@ theorem mix_mem_fiber_inter_specialX_of_mem_specialPair_fiber
 /-- If one sample in a fiber has special pair `b` and the other is just in the fiber, mixing with
 the special-pair sample on Bob's side lands in the fiber with Bob special bit `b.2`. -/
 theorem mix_mem_fiber_inter_specialY_of_mem_fiber_specialPair
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {z : ZType n p}
     {ωPair ω : HardSample n} {b : Bool × Bool}
     (hω : ω ∈ (zVariable n p) ⁻¹' {z})
@@ -3240,7 +3244,7 @@ open Classical in
 /-- The switching map `(ωX, ωY) ↦ (mix ωX ωY, mix ωY ωX)` gives the cardinal identity
 underlying conditional independence of `specialX` and `specialY` on a `Z=z` fiber. -/
 theorem card_fiber_inter_specialX_mul_card_fiber_inter_specialY
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (b : Bool × Bool) :
     Fintype.card {ω : HardSample n //
@@ -3328,7 +3332,7 @@ open Classical in
 /-- The rectangle switching identity, translated from cardinalities to the uniform
 hard-distribution measure. -/
 theorem fiber_volume_factorization
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (b : Bool × Bool) :
     (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
@@ -3368,7 +3372,7 @@ theorem fiber_volume_factorization
 /-- To prove the conditional special-pair law factors, it suffices to prove singleton
 factorization for the four bit-pairs. -/
 theorem conditionalSpecialPairLaw_eq_prod_of_singleton_factorization
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hfactor : ∀ b : Bool × Bool,
@@ -3404,7 +3408,7 @@ theorem conditionalSpecialPairLaw_eq_prod_of_singleton_factorization
 
 /-- Singleton factorization can be proved directly on the underlying `Z=z` fiber measure. -/
 theorem conditionalSpecialPairLaw_eq_prod_of_zFiberMeasure_factorization
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hfactor : ∀ b : Bool × Bool,
@@ -3423,7 +3427,7 @@ theorem conditionalSpecialPairLaw_eq_prod_of_zFiberMeasure_factorization
 /-- A cross-multiplied version of singleton factorization, phrased using the original hard
 distribution instead of conditional fiber probabilities. -/
 theorem conditionalSpecialPairLaw_eq_prod_of_fiber_volume_factorization
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hfactor : ∀ b : Bool × Bool,
@@ -3451,7 +3455,7 @@ open Classical in
 /-- The protocol transcript is a rectangle on each coarse fiber, so conditioned on a positive
 `Z=z` fiber the special bits factor as the product of their two marginals. -/
 theorem conditionalSpecialPairLaw_eq_prod
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     conditionalSpecialPairLaw n p z hz =
@@ -3464,7 +3468,7 @@ open Classical in
 /-- A product special-pair law gives singleton factorization of the conditional bit laws on the
 same `Z` fiber. -/
 theorem conditionalSpecialPairLaw_singleton_factorization_of_eq_prod
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hprod :
@@ -3500,7 +3504,7 @@ open Classical in
 /-- On a product-law `Z` fiber, conditioning on one Bob special-bit value does not change Alice's
 special-bit law. -/
 theorem conditionalSpecialXLaw_eq_cond_specialY_of_prod
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hprod :
@@ -3550,7 +3554,7 @@ open Classical in
 /-- Rectangle switching implies the textbook fiber identity
 `p(X_T | Z=z) = p(X_T | Z=z, Y_T=false)`. -/
 theorem conditionalSpecialXLaw_eq_cond_specialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
@@ -3567,7 +3571,7 @@ open Classical in
 /-- After rectangle switching, Alice's `xFiberKL` can be computed by first conditioning on
 `Y_T=false` inside the `Z=z` fiber. -/
 theorem xFiberKL_eq_cond_specialYFalse_klDiv
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
@@ -3587,7 +3591,7 @@ open Classical in
 /-- Alice's `xFiberKL` can be rewritten as KL for the special Alice bit under
 `D ∧ Y_T=false` conditioned on the same `Z=z` fiber. -/
 theorem xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0)
     (hY : (zFiberMeasure n p z).real ((specialY n) ⁻¹' {false}) ≠ 0) :
@@ -3612,7 +3616,7 @@ open Classical in
 /-- Positive mass under `D ∧ Y_T=false` supplies the positivity hypotheses needed to rewrite
 Alice's fiber KL using the `D ∧ Y_T=false, Z=z` conditional law. -/
 theorem xFiberKL_eq_disjointSpecialYFalseMeasure_cond_zVariable_klDiv_of_ne_zero
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (hz : (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) ≠ 0) :
     xFiberKL n p z =
@@ -3629,7 +3633,7 @@ open Classical in
 fact: conditioned on a transcript rectangle and the coarse data, the special bits are independent,
 so the pair TV distance is controlled by the two one-bit TV distances. -/
 theorem zDistance_le_xDistance_add_yDistance
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p) :
     zDistance n p z ≤ xDistance n p z + yDistance n p z := by
   by_cases hz : (volume : Measure (HardSample n)) ((zVariable n p) ⁻¹' {z}) ≠ 0
@@ -3642,7 +3646,7 @@ theorem zDistance_le_xDistance_add_yDistance
 
 /-- If both one-bit marginal distances on a `Z` fiber are at most `γ`, then the fiber is good. -/
 theorem mem_goodZEvent_of_xDistance_yDistance_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ} {ω : HardSample n}
     (hx : xDistance n p (zVariable n p ω) ≤ γ)
     (hy : yDistance n p (zVariable n p ω) ≤ γ) :
@@ -3654,24 +3658,24 @@ theorem mem_goodZEvent_of_xDistance_yDistance_le
 /-- The corrected Alice information term in (6.6):
 `I(X_T : M | T, X_<T, Y_≥T, D)`. -/
 noncomputable def aliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+    (p : ProtocolType n) : ℝ :=
   I[specialX n : message n p | aliceClaimConditioning n ; disjointCondMeasure n]
 
 /-- The corrected Bob information term in (6.6):
 `I(Y_T : M | T, X_≤T, Y_>T, D)`. -/
 noncomputable def bobInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+    (p : ProtocolType n) : ℝ :=
   I[specialY n : message n p | bobClaimConditioning n ; disjointCondMeasure n]
 
 /-- The total corrected special-coordinate information from (6.6). -/
 noncomputable def claimInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+    (p : ProtocolType n) : ℝ :=
   aliceInfoTerm n p + bobInfoTerm n p
 
 open Classical in
 /-- Bob's corrected information term is nonnegative. -/
 theorem bobInfoTerm_nonneg
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     0 ≤ bobInfoTerm n p := by
   rw [bobInfoTerm]
   exact ProbabilityTheory.condMutualInfo_nonneg
@@ -3681,7 +3685,7 @@ theorem bobInfoTerm_nonneg
 
 /-- Alice's information term is bounded by the total corrected information. -/
 theorem aliceInfoTerm_le_claimInfo
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n p ≤ claimInfo n p := by
   rw [claimInfo]
   linarith [bobInfoTerm_nonneg n p]
@@ -3690,7 +3694,7 @@ open Classical in
 /-- Alice's corrected information term for the dual protocol is Bob's corrected information term
 for the original protocol. -/
 theorem aliceInfoTerm_dualProtocol_eq_bobInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n (dualProtocol n p) = bobInfoTerm n p := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
   have hmap : MeasurePreserving (dualHardSample n) μ μ := by
@@ -3734,7 +3738,7 @@ open Classical in
 /-- Bob's corrected information term for the dual protocol is Alice's corrected information term
 for the original protocol. -/
 theorem bobInfoTerm_dualProtocol_eq_aliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     bobInfoTerm n (dualProtocol n p) = aliceInfoTerm n p := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
   have hmap : MeasurePreserving (dualHardSample n) μ μ := by
@@ -3778,7 +3782,7 @@ open Classical in
 /-- Full-vector information for the dual protocol is the swapped full-vector information for the
 original protocol. -/
 theorem xVector_message_info_dualProtocol_eq_yVector_message_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     I[xVector n : message n (dualProtocol n p) | yVector n ; disjointCondMeasure n] =
       I[yVector n : message n p | xVector n ; disjointCondMeasure n] := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
@@ -3818,7 +3822,7 @@ theorem xVector_message_info_dualProtocol_eq_yVector_message_info
 open Classical in
 /-- The total corrected information is invariant under protocol duality. -/
 theorem claimInfo_dualProtocol
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     claimInfo n (dualProtocol n p) = claimInfo n p := by
   rw [claimInfo, aliceInfoTerm_dualProtocol_eq_bobInfoTerm,
     bobInfoTerm_dualProtocol_eq_aliceInfoTerm, claimInfo, add_comm]
@@ -3826,14 +3830,14 @@ theorem claimInfo_dualProtocol
 open Classical in
 /-- The fixed-coordinate summand `I(X_i : M | X_<i, Y_≥i)` in Lemma 6.20. -/
 noncomputable def fixedAliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (i : Fin n) : ℝ :=
   I[fixedXBit n i : message n p | fixedAliceConditioning n i ; disjointCondMeasure n]
 
 open Classical in
 /-- The fixed-coordinate term with the full `Y` vector in the conditioning. -/
 noncomputable def fixedAliceFullYInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (i : Fin n) : ℝ :=
   I[fixedXBit n i : message n p | fixedAliceFullYConditioning n i ; disjointCondMeasure n]
 
@@ -3897,7 +3901,7 @@ open Classical in
 /-- Fixed-coordinate chain-rule inequality from Lemma 6.20:
 `I(X_i : M | X_<i,Y_≥i) ≤ I(X_i : M | X_<i,Y)`. -/
 theorem fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (i : Fin n) :
     fixedAliceInfoTerm n p i ≤ fixedAliceFullYInfoTerm n p i := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
@@ -3945,7 +3949,7 @@ theorem fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm
 open Classical in
 /-- Summing the fixed-coordinate inequalities from Lemma 6.20. -/
 theorem sum_fixedAliceInfoTerm_le_sum_fixedAliceFullYInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∑ i : Fin n, fixedAliceInfoTerm n p i) ≤
       ∑ i : Fin n, fixedAliceFullYInfoTerm n p i := by
   exact Finset.sum_le_sum fun i _ => fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm n p i
@@ -3954,7 +3958,7 @@ open Classical in
 /-- Textbook chain rule for the full Alice vector:
 `∑ᵢ I(X_i : M | X_<i,Y,D) = I(X : M | Y,D)`. -/
 theorem sum_fixedAliceFullYInfoTerm_eq_xVector_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∑ i : Fin n, fixedAliceFullYInfoTerm n p i) =
       I[xVector n : message n p | yVector n ; disjointCondMeasure n] := by
   have hchain := ProbabilityTheory.condMutualInfo_boolVector_eq_sum_strictPrefix
@@ -3974,7 +3978,7 @@ open Classical in
 This is the proof-specific instance of Lemma 6.20; its only probabilistic input is
 `fixedAliceCrossInfoTerm_eq_zero`. -/
 theorem sum_fixedAliceInfoTerm_le_xVector_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∑ i : Fin n, fixedAliceInfoTerm n p i) ≤
       I[xVector n : message n p | yVector n ; disjointCondMeasure n] := by
   calc
@@ -3987,7 +3991,7 @@ theorem sum_fixedAliceInfoTerm_le_xVector_info
 open Classical in
 /-- Expanding Alice's random-coordinate information term by the special coordinate `T`. -/
 theorem aliceInfoTerm_eq_sum_specialCoordinate_fiber_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n p =
       ∑ i : Fin n,
         (1 / (n : ℝ) : ℝ) *
@@ -4005,7 +4009,7 @@ open Classical in
 /-- Textbook uniformity/independence step for the special coordinate: after conditioning on
 `T=i`, the random-coordinate Alice information term is the fixed-coordinate summand. -/
 theorem aliceDynamicConditioning_fiber_info_eq_fixedAliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) (i : Fin n) :
+    (p : ProtocolType n) (i : Fin n) :
     I[specialX n : message n p | aliceDynamicConditioning n ;
       (disjointCondMeasure n)[|specialCoordinate n ← i]] =
       fixedAliceInfoTerm n p i := by
@@ -4144,7 +4148,7 @@ open Classical in
 `(X,Y,M)`, so the Alice term in (6.6) is the average of the fixed-coordinate Lemma 6.20
 summands. -/
 theorem aliceInfoTerm_eq_average_fixedAliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n p =
       (∑ i : Fin n, fixedAliceInfoTerm n p i) / (n : ℝ) := by
   rw [aliceInfoTerm_eq_sum_specialCoordinate_fiber_info]
@@ -4157,7 +4161,7 @@ open Classical in
 special coordinate:
 `I(X_T : M | T, X_<T, Y_≥T, D) ≤ I(X : M | Y, D) / n`. -/
 theorem aliceInfoTerm_le_average_xVector_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n p ≤
       I[xVector n : message n p | yVector n ; disjointCondMeasure n] / (n : ℝ) := by
   rw [aliceInfoTerm_eq_average_fixedAliceInfoTerm]
@@ -4168,7 +4172,7 @@ open Classical in
 special coordinate:
 `I(Y_T : M | T, X_≤T, Y_>T, D) ≤ I(Y : M | X, D) / n`. -/
 theorem bobInfoTerm_le_average_yVector_info
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     bobInfoTerm n p ≤
       I[yVector n : message n p | xVector n ; disjointCondMeasure n] / (n : ℝ) := by
   have h := aliceInfoTerm_le_average_xVector_info n (dualProtocol n p)
@@ -4178,7 +4182,7 @@ theorem bobInfoTerm_le_average_yVector_info
 open Classical in
 /-- The Alice full-vector information is bounded by the transcript entropy. -/
 theorem xVector_message_info_le_complexity_mul_log_two
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     I[xVector n : message n p | yVector n ; disjointCondMeasure n] ≤
       p.complexity * Real.log 2 := by
   exact
@@ -4191,7 +4195,7 @@ theorem xVector_message_info_le_complexity_mul_log_two
 open Classical in
 /-- The Bob full-vector information is bounded by the transcript entropy. -/
 theorem yVector_message_info_le_complexity_mul_log_two
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     I[yVector n : message n p | xVector n ; disjointCondMeasure n] ≤
       p.complexity * Real.log 2 := by
   exact
@@ -4205,7 +4209,7 @@ open Classical in
 /-- Alice half of Lemma 6.20 plus the entropy bound `H(M) ≤ ℓ`, averaged over the uniform
 special coordinate. -/
 theorem aliceInfoTerm_le_average_entropy_bound
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTerm n p ≤ (p.complexity * Real.log 2) / (n : ℝ) := by
   have hchain := aliceInfoTerm_le_average_xVector_info n p
   have hentropy := xVector_message_info_le_complexity_mul_log_two n p
@@ -4216,7 +4220,7 @@ open Classical in
 /-- Bob half of Lemma 6.20 plus the entropy bound `H(M) ≤ ℓ`, averaged over the uniform special
 coordinate. -/
 theorem bobInfoTerm_le_average_entropy_bound
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     bobInfoTerm n p ≤ (p.complexity * Real.log 2) / (n : ℝ) := by
   have hchain := bobInfoTerm_le_average_yVector_info n p
   have hentropy := yVector_message_info_le_complexity_mul_log_two n p
@@ -4227,7 +4231,7 @@ theorem bobInfoTerm_le_average_entropy_bound
 the averaged full-vector transcript information.  This is the part before (6.6) in
 `.codex/disjointness.txt`. -/
 theorem claimInfo_le_average_info_upper
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     claimInfo n p ≤ 2 * (p.complexity * Real.log 2) / (n : ℝ) := by
   rw [claimInfo]
   calc
@@ -4285,21 +4289,21 @@ open Classical in
 /-- The Claim 6.21 Alice information term after additionally conditioning on `Y_T=false`:
 `I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D)`. -/
 noncomputable def aliceInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+    (p : ProtocolType n) : ℝ :=
   I[specialX n : message n p | aliceClaimConditioning n ; disjointSpecialYFalseMeasure n]
 
 open Classical in
 /-- The same Alice `Y_T=false` information term using the textbook coarse conditioning
 `T, X_<T, Y_>T`. -/
 noncomputable def aliceCoarseInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) : ℝ :=
+    (p : ProtocolType n) : ℝ :=
   I[specialX n : message n p | coarseConditioning n ; disjointSpecialYFalseMeasure n]
 
 open Classical in
 /-- Since `X_T` is uniform under `D ∧ Y_T=false`, the conditional KL average to the uniform bit
 law is the mutual information between `X_T` and the full `Z=(M,T,X_<T,Y_>T)` variable. -/
 theorem condKLDiv_specialX_zVariable_eq_mutualInfo_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     condKLDiv (specialX n) id (zVariable n p) (disjointSpecialYFalseMeasure n)
         ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) =
       I[specialX n : zVariable n p ; disjointSpecialYFalseMeasure n] := by
@@ -4329,7 +4333,7 @@ open Classical in
 /-- The fine `Y_≥T` and coarse `Y_>T` versions of the Alice `Y_T=false` information term agree,
 because `Y_T` is fixed on the conditioned measure. -/
 theorem aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     aliceInfoTermSpecialYFalse n p = aliceCoarseInfoTermSpecialYFalse n p := by
   haveI : IsProbabilityMeasure (disjointSpecialYFalseMeasure n) :=
     disjointSpecialYFalseMeasure_isProbabilityMeasure n
@@ -4345,7 +4349,7 @@ theorem aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse
 open Classical in
 /-- The averaged Alice fiber KL cost under `D ∧ Y_T=false`, as a finite sum over `Z` values. -/
 theorem integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
       ∑ z : ZType n p,
         (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) *
@@ -4359,7 +4363,7 @@ open Classical in
 /-- The averaged Alice fiber KL cost under `D ∧ Y_T=false` as a finite sum of actual KL
 divergences for the conditional `Z=z` laws. -/
 theorem integral_xFiberKL_disjointSpecialYFalse_eq_sum_zVariable_klDiv
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
       ∑ z : ZType n p,
         (disjointSpecialYFalseMeasure n).real ((zVariable n p) ⁻¹' {z}) *
@@ -4378,7 +4382,7 @@ open Classical in
 /-- The averaged Alice fiber KL under `D ∧ Y_T=false`, rewritten as the PFR real conditional KL
 used by the entropy API. -/
 theorem integral_xFiberKL_disjointSpecialYFalse_eq_condKLDiv_zVariable
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n)) =
       condKLDiv (specialX n) id (zVariable n p) (disjointSpecialYFalseMeasure n)
         ((uniformBool : ProbabilityMeasure Bool) : Measure Bool) := by
@@ -4610,7 +4614,7 @@ open Classical in
 /-- The full `Z=(M,coarse)` mutual information is the coarse Claim 6.21 information term,
 because the coarse part alone is independent of `X_T` under `D ∧ Y_T=false`. -/
 theorem mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     I[specialX n : zVariable n p ; disjointSpecialYFalseMeasure n] =
       aliceCoarseInfoTermSpecialYFalse n p := by
   let μ : Measure (HardSample n) := disjointSpecialYFalseMeasure n
@@ -4663,7 +4667,7 @@ open Classical in
 the average Alice one-bit fiber KL is the conditional mutual information
 `I(X_T : M | T,X_<T,Y_>T,Y_T=0,D)`. -/
 theorem xFiberKL_integral_eq_aliceCoarseInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) =
       aliceCoarseInfoTermSpecialYFalse n p := by
   rw [integral_xFiberKL_disjointSpecialYFalse_eq_condKLDiv_zVariable]
@@ -4676,7 +4680,7 @@ mutual information under `Y_T=false`.  This packages the step
 `p(x_t | z) = p(x_t | z, y_t=0) = p(x_t | z, y_t=0, D)` coming from independence and the
 rectangle property of the transcript. -/
 theorem xFiberKL_integral_eq_aliceInfoTermSpecialYFalse
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) =
       aliceInfoTermSpecialYFalse n p := by
   rw [aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse]
@@ -4690,7 +4694,7 @@ open Classical in
 The factor is `Pr[Y_T=false | D] = 2/3`, and the event `Y_T=false` is determined by the
 conditioning variable because `Y_≥T` contains `Y_T`. -/
 theorem two_thirds_mul_aliceInfoTermSpecialYFalse_le_aliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (2 / 3 : ℝ) * aliceInfoTermSpecialYFalse n p ≤ aliceInfoTerm n p := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
   let Y0 : Set (HardSample n) := (specialY n) ⁻¹' {false}
@@ -4714,7 +4718,7 @@ open Classical in
 /-- Textbook Claim 6.21, Alice information step under `D ∧ Y_T=false`: the average one-bit KL
 cost is bounded by Alice's term from (6.6), with the `2/3` conditioning factor. -/
 theorem claim621_x_fiberKL_disjointSpecialYFalse_le_three_halves_aliceInfoTerm
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     ∫ ω, xFiberKL n p (zVariable n p ω) ∂(disjointSpecialYFalseMeasure n) ≤
       (3 / 2 : ℝ) * aliceInfoTerm n p := by
   rw [xFiberKL_integral_eq_aliceInfoTermSpecialYFalse]
@@ -4725,7 +4729,7 @@ open Classical in
 /-- Textbook Claim 6.21, Alice information step under `D ∧ Y_T=false`: the average one-bit KL
 cost is bounded by the small total information assumption. -/
 theorem claim621_x_fiberKL_disjointSpecialYFalse_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (hinfo : claimInfo n p ≤ 2 * γ ^ 4 / 3) :
@@ -4750,7 +4754,7 @@ one-bit marginal distance has average at most `γ^4`. This is the KL-to-informat
 from the displayed
 `(2/3) I(X_T : M | T, X_<T, Y_≥T, Y_T=0, D) ≤ I(X_T : M | T, X_<T, Y_≥T, D)`. -/
 theorem claim621_x_average_sq_distance_disjointSpecialYFalse_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (hinfo : claimInfo n p ≤ 2 * γ ^ 4 / 3) :
@@ -4765,7 +4769,7 @@ open Classical in
 /-- Alice marginal part of Claim 6.21: under the `(X_T,Y_T)=(0,0)` slice, the set of `Z` fibers
 whose Alice special-bit marginal is farther than `γ` from uniform has mass at most `γ / 2`. -/
 theorem claim621_x_bad_on_specialZeroZero_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (hinfo : claimInfo n p ≤ 2 * γ ^ 4 / 3) :
@@ -4805,7 +4809,7 @@ theorem claim621_x_bad_on_specialZeroZero_le
 open Classical in
 /-- Bob marginal part of Claim 6.21, symmetric to the Alice marginal estimate. -/
 theorem claim621_y_bad_on_specialZeroZero_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (hinfo : claimInfo n p ≤ 2 * γ ^ 4 / 3) :
@@ -4822,7 +4826,7 @@ open Classical in
 `≤ 2γ^4 / 3`, then the set of `Z` fibers where the conditional law of `(X_T, Y_T)` is within
 `2γ` of uniform has hard-distribution mass at least `(1 - 4γ) / 4`. -/
 theorem textbook_claim_6_21
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     (hγ : 0 < γ)
     (hinfo : claimInfo n p ≤ 2 * γ ^ 4 / 3) :
@@ -4870,7 +4874,7 @@ open Classical in
 /-- Intersecting with the defining `Z=z` fiber does not change probabilities under the
 corresponding fiber measure. -/
 theorem zFiberMeasure_inter_fiber
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (z : ZType n p)
     (S : Set (HardSample n)) :
     (zFiberMeasure n p z).real (((zVariable n p) ⁻¹' {z}) ∩ S) =
@@ -4883,7 +4887,7 @@ theorem zFiberMeasure_inter_fiber
 open Classical in
 /-- Law of total probability over the finite `zVariable` fibers. -/
 theorem measureReal_eq_sum_zFiberMeasure_real
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (S : Set (HardSample n)) :
     (volume : Measure (HardSample n)).real S =
       ∑ z : ZType n p,
@@ -4910,7 +4914,7 @@ theorem measureReal_eq_sum_zFiberMeasure_real
 
 /-- Protocol error probability decomposed over the finite `zVariable` fibers. -/
 theorem protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool) :
+    (p : ProtocolType n) :
     (volume : Measure (HardSample n)).real (protocolErrorEvent n p) =
       ∑ z : ZType n p,
         (volume : Measure (HardSample n)).real ((zVariable n p) ⁻¹' {z}) *
@@ -4920,7 +4924,7 @@ theorem protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real
 open Classical in
 /-- The mass of `goodZEvent` is the sum of the masses of the good `zVariable` fibers. -/
 theorem goodZEvent_measureReal_eq_sum_zFibers
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (γ : ℝ) :
     (volume : Measure (HardSample n)).real (goodZEvent n p γ) =
       ∑ z : ZType n p,
@@ -4935,7 +4939,7 @@ theorem goodZEvent_measureReal_eq_sum_zFibers
 open Classical in
 /-- A good `z` gives the expected singleton-mass estimate for the conditional special-pair law. -/
 theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     {z : ZType n p}
     (hgood : goodZ n p γ z)
@@ -4955,7 +4959,7 @@ theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
 
 /-- A good `z` gives a lower bound on each singleton mass of the conditional special-pair law. -/
 theorem quarter_sub_two_mul_le_conditionalSpecialPairLaw_singleton
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ}
     {z : ZType n p}
     (hgood : goodZ n p γ z)
@@ -4973,7 +4977,7 @@ open Classical in
 `1 / 4 - 2 * γ`. If the protocol output on the fiber is `true`, then the `(true, true)` special
 bit-pair witnesses errors; otherwise `(false, false)` witnesses errors. -/
 theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     {γ : ℝ} {ω : HardSample n}
     (hgood : goodZ n p γ (zVariable n p ω))
     (hz : volume ((zVariable n p) ⁻¹' {zVariable n p ω}) ≠ 0) :
@@ -5052,7 +5056,7 @@ open Classical in
 /-- Averaging the good-fiber error lower bound over all good `Z` fibers gives an unconditional
 error lower bound. -/
 theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (γ : ℝ) :
     (volume : Measure (HardSample n)).real (goodZEvent n p γ) *
         ((1 / 4 : ℝ) - 2 * γ) ≤
@@ -5094,7 +5098,7 @@ theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
 
 /-- The final error calculation after Claim 6.21, phrased using distributional error. -/
 theorem distributionalError_lower_bound_of_goodZEvent
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (γ : ℝ) :
     (volume : Measure (HardSample n)).real (goodZEvent n p γ) *
         ((1 / 4 : ℝ) - 2 * γ) ≤
@@ -5106,7 +5110,7 @@ theorem distributionalError_lower_bound_of_goodZEvent
 distributional error at most `1 / 32` must reveal a constant amount of the corrected information
 from (6.6). -/
 theorem fixed_error_claimInfo_lower_bound
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
     (1 / 32768 : ℝ) ^ 2 < claimInfo n p := by
   by_contra hnot
@@ -5118,7 +5122,7 @@ theorem fixed_error_claimInfo_lower_bound
 
 /-- Deterministic fixed-error disjointness lower bound from (6.6) and Lemma 6.20. -/
 theorem deterministic_complexity_lower_bound_textbook
-    (p : Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool)
+    (p : ProtocolType n)
     (herror : p.distributionalError (inputDist n) (disjointness n) ≤ 1 / 32) :
     ((1 / 32768 : ℝ) ^ 2) * (n : ℝ) / (3 * Real.log 2) ≤ p.complexity := by
   have hinfo_lt := fixed_error_claimInfo_lower_bound n p herror
