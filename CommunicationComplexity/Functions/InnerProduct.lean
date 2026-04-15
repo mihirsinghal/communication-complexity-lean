@@ -4,6 +4,8 @@ import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.Analysis.Convex.Mul
 import Mathlib.MeasureTheory.Integral.Prod
+import CommunicationComplexity.Deterministic.Rank
+import CommunicationComplexity.Deterministic.UpperBounds
 import CommunicationComplexity.Helper
 import CommunicationComplexity.CoinTape
 import CommunicationComplexity.PublicCoin.Discrepancy
@@ -32,6 +34,19 @@ def overlap (x y : BoolInput n) : Finset (Fin n) :=
 of coordinates where both inputs are `true` is odd. -/
 def innerProduct (n : ℕ) (x y : BoolInput n) : Bool :=
   ∑ i, (x i && y i)
+
+/-- Trivial deterministic upper bound for inner product: Alice sends her `n`-bit
+input and Bob sends one output bit. -/
+theorem communicationComplexity_le (n : ℕ) :
+    Deterministic.communicationComplexity (innerProduct n) ≤ n + 1 := by
+  calc
+    Deterministic.communicationComplexity (innerProduct n)
+      ≤ Nat.clog 2 (Nat.card (BoolInput n)) + Nat.clog 2 (Nat.card Bool) :=
+        Deterministic.communicationComplexity_le_clog_card_X_alpha (innerProduct n)
+    _ = n + 1 := by
+        simp only [Nat.card_eq_fintype_card, BoolInput, Fintype.card_pi, Fintype.card_bool,
+          Finset.prod_const, Finset.card_univ, Fintype.card_fin, Nat.one_lt_ofNat, Nat.clog_pow]
+        norm_cast
 
 @[simp] lemma innerProduct_zero_right (x : BoolInput n) :
     innerProduct n x (zeroInput n) = false := by
@@ -178,6 +193,67 @@ private lemma sum_boolSign_innerProduct_mul_eq_indicator
   simp_rw [boolSign_innerProduct_mul_eq_xorInput]
   rw [sum_boolSign_innerProduct_eq_zeroInput_indicator]
   simp [xorInput_eq_zeroInput_iff]
+
+private lemma signMatrix_transpose_mul_eq_scaled_one (n : ℕ) :
+    let S := Deterministic.Rank.signFunctionMatrix (innerProduct n)
+    S.transpose * S =
+      (2 ^ n : ℝ) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ) := by
+  ext y z
+  simp only [Matrix.mul_apply, Matrix.transpose_apply, Deterministic.Rank.signFunctionMatrix,
+    Matrix.of_apply]
+  by_cases hyz : y = z
+  · subst hyz
+    simp [sum_boolSign_innerProduct_mul_eq_indicator]
+  · simp [sum_boolSign_innerProduct_mul_eq_indicator, hyz]
+
+private lemma signFunctionRank_innerProduct_eq_pow (n : ℕ) :
+    Deterministic.Rank.signFunctionRank (innerProduct n) = 2 ^ n := by
+  let S : Matrix (BoolInput n) (BoolInput n) ℝ :=
+    Deterministic.Rank.signFunctionMatrix (innerProduct n)
+  have hSS :
+      S.transpose * S = (2 ^ n : ℝ) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ) := by
+    simpa [S] using signMatrix_transpose_mul_eq_scaled_one n
+  have hscalar_unit :
+      IsUnit ((2 ^ n : ℝ) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ)) := by
+    refine IsUnit.of_mul_eq_one_right
+      (((2 ^ n : ℝ)⁻¹) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ)) ?_
+    have hpow : (2 ^ n : ℝ) ≠ 0 := by positivity
+    simp [smul_smul, hpow]
+  have hscalar_rank :
+      (((2 ^ n : ℝ) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ))).rank =
+        Fintype.card (BoolInput n) := Matrix.rank_of_isUnit _ hscalar_unit
+  have hge : Fintype.card (BoolInput n) ≤ S.rank := by
+    calc
+      Fintype.card (BoolInput n)
+          = (((2 ^ n : ℝ) • (1 : Matrix (BoolInput n) (BoolInput n) ℝ))).rank :=
+            hscalar_rank.symm
+      _ = (S.transpose * S).rank := by rw [hSS]
+      _ ≤ S.rank := Matrix.rank_mul_le_right _ _
+  have hle : S.rank ≤ Fintype.card (BoolInput n) := Matrix.rank_le_card_width S
+  have hcard : Fintype.card (BoolInput n) = 2 ^ n := by
+    simp [BoolInput, Fintype.card_pi, Fintype.card_fin, Fintype.card_bool]
+  have hrank : S.rank = 2 ^ n := by
+    exact (le_antisymm hle hge).trans hcard
+  simpa [Deterministic.Rank.signFunctionRank, S] using hrank
+
+/-- Deterministic lower bound for inner product from log-sign-rank. -/
+theorem le_communicationComplexity (n : ℕ) :
+    (n : ℕ) ≤ Deterministic.communicationComplexity (innerProduct n) := by
+  have hclog : Nat.clog 2 (Deterministic.Rank.signFunctionRank (innerProduct n)) = n := by
+    rw [signFunctionRank_innerProduct_eq_pow n]
+    exact Nat.clog_pow 2 n (by norm_num)
+  calc
+    (n : ENat) =
+        (Nat.clog 2 (Deterministic.Rank.signFunctionRank (innerProduct n)) : ENat) := by
+          exact_mod_cast hclog.symm
+    _ ≤ Deterministic.communicationComplexity (innerProduct n) :=
+      Deterministic.Rank.log_sign_rank_lower_bound (innerProduct n)
+
+/-- Combined deterministic bounds for inner product. -/
+theorem communicationComplexity_bounds (n : ℕ) :
+    (n : ℕ) ≤ Deterministic.communicationComplexity (innerProduct n) ∧
+      Deterministic.communicationComplexity (innerProduct n) ≤ n + 1 := by
+  exact ⟨le_communicationComplexity n, communicationComplexity_le n⟩
 
 private lemma indicatorOne_sq
     (B : Set (BoolInput n)) (y : BoolInput n) :
