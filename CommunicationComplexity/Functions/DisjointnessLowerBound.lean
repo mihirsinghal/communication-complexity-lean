@@ -412,10 +412,15 @@ theorem dualConditioningValue_injective :
 abbrev ProtocolType : Type :=
   Deterministic.Protocol (Set (Fin n)) (Set (Fin n)) Bool
 
+/-- The syntactic transcript type for a disjointness protocol. -/
+abbrev TranscriptType
+    (p : ProtocolType n) : Type :=
+  Deterministic.Protocol.Transcript p
+
 /-- The type of values of the `Z = (M, T, X_<T, Y_>T)` variable for a protocol. -/
 abbrev ZType
     (p : ProtocolType n) : Type :=
-  p.Leaf × (Fin n × (Fin n → Bool) × (Fin n → Bool))
+  TranscriptType n p × (Fin n × (Fin n → Bool) × (Fin n → Bool))
 
 /-- The `Z = (M, T, X_<T, Y_>T)` variable used in Claim 6.21. -/
 noncomputable def zVariable
@@ -439,19 +444,16 @@ def zHasPreimage
 noncomputable def zOutput
     (p : ProtocolType n)
     (z : ZType n p) : Bool :=
-  Deterministic.Protocol.leafOutput p z.1
+  Deterministic.Protocol.Transcript.output z.1
 
 theorem run_eq_zOutput_of_zVariable_eq
     (p : ProtocolType n)
     {z : ZType n p} {ω : HardSample n}
     (hω : zVariable n p ω = z) :
     p.run (X n ω) (Y n ω) = zOutput n p z := by
-  have hleaf : input n ω ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
-    have htranscript : p.transcript (input n ω) = z.1 := by
-      simpa [zVariable] using congrArg Prod.fst hω
-    simpa [htranscript] using Deterministic.Protocol.mem_transcript p (input n ω)
   simpa [zOutput, input] using
-    Deterministic.Protocol.run_eq_leafOutput_of_mem_leaf p z.1 hleaf
+    (Deterministic.Protocol.run_eq_transcript_output p (input n ω)).trans
+      (congrArg Deterministic.Protocol.Transcript.output (congrArg Prod.fst hω))
 
 open Classical in
 /-- A `Z` value is realized exactly when its fiber has positive ambient hard-distribution mass. -/
@@ -505,28 +507,21 @@ def dualProtocol
     ProtocolType n :=
   p.swap.comap (reverseSet n) (reverseSet n)
 
-/-- The leaf-level map induced by protocol duality. -/
-noncomputable def dualProtocolLeafMap
+/-- The transcript-level map induced by protocol duality. -/
+def dualProtocolTranscriptMap
     (p : ProtocolType n) :
-    p.Leaf → (dualProtocol n p).Leaf :=
-  fun leaf =>
-    Deterministic.Protocol.leafComap p.swap (reverseSet n) (reverseSet n)
-      (Deterministic.Protocol.leafSwap p leaf)
+    TranscriptType n p → TranscriptType n (dualProtocol n p) :=
+  fun transcript =>
+    Deterministic.Protocol.transcriptComap p.swap (reverseSet n) (reverseSet n)
+      (Deterministic.Protocol.transcriptSwap transcript)
 
-/-- The leaf-level map induced by protocol duality is injective. -/
-theorem dualProtocolLeafMap_injective
+/-- The transcript-level map induced by protocol duality is injective. -/
+theorem dualProtocolTranscriptMap_injective
     (p : ProtocolType n) :
-    Function.Injective (dualProtocolLeafMap n p) := by
-  intro R S h
-  apply (Deterministic.Protocol.leafSwap p).injective
-  apply Subtype.ext
-  have hset := congrArg Subtype.val h
-  ext yx
-  have hmem := congrArg
-    (fun A : Set (Set (Fin n) × Set (Fin n)) =>
-      (reverseSet n yx.1, reverseSet n yx.2) ∈ A) hset
-  simpa [dualProtocolLeafMap, Deterministic.Protocol.leafComap,
-    Deterministic.Protocol.preimageInputSet, reverseSet_reverseSet] using hmem
+    Function.Injective (dualProtocolTranscriptMap n p) := by
+  exact
+    (Deterministic.Protocol.transcriptComap_injective p.swap (reverseSet n) (reverseSet n)).comp
+      (Deterministic.Protocol.transcriptSwap_injective p)
 
 theorem xBit_of_ne_special (ω : HardSample n) {i : Fin n} (hi : i ≠ ω.T) :
     xBit n ω i = (ω.other i).xBit := by
@@ -1801,7 +1796,7 @@ def coordinateInput (coords : Fin n → DisjointCoordinate) : Set (Fin n) × Set
 /-- The protocol transcript as a function of the generated disjoint coordinate vector. -/
 noncomputable def coordinateMessage
     (p : ProtocolType n)
-    (coords : Fin n → DisjointCoordinate) : p.Leaf :=
+    (coords : Fin n → DisjointCoordinate) : TranscriptType n p :=
   p.transcript (coordinateInput n coords)
 
 /-- Alice's coordinate-vector bits before a fixed coordinate, padded by `false` elsewhere. -/
@@ -2283,7 +2278,7 @@ theorem volume_cond_specialZeroZero_measureReal_le_two_mul_disjointSpecialYFalse
 /-- The transcript random variable induced by a deterministic protocol on the hard sample space. -/
 noncomputable def message
     (p : ProtocolType n)
-    (ω : HardSample n) : p.Leaf :=
+    (ω : HardSample n) : TranscriptType n p :=
   p.transcript (input n ω)
 
 open Classical in
@@ -2308,10 +2303,10 @@ theorem entropy_message_le_complexity_mul_log_two_of_measure
     (μ : Measure (HardSample n)) :
     H[message n p ; μ] ≤
       p.complexity * Real.log 2 := by
-  letI : Nonempty p.Leaf := ⟨p.transcript (∅, ∅)⟩
+  letI : Nonempty (TranscriptType n p) := ⟨p.transcript (∅, ∅)⟩
   exact ProbabilityTheory.entropy_le_nat_mul_log_two_of_card_le_two_pow
     (message n p) μ
-    (Deterministic.Protocol.card_leaf_le_two_pow_complexity p)
+    (Deterministic.Protocol.card_transcript_le_two_pow_complexity p)
 
 /-- The dual protocol transcript on the dual hard sample is the original transcript recoded
 through protocol duality. -/
@@ -2319,34 +2314,34 @@ theorem message_dualProtocol_dualHardSample
     (p : ProtocolType n)
     (ω : HardSample n) :
     message n (dualProtocol n p) (dualHardSample n ω) =
-      dualProtocolLeafMap n p (message n p ω) := by
+      dualProtocolTranscriptMap n p (message n p ω) := by
   change (p.swap.comap (reverseSet n) (reverseSet n)).transcript
       (input n (dualHardSample n ω)) =
-    dualProtocolLeafMap n p (p.transcript (input n ω))
+    dualProtocolTranscriptMap n p (p.transcript (input n ω))
   rw [input_dualHardSample, input]
-  rw [← Deterministic.Protocol.leafComap_transcript p.swap (reverseSet n) (reverseSet n)
+  rw [← Deterministic.Protocol.transcriptComap_transcript p.swap (reverseSet n) (reverseSet n)
     (reverseSet n (Y n ω)) (reverseSet n (X n ω))]
   rw [reverseSet_reverseSet, reverseSet_reverseSet]
-  rw [← Deterministic.Protocol.leafSwap_transcript p]
+  rw [← Deterministic.Protocol.transcriptSwap_transcript p]
   rfl
 
-/-- Dualize a `Z = (M,T,X_<T,Y_>T)` value by recoding the leaf and the coarse conditioning
+/-- Dualize a `Z = (M,T,X_<T,Y_>T)` value by recoding the transcript and coarse conditioning
 data. -/
 noncomputable def dualZValue
     (p : ProtocolType n)
     (z : ZType n p) :
     ZType n (dualProtocol n p) :=
-  (dualProtocolLeafMap n p z.1, dualConditioningValue n z.2)
+  (dualProtocolTranscriptMap n p z.1, dualConditioningValue n z.2)
 
 /-- The `Z`-value recoding induced by protocol and hard-sample duality is injective. -/
 theorem dualZValue_injective
     (p : ProtocolType n) :
     Function.Injective (dualZValue n p) := by
   intro z z' h
-  rcases z with ⟨leaf, c⟩
-  rcases z' with ⟨leaf', c'⟩
+  rcases z with ⟨transcript, c⟩
+  rcases z' with ⟨transcript', c'⟩
   simp only [dualZValue, Prod.mk.injEq] at h ⊢
-  exact ⟨dualProtocolLeafMap_injective n p h.1, dualConditioningValue_injective n h.2⟩
+  exact ⟨dualProtocolTranscriptMap_injective n p h.1, dualConditioningValue_injective n h.2⟩
 
 /-- The `Z` variable for the dual protocol and hard sample is the recoded original `Z`. -/
 theorem zVariable_dualProtocol_dualHardSample
@@ -2356,7 +2351,7 @@ theorem zVariable_dualProtocol_dualHardSample
       dualZValue n p (zVariable n p ω) := by
   change (message n (dualProtocol n p) (dualHardSample n ω),
       coarseConditioning n (dualHardSample n ω)) =
-    (dualProtocolLeafMap n p (message n p ω),
+    (dualProtocolTranscriptMap n p (message n p ω),
       dualConditioningValue n (coarseConditioning n ω))
   rw [message_dualProtocol_dualHardSample, coarseConditioning_dualHardSample]
 
@@ -3109,20 +3104,20 @@ def goodZEvent
     Set (HardSample n) :=
   {ω | goodZ n p γ (zVariable n p ω)}
 
-/-- The generated input belongs to the transcript leaf of any deterministic protocol. -/
+/-- The generated input follows the transcript of any deterministic protocol. -/
 theorem input_mem_transcript
     (p : ProtocolType n) (ω : HardSample n) :
     input n ω ∈
-      (message n p ω : Set (Set (Fin n) × Set (Fin n))) :=
+      Deterministic.Protocol.Transcript.inputSet (message n p ω) :=
   Deterministic.Protocol.mem_transcript p (input n ω)
 
-/-- If a sample has `Z=z`, its generated input lies in the transcript leaf `z.1`. -/
-theorem input_mem_leaf_of_zVariable_eq
+/-- If a sample has `Z=z`, its generated input follows the transcript component `z.1`. -/
+theorem input_mem_transcript_of_zVariable_eq
     (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
-    input n ω ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+    input n ω ∈ Deterministic.Protocol.Transcript.inputSet z.1 := by
   have hmsg : message n p ω = z.1 := by
     simpa [zVariable, message] using congrArg Prod.fst hω
   simpa [hmsg] using input_mem_transcript n p ω
@@ -3154,24 +3149,23 @@ theorem yAfterSpecial_eq_of_zVariable_eq
     yAfterSpecial n ω = z.2.2.2 := by
   simpa [zVariable] using congrArg (fun z => z.2.2.2) hω
 
-/-- The transcript leaf component of `Z` is a rectangle: two samples in the same `Z` fiber also
-contain the two mixed input pairs in that leaf. -/
-theorem mixed_inputs_mem_leaf_of_zVariable_eq
+/-- The transcript component of `Z` is a rectangle: two samples in the same `Z` fiber also
+contain the two mixed input pairs in that transcript rectangle. -/
+theorem mixed_inputs_mem_transcript_of_zVariable_eq
     (p : ProtocolType n)
     {z : ZType n p}
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
     (hω' : zVariable n p ω' = z) :
-    (X n ω', Y n ω) ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) ∧
-      (X n ω, Y n ω') ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
+    (X n ω', Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.1 ∧
+      (X n ω, Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.1 := by
   have hrect :
-      Rectangle.IsRectangle (z.1 : Set (Set (Fin n) × Set (Fin n))) :=
-    Deterministic.Protocol.leafRectangles_isRectangle p (z.1 : Set (Set (Fin n) × Set (Fin n)))
-      z.1.2
-  have hωmem : (X n ω, Y n ω) ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
-    simpa [input] using input_mem_leaf_of_zVariable_eq n p hω
-  have hω'mem : (X n ω', Y n ω') ∈ (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
-    simpa [input] using input_mem_leaf_of_zVariable_eq n p hω'
+      Rectangle.IsRectangle (Deterministic.Protocol.Transcript.inputSet z.1) :=
+    Deterministic.Protocol.Transcript.inputSet_isRectangle z.1
+  have hωmem : (X n ω, Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.1 := by
+    simpa [input] using input_mem_transcript_of_zVariable_eq n p hω
+  have hω'mem : (X n ω', Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.1 := by
+    simpa [input] using input_mem_transcript_of_zVariable_eq n p hω'
   exact (Rectangle.IsRectangle_iff _).mp hrect (X n ω) (X n ω') (Y n ω) (Y n ω')
     hωmem hω'mem
 
@@ -3225,11 +3219,11 @@ theorem zVariable_mix_eq_of_same_zVariable
   have hinput := input_mix n hT hBefore hAfter
   have hleaf :
       input n (mix n ωX ωY) ∈
-        (z.1 : Set (Set (Fin n) × Set (Fin n))) := by
-    have hmixed := mixed_inputs_mem_leaf_of_zVariable_eq n p hωX hωY
+        Deterministic.Protocol.Transcript.inputSet z.1 := by
+    have hmixed := mixed_inputs_mem_transcript_of_zVariable_eq n p hωX hωY
     simpa [hinput] using hmixed.2
   have htranscript : p.transcript (input n (mix n ωX ωY)) = z.1 :=
-    Deterministic.Protocol.transcript_eq_of_mem_leaf p z.1 hleaf
+    Deterministic.Protocol.transcript_eq_of_mem z.1 hleaf
   have hTz : specialCoordinate n (mix n ωX ωY) = z.2.1 := by
     have hTωX := specialCoordinate_eq_of_zVariable_eq n p hωX
     simpa [specialCoordinate, mix] using hTωX
@@ -3792,16 +3786,16 @@ theorem aliceInfoTerm_dualProtocol_eq_bobInfoTerm
   rw [hpull]
   have hrec :
       I[specialY n :
-          (fun ω => dualProtocolLeafMap n p (message n p ω)) |
+          (fun ω => dualProtocolTranscriptMap n p (message n p ω)) |
           (fun ω => dualConditioningValue n (bobClaimConditioning n ω)) ; μ] =
         I[specialY n : message n p | bobClaimConditioning n ; μ] := by
     simpa [Function.comp_def] using
       ProbabilityTheory.condMutualInfo_comp_right_conditioning_of_injective
         (μ := μ) (X := specialY n) (Y := message n p) (Z := bobClaimConditioning n)
-        (f := dualProtocolLeafMap n p) (g := dualConditioningValue n)
+        (f := dualProtocolTranscriptMap n p) (g := dualConditioningValue n)
         Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
         Measurable.of_discrete Measurable.of_discrete
-        (dualProtocolLeafMap_injective n p) (dualConditioningValue_injective n)
+        (dualProtocolTranscriptMap_injective n p) (dualConditioningValue_injective n)
   simpa [μ, bobInfoTerm, specialX_dualHardSample, message_dualProtocol_dualHardSample,
     aliceClaimConditioning_dualHardSample] using hrec
 
@@ -3836,16 +3830,16 @@ theorem bobInfoTerm_dualProtocol_eq_aliceInfoTerm
   rw [hpull]
   have hrec :
       I[specialX n :
-          (fun ω => dualProtocolLeafMap n p (message n p ω)) |
+          (fun ω => dualProtocolTranscriptMap n p (message n p ω)) |
           (fun ω => dualConditioningValue n (aliceClaimConditioning n ω)) ; μ] =
         I[specialX n : message n p | aliceClaimConditioning n ; μ] := by
     simpa [Function.comp_def] using
       ProbabilityTheory.condMutualInfo_comp_right_conditioning_of_injective
         (μ := μ) (X := specialX n) (Y := message n p) (Z := aliceClaimConditioning n)
-        (f := dualProtocolLeafMap n p) (g := dualConditioningValue n)
+        (f := dualProtocolTranscriptMap n p) (g := dualConditioningValue n)
         Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete
         Measurable.of_discrete Measurable.of_discrete
-        (dualProtocolLeafMap_injective n p) (dualConditioningValue_injective n)
+        (dualProtocolTranscriptMap_injective n p) (dualConditioningValue_injective n)
   simpa [μ, aliceInfoTerm, specialY_dualHardSample, message_dualProtocol_dualHardSample,
     bobClaimConditioning_dualHardSample] using hrec
 
@@ -3878,14 +3872,14 @@ theorem xVector_message_info_dualProtocol_eq_yVector_message_info
   rw [show disjointCondMeasure n = μ by rfl, hpull]
   have hrec :
       I[(fun ω => reverseBoolVector n (yVector n ω)) :
-          (fun ω => dualProtocolLeafMap n p (message n p ω)) |
+          (fun ω => dualProtocolTranscriptMap n p (message n p ω)) |
           (fun ω => reverseBoolVector n (xVector n ω)) ; μ] =
         I[yVector n : message n p | xVector n ; μ] := by
     simpa [Function.comp_def] using
       ProbabilityTheory.condMutualInfo_of_inj'
         (X := yVector n) (Y := message n p) (Z := xVector n)
         Measurable.of_discrete Measurable.of_discrete Measurable.of_discrete μ
-        (reverseBoolVector_injective n) (dualProtocolLeafMap_injective n p)
+        (reverseBoolVector_injective n) (dualProtocolTranscriptMap_injective n p)
         (reverseBoolVector_injective n)
   simpa [μ, xVector_dualHardSample, yVector_dualHardSample,
     message_dualProtocol_dualHardSample] using hrec
@@ -3977,7 +3971,7 @@ theorem fixedAliceInfoTerm_le_fixedAliceFullYInfoTerm
     fixedAliceInfoTerm n p i ≤ fixedAliceFullYInfoTerm n p i := by
   let μ : Measure (HardSample n) := disjointCondMeasure n
   let Xᵢ : HardSample n → Bool := fixedXBit n i
-  let M : HardSample n → p.Leaf := message n p
+  let M : HardSample n → TranscriptType n p := message n p
   let Ypre : HardSample n → Fin n → Bool := fixedYBefore n i
   let A : HardSample n → (Fin n → Bool) × (Fin n → Bool) :=
     fixedAliceConditioning n i
@@ -4693,11 +4687,12 @@ theorem mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse
   let μ : Measure (HardSample n) := disjointSpecialYFalseMeasure n
   haveI : IsProbabilityMeasure μ := by
     simpa [μ] using disjointSpecialYFalseMeasure_isProbabilityMeasure n
-  let swappedZ : HardSample n → (Fin n × (Fin n → Bool) × (Fin n → Bool)) × p.Leaf :=
+  let swappedZ :
+      HardSample n → (Fin n × (Fin n → Bool) × (Fin n → Bool)) × TranscriptType n p :=
     fun ω => (coarseConditioning n ω, message n p ω)
   let swapZ :
       ZType n p →
-        (Fin n × (Fin n → Bool) × (Fin n → Bool)) × p.Leaf :=
+        (Fin n × (Fin n → Bool) × (Fin n → Bool)) × TranscriptType n p :=
     fun z => (z.2, z.1)
   have hswap_fun : swappedZ = swapZ ∘ zVariable n p := by
     funext ω
@@ -5090,14 +5085,11 @@ theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
   intro z _
   by_cases hgood : goodZ n p γ z
   · simp only [hgood, ↓reduceIte]
-    by_cases hz0 : volume (zFiber n p z) = 0
-    · simp [Measure.real, hz0]
+    by_cases hz0 : zHasPreimage n p z
     · apply mul_le_mul_of_nonneg_left ?_ (by positivity)
-      rcases nonempty_of_measure_ne_zero hz0 with ⟨ω, hωmem⟩
-      have hbound :=
-        quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent n p
-          hgood ⟨ω, by simpa [zFiber] using hωmem⟩
-      exact hbound
+      exact quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent n p
+          hgood hz0
+    · simp [Measure.real, hz0]
   · simp only [hgood, ↓reduceIte, one_div, zero_mul]
     positivity
 

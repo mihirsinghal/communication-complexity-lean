@@ -7,142 +7,282 @@ namespace Deterministic.Protocol
 
 variable {X Y α : Type*}
 
-/-- The finite type of leaf rectangles of a protocol. We use this as the transcript alphabet. -/
-abbrev Leaf (p : Protocol X Y α) : Type _ :=
-  {R : Set (X × Y) // R ∈ p.leafRectangles}
+/-- The syntactic transcript of a deterministic protocol.
 
-noncomputable instance leafFintype (p : Protocol X Y α) : Fintype p.Leaf :=
-  (leafRectangles_finite p).fintype
+For a fixed protocol, this is exactly the message sequence: terminal protocols have one
+transcript, and each communication node contributes one Boolean plus the remaining child
+transcript. -/
+def Transcript : Protocol X Y α → Type _
+  | .output _ => Unit
+  | .alice _ P => Σ b : Bool, Transcript (P b)
+  | .bob _ P => Σ b : Bool, Transcript (P b)
 
-instance leafMeasurableSpace (p : Protocol X Y α) : MeasurableSpace p.Leaf := ⊤
+namespace Transcript
 
-open Classical in
-/-- Swapping Alice and Bob gives an equivalence between the transcript alphabets. -/
-noncomputable def leafSwap (p : Protocol X Y α) : p.Leaf ≃ p.swap.Leaf where
-  toFun R :=
-    ⟨swapInputSet R.1, swapInputSet_mem_leafRectangles_swap p R.2⟩
-  invFun R :=
-    ⟨swapInputSet R.1, by
-      have h := swapInputSet_mem_leafRectangles_swap p.swap R.2
-      simpa using h⟩
-  left_inv R := by
-    apply Subtype.ext
-    simp
-  right_inv R := by
-    apply Subtype.ext
-    simp
+/-- The protocol output attached to a syntactic transcript. -/
+def output : {p : Protocol X Y α} → Transcript p → α
+  | .output val, _ => val
+  | .alice _ _, t => output t.2
+  | .bob _ _, t => output t.2
 
-/-- Pull a transcript leaf back along maps on Alice's and Bob's inputs. -/
-def leafComap (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
-    p.Leaf → (p.comap fX fY).Leaf :=
-  fun R => ⟨preimageInputSet fX fY R.1,
-    preimageInputSet_mem_leafRectangles_comap p fX fY R.2⟩
+/-- The rectangle of inputs that follow a syntactic transcript. -/
+def inputSet : {p : Protocol X Y α} → Transcript p → Set (X × Y)
+  | .output _, _ => Set.univ
+  | .alice f _, t => {xy | f xy.1 = t.1 ∧ inputSet t.2 xy}
+  | .bob f _, t => {xy | f xy.2 = t.1 ∧ inputSet t.2 xy}
 
-private theorem exists_leaf_containing (p : Protocol X Y α) (xy : X × Y) :
-    ∃ R : p.Leaf, xy ∈ (R : Set (X × Y)) := by
-  have hcover : xy ∈ ⋃₀ p.leafRectangles := by
-    rw [leafRectangles_cover p]
-    simp
-  rcases Set.mem_sUnion.mp hcover with ⟨R, hR, hxyR⟩
-  exact ⟨⟨R, hR⟩, hxyR⟩
+/-- The rectangle represented by a syntactic transcript is a rectangle. -/
+theorem inputSet_isRectangle : {p : Protocol X Y α} → (t : Transcript p) →
+    Rectangle.IsRectangle (inputSet t)
+  | .output _, _ => ⟨Set.univ, Set.univ, by ext xy; simp [inputSet]⟩
+  | .alice f P, t => by
+      rcases t with ⟨b, t⟩
+      rcases inputSet_isRectangle t with ⟨A, B, hAB⟩
+      refine ⟨A ∩ {x | f x = b}, B, ?_⟩
+      ext xy
+      rcases xy with ⟨x, y⟩
+      constructor
+      · rintro ⟨hfx, ht⟩
+        have hABmem : (x, y) ∈ A ×ˢ B := by
+          simpa [hAB] using ht
+        exact ⟨⟨hABmem.1, hfx⟩, hABmem.2⟩
+      · rintro ⟨⟨hA, hfx⟩, hB⟩
+        exact ⟨hfx, by simpa [hAB] using (show (x, y) ∈ A ×ˢ B from ⟨hA, hB⟩)⟩
+  | .bob f P, t => by
+      rcases t with ⟨b, t⟩
+      rcases inputSet_isRectangle t with ⟨A, B, hAB⟩
+      refine ⟨A, B ∩ {y | f y = b}, ?_⟩
+      ext xy
+      rcases xy with ⟨x, y⟩
+      constructor
+      · rintro ⟨hfy, ht⟩
+        have hABmem : (x, y) ∈ A ×ˢ B := by
+          simpa [hAB] using ht
+        exact ⟨hABmem.1, hABmem.2, hfy⟩
+      · rintro ⟨hA, hB, hfy⟩
+        exact ⟨hfy, by simpa [hAB] using (show (x, y) ∈ A ×ˢ B from ⟨hA, hB⟩)⟩
 
-/-- The canonical leaf reached by an input pair. -/
-noncomputable def transcript (p : Protocol X Y α) (xy : X × Y) : p.Leaf :=
-  Classical.choose (exists_leaf_containing p xy)
+end Transcript
 
-/-- The input pair belongs to its transcript leaf. -/
-theorem mem_transcript (p : Protocol X Y α) (xy : X × Y) :
-    xy ∈ (p.transcript xy : Set (X × Y)) :=
-  Classical.choose_spec (exists_leaf_containing p xy)
+noncomputable instance transcriptFintype : (p : Protocol X Y α) → Fintype (Transcript p)
+  | .output _ => inferInstanceAs (Fintype Unit)
+  | .alice _ P =>
+      haveI : (b : Bool) → Fintype (Transcript (P b)) := fun b => transcriptFintype (P b)
+      inferInstanceAs (Fintype (Σ b : Bool, Transcript (P b)))
+  | .bob _ P =>
+      haveI : (b : Bool) → Fintype (Transcript (P b)) := fun b => transcriptFintype (P b)
+      inferInstanceAs (Fintype (Σ b : Bool, Transcript (P b)))
 
-/-- If an input belongs to a leaf, then the canonical transcript of that input is that leaf. -/
-theorem transcript_eq_of_mem_leaf
-    (p : Protocol X Y α) (R : p.Leaf) {xy : X × Y}
-    (hxy : xy ∈ (R : Set (X × Y))) :
-    p.transcript xy = R := by
-  by_contra hne
-  have hset_ne : (p.transcript xy : Set (X × Y)) ≠ (R : Set (X × Y)) := by
-    intro hset
-    exact hne (Subtype.ext hset)
-  have hdisjoint :=
-    leafRectangles_disjoint p (p.transcript xy : Set (X × Y)) (R : Set (X × Y))
-      (p.transcript xy).2 R.2 hset_ne
-  exact hdisjoint.notMem_of_mem_left (mem_transcript p xy) hxy
+instance transcriptMeasurableSpace (p : Protocol X Y α) : MeasurableSpace (Transcript p) := ⊤
 
-/-- The protocol output is constant on any transcript leaf. -/
-theorem run_eq_of_mem_transcript
-    (p : Protocol X Y α) (xy xy' : X × Y)
-    (hxy' : xy' ∈ (p.transcript xy : Set (X × Y))) :
-    p.run xy.1 xy.2 = p.run xy'.1 xy'.2 := by
-  exact
-    leafRectangles_mono p p.run rfl (p.transcript xy : Set (X × Y)) (p.transcript xy).2
-      xy.1 xy'.1 xy.2 xy'.2 (mem_transcript p xy) hxy'
+/-- Execute a protocol and return the syntactic transcript reached by the input. -/
+def transcript : (p : Protocol X Y α) → X × Y → Transcript p
+  | .output _, _ => ()
+  | .alice f P, xy => ⟨f xy.1, transcript (P (f xy.1)) xy⟩
+  | .bob f P, xy => ⟨f xy.2, transcript (P (f xy.2)) xy⟩
+
+/-- The input follows its own transcript. -/
+theorem mem_transcript : (p : Protocol X Y α) → (xy : X × Y) →
+    xy ∈ Transcript.inputSet (p.transcript xy)
+  | .output _, xy => by simp [Transcript.inputSet]
+  | .alice f P, xy => by
+      exact ⟨rfl, mem_transcript (P (f xy.1)) xy⟩
+  | .bob f P, xy => by
+      exact ⟨rfl, mem_transcript (P (f xy.2)) xy⟩
+
+/-- If an input follows a syntactic transcript, then this is its computed transcript. -/
+theorem transcript_eq_of_mem : {p : Protocol X Y α} → (t : Transcript p) → {xy : X × Y} →
+    xy ∈ Transcript.inputSet t → p.transcript xy = t
+  | .output _, _, _, _ => rfl
+  | .alice f P, t, xy, hxy => by
+      rcases t with ⟨b, t⟩
+      rcases hxy with ⟨hb, ht⟩
+      cases b
+      · change ⟨f xy.1, (P (f xy.1)).transcript xy⟩ = (⟨false, t⟩ :
+          Σ b : Bool, Transcript (P b))
+        rw [hb]
+        exact congrArg (Sigma.mk false) (transcript_eq_of_mem t ht)
+      · change ⟨f xy.1, (P (f xy.1)).transcript xy⟩ = (⟨true, t⟩ :
+          Σ b : Bool, Transcript (P b))
+        rw [hb]
+        exact congrArg (Sigma.mk true) (transcript_eq_of_mem t ht)
+  | .bob f P, t, xy, hxy => by
+      rcases t with ⟨b, t⟩
+      rcases hxy with ⟨hb, ht⟩
+      cases b
+      · change ⟨f xy.2, (P (f xy.2)).transcript xy⟩ = (⟨false, t⟩ :
+          Σ b : Bool, Transcript (P b))
+        rw [hb]
+        exact congrArg (Sigma.mk false) (transcript_eq_of_mem t ht)
+      · change ⟨f xy.2, (P (f xy.2)).transcript xy⟩ = (⟨true, t⟩ :
+          Σ b : Bool, Transcript (P b))
+        rw [hb]
+        exact congrArg (Sigma.mk true) (transcript_eq_of_mem t ht)
+
+/-- The output attached to the reached transcript is the protocol output. -/
+theorem run_eq_transcript_output : (p : Protocol X Y α) → (xy : X × Y) →
+    p.run xy.1 xy.2 = Transcript.output (p.transcript xy)
+  | .output _, xy => by rfl
+  | .alice f P, xy => by
+      exact run_eq_transcript_output (P (f xy.1)) xy
+  | .bob f P, xy => by
+      exact run_eq_transcript_output (P (f xy.2)) xy
 
 /-- Inputs with the same transcript have the same protocol output. -/
 theorem run_eq_of_transcript_eq
     (p : Protocol X Y α) {xy xy' : X × Y}
     (h : p.transcript xy = p.transcript xy') :
     p.run xy.1 xy.2 = p.run xy'.1 xy'.2 := by
-  apply run_eq_of_mem_transcript p xy xy'
-  rw [h]
-  exact mem_transcript p xy'
+  rw [run_eq_transcript_output p xy, run_eq_transcript_output p xy']
+  exact congrArg Transcript.output h
 
-open Classical in
-/-- The output associated to a transcript leaf. Empty leaf rectangles are assigned `default`;
-on nonempty leaves this is the protocol output on any input in the leaf. -/
-noncomputable def leafOutput [Inhabited α] (p : Protocol X Y α) (R : p.Leaf) : α :=
-  if h : ∃ xy : X × Y, xy ∈ (R : Set (X × Y)) then
-    p.run (Classical.choose h).1 (Classical.choose h).2
-  else
-    default
+private theorem card_transcript_le_two_pow_complexity_aux
+    (a b ca cb : ℕ) (ha : a ≤ 2 ^ ca) (hb : b ≤ 2 ^ cb) :
+    a + b ≤ 2 ^ (1 + max ca cb) := by
+  have hac : 2 ^ ca ≤ 2 ^ max ca cb := Nat.pow_le_pow_right (by omega) (Nat.le_max_left ca cb)
+  have hbc : 2 ^ cb ≤ 2 ^ max ca cb := Nat.pow_le_pow_right (by omega) (Nat.le_max_right ca cb)
+  calc
+    a + b ≤ 2 ^ max ca cb + 2 ^ max ca cb := Nat.add_le_add (ha.trans hac) (hb.trans hbc)
+    _ = 2 ^ (1 + max ca cb) := by
+      rw [show 1 + max ca cb = Nat.succ (max ca cb) by omega, pow_succ]
+      omega
 
-open Classical in
-/-- Every input in a transcript leaf has that leaf's output. -/
-theorem run_eq_leafOutput_of_mem_leaf [Inhabited α]
-    (p : Protocol X Y α) (R : p.Leaf) {xy : X × Y}
-    (hxy : xy ∈ (R : Set (X × Y))) :
-    p.run xy.1 xy.2 = p.leafOutput R := by
-  rw [leafOutput]
-  have hnonempty : ∃ xy : X × Y, xy ∈ (R : Set (X × Y)) := ⟨xy, hxy⟩
-  rw [dif_pos hnonempty]
-  exact
-    leafRectangles_mono p p.run rfl (R : Set (X × Y)) R.2
-      xy.1 (Classical.choose hnonempty).1 xy.2 (Classical.choose hnonempty).2 hxy
-      (Classical.choose_spec hnonempty)
+/-- A protocol has at most `2 ^ complexity` syntactic transcripts. -/
+theorem card_transcript_le_two_pow_complexity : (p : Protocol X Y α) →
+    Fintype.card (Transcript p) ≤ 2 ^ p.complexity
+  | .output _ => by
+      simp [Transcript, complexity]
+  | .alice f P => by
+      have hfalse := card_transcript_le_two_pow_complexity (P false)
+      have htrue := card_transcript_le_two_pow_complexity (P true)
+      rw [show Fintype.card (Transcript (Protocol.alice f P)) =
+          Fintype.card (Transcript (P true)) + Fintype.card (Transcript (P false)) by
+        change Fintype.card (Σ b : Bool, Transcript (P b)) =
+          Fintype.card (Transcript (P true)) + Fintype.card (Transcript (P false))
+        rw [Fintype.card_sigma, Fintype.sum_bool]]
+      simpa [complexity, Nat.max_comm] using
+        card_transcript_le_two_pow_complexity_aux
+          (Fintype.card (Transcript (P true))) (Fintype.card (Transcript (P false)))
+          (P true).complexity (P false).complexity htrue hfalse
+  | .bob f P => by
+      have hfalse := card_transcript_le_two_pow_complexity (P false)
+      have htrue := card_transcript_le_two_pow_complexity (P true)
+      rw [show Fintype.card (Transcript (Protocol.bob f P)) =
+          Fintype.card (Transcript (P true)) + Fintype.card (Transcript (P false)) by
+        change Fintype.card (Σ b : Bool, Transcript (P b)) =
+          Fintype.card (Transcript (P true)) + Fintype.card (Transcript (P false))
+        rw [Fintype.card_sigma, Fintype.sum_bool]]
+      simpa [complexity, Nat.max_comm] using
+        card_transcript_le_two_pow_complexity_aux
+          (Fintype.card (Transcript (P true))) (Fintype.card (Transcript (P false)))
+          (P true).complexity (P false).complexity htrue hfalse
 
-/-- The transcript alphabet has at most one value for each protocol leaf, hence at most
-`2 ^ p.complexity` values. -/
-theorem card_leaf_le_two_pow_complexity (p : Protocol X Y α) :
-    Fintype.card p.Leaf ≤ 2 ^ p.complexity := by
-  rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-  exact leafRectangles_card p
+/-- Swap a syntactic transcript by swapping Alice and Bob throughout the protocol. -/
+def transcriptSwap : {p : Protocol X Y α} → Transcript p → Transcript p.swap
+  | .output _, _ => ()
+  | .alice _ _, t => ⟨t.1, transcriptSwap t.2⟩
+  | .bob _ _, t => ⟨t.1, transcriptSwap t.2⟩
 
-/-- Swapping a protocol sends the transcript of `(x, y)` to the swapped transcript leaf of
-`(y, x)`. -/
-theorem leafSwap_transcript (p : Protocol X Y α) (x : X) (y : Y) :
-    leafSwap p (p.transcript (x, y)) = p.swap.transcript (y, x) := by
-  symm
-  apply transcript_eq_of_mem_leaf p.swap
-  change (y, x) ∈ swapInputSet ((p.transcript (x, y) : p.Leaf) : Set (X × Y))
-  simp [mem_transcript]
+/-- Swapping Alice and Bob preserves the message sequence injectively. -/
+theorem transcriptSwap_injective (p : Protocol X Y α) :
+    Function.Injective (@transcriptSwap X Y α p) := by
+  induction p with
+  | output val =>
+      intro a b h
+      cases a
+      cases b
+      rfl
+  | alice f P ih =>
+      intro a b h
+      rcases a with ⟨ba, ta⟩
+      rcases b with ⟨bb, tb⟩
+      cases ba <;> cases bb
+      · have hchild : transcriptSwap ta = transcriptSwap tb := eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk false) (ih false hchild)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · have hchild : transcriptSwap ta = transcriptSwap tb := eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk true) (ih true hchild)
+  | bob f P ih =>
+      intro a b h
+      rcases a with ⟨ba, ta⟩
+      rcases b with ⟨bb, tb⟩
+      cases ba <;> cases bb
+      · have hchild : transcriptSwap ta = transcriptSwap tb := eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk false) (ih false hchild)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · have hchild : transcriptSwap ta = transcriptSwap tb := eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk true) (ih true hchild)
 
-/-- Set-level version of `leafSwap_transcript`. -/
-theorem swapInputSet_transcript (p : Protocol X Y α) (x : X) (y : Y) :
-    swapInputSet ((p.transcript (x, y) : p.Leaf) : Set (X × Y)) =
-      ((p.swap.transcript (y, x) : p.swap.Leaf) : Set (Y × X)) := by
-  exact congrArg Subtype.val (leafSwap_transcript p x y)
+theorem transcriptSwap_transcript (p : Protocol X Y α) (x : X) (y : Y) :
+    transcriptSwap (p.transcript (x, y)) = p.swap.transcript (y, x) := by
+  induction p with
+  | output val =>
+      rfl
+  | alice f P ih =>
+      simp [transcript, transcriptSwap, swap, ih]
+  | bob f P ih =>
+      simp [transcript, transcriptSwap, swap, ih]
 
-/-- Pulling back a protocol sends the transcript of the mapped input to the transcript of the
-original input under the pulled-back protocol. -/
-theorem leafComap_transcript (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
+/-- Pull a syntactic transcript back along maps on Alice's and Bob's inputs. -/
+def transcriptComap : (p : Protocol X Y α) → (fX : X' → X) → (fY : Y' → Y) →
+    Transcript p → Transcript (p.comap fX fY)
+  | .output _, _, _, _ => ()
+  | .alice _ P, fX, fY, t => ⟨t.1, transcriptComap (P t.1) fX fY t.2⟩
+  | .bob _ P, fX, fY, t => ⟨t.1, transcriptComap (P t.1) fX fY t.2⟩
+
+/-- Pulling a transcript back along input maps preserves the message sequence injectively. -/
+theorem transcriptComap_injective (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y) :
+    Function.Injective (transcriptComap p fX fY) := by
+  induction p with
+  | output val =>
+      intro a b h
+      cases a
+      cases b
+      rfl
+  | alice f P ih =>
+      intro a b h
+      rcases a with ⟨ba, ta⟩
+      rcases b with ⟨bb, tb⟩
+      cases ba <;> cases bb
+      · have hchild : transcriptComap (P false) fX fY ta =
+            transcriptComap (P false) fX fY tb :=
+          eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk false) (ih false hchild)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · have hchild : transcriptComap (P true) fX fY ta =
+            transcriptComap (P true) fX fY tb :=
+          eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk true) (ih true hchild)
+  | bob f P ih =>
+      intro a b h
+      rcases a with ⟨ba, ta⟩
+      rcases b with ⟨bb, tb⟩
+      cases ba <;> cases bb
+      · have hchild : transcriptComap (P false) fX fY ta =
+            transcriptComap (P false) fX fY tb :=
+          eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk false) (ih false hchild)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · exact False.elim (Bool.noConfusion (Sigma.mk.inj_iff.mp h).1)
+      · have hchild : transcriptComap (P true) fX fY ta =
+            transcriptComap (P true) fX fY tb :=
+          eq_of_heq (Sigma.mk.inj_iff.mp h).2
+        exact congrArg (Sigma.mk true) (ih true hchild)
+
+theorem transcriptComap_transcript (p : Protocol X Y α) (fX : X' → X) (fY : Y' → Y)
     (x' : X') (y' : Y') :
-    leafComap p fX fY (p.transcript (fX x', fY y')) =
+    transcriptComap p fX fY (p.transcript (fX x', fY y')) =
       (p.comap fX fY).transcript (x', y') := by
-  symm
-  apply transcript_eq_of_mem_leaf (p.comap fX fY)
-  change (x', y') ∈
-    preimageInputSet fX fY ((p.transcript (fX x', fY y') : p.Leaf) : Set (X × Y))
-  simp [mem_transcript]
+  induction p with
+  | output val =>
+      rfl
+  | alice f P ih =>
+      simp [transcript, transcriptComap, comap, ih]
+  | bob f P ih =>
+      simp [transcript, transcriptComap, comap, ih]
 
 end Deterministic.Protocol
 
