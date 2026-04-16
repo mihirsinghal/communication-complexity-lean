@@ -10,8 +10,10 @@ import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Set
 import Mathlib.Analysis.Convex.Integral
+import Mathlib.Probability.ConditionalProbability
 
 open MeasureTheory
+open scoped ProbabilityTheory
 
 namespace PMF
 
@@ -85,50 +87,59 @@ noncomputable def FiniteProbabilitySpace.ofProbabilityMeasure
   prob := μ.2 }
 
 open Classical in
-/-- A probability measure on a finite measurable space is determined by its singleton masses. -/
-theorem FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons
+/-- A finite measure on a finite measurable space is determined by its singleton masses. -/
+theorem FiniteMeasureSpace.measureReal_eq_sum_singletons
     {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
-    (μ : ProbabilityMeasure Ω) (S : Set Ω) :
-    (μ : Measure Ω).real S =
-      ∑ ω : Ω, if ω ∈ S then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+    (μ : Measure Ω) [IsFiniteMeasure μ] (S : Set Ω) :
+    μ.real S =
+      ∑ ω : Ω, if ω ∈ S then μ.real ({ω} : Set Ω) else 0 := by
   let T : Finset Ω := Finset.univ.filter fun ω : Ω => ω ∈ S
   have hST : (↑T : Set Ω) = S := by
     ext ω
     simp [T]
   rw [← hST]
-  rw [← MeasureTheory.sum_measureReal_singleton (μ := (μ : Measure Ω)) T]
+  rw [← MeasureTheory.sum_measureReal_singleton (μ := μ) T]
   simp [T, Finset.sum_filter]
+
+open Classical in
+/-- A probability measure on a finite measurable space is determined by its singleton masses. -/
+theorem FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons
+    {Ω : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    (μ : ProbabilityMeasure Ω) (S : Set Ω) :
+    (μ : Measure Ω).real S =
+      ∑ ω : Ω, if ω ∈ S then (μ : Measure Ω).real ({ω} : Set Ω) else 0 :=
+  FiniteMeasureSpace.measureReal_eq_sum_singletons (μ : Measure Ω) S
 
 open Classical in
 /-- On a finite measurable space, the real measure of a preimage event is the sum of the
 real masses of the fibers that imply the event. -/
-theorem FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+theorem FiniteMeasureSpace.measureReal_preimage_eq_sum_fibers
     {Ω α : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
-    [Fintype α] (μ : ProbabilityMeasure Ω) (Z : Ω → α) (P : α → Prop) :
-    (μ : Measure Ω).real {ω | P (Z ω)} =
-      ∑ z : α, if P z then (μ : Measure Ω).real (Z ⁻¹' {z}) else 0 := by
-  rw [FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons μ {ω | P (Z ω)}]
+    [Fintype α] (μ : Measure Ω) [IsFiniteMeasure μ] (Z : Ω → α) (P : α → Prop) :
+    μ.real {ω | P (Z ω)} =
+      ∑ z : α, if P z then μ.real (Z ⁻¹' {z}) else 0 := by
+  rw [FiniteMeasureSpace.measureReal_eq_sum_singletons μ {ω | P (Z ω)}]
   symm
   calc
-    (∑ z : α, if P z then (μ : Measure Ω).real (Z ⁻¹' {z}) else 0)
+    (∑ z : α, if P z then μ.real (Z ⁻¹' {z}) else 0)
         = ∑ z : α, if P z then
-            ∑ ω : Ω, if Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0
+            ∑ ω : Ω, if Z ω = z then μ.real ({ω} : Set Ω) else 0
           else 0 := by
         apply Finset.sum_congr rfl
         intro z _
         by_cases hz : P z
-        · simp [hz, FiniteMeasureSpace.probabilityMeasure_measureReal_eq_sum_singletons μ
+        · simp [hz, FiniteMeasureSpace.measureReal_eq_sum_singletons μ
             (Z ⁻¹' {z} : Set Ω)]
         · simp [hz]
     _ = ∑ z : α, ∑ ω : Ω,
-          if P z ∧ Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+          if P z ∧ Z ω = z then μ.real ({ω} : Set Ω) else 0 := by
         apply Finset.sum_congr rfl
         intro z _
         by_cases hz : P z <;> simp [hz]
     _ = ∑ ω : Ω, ∑ z : α,
-          if P z ∧ Z ω = z then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+          if P z ∧ Z ω = z then μ.real ({ω} : Set Ω) else 0 := by
         rw [Finset.sum_comm]
-    _ = ∑ ω : Ω, if P (Z ω) then (μ : Measure Ω).real ({ω} : Set Ω) else 0 := by
+    _ = ∑ ω : Ω, if P (Z ω) then μ.real ({ω} : Set Ω) else 0 := by
         apply Finset.sum_congr rfl
         intro ω _
         by_cases hP : P (Z ω)
@@ -144,6 +155,16 @@ theorem FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
             by_cases hz : P z ∧ Z ω = z
             · exact (hP (by rw [hz.2]; exact hz.1)).elim
             · simp [hz]
+
+open Classical in
+/-- On a finite measurable space, the real measure of a preimage event is the sum of the
+real masses of the fibers that imply the event. -/
+theorem FiniteMeasureSpace.probabilityMeasure_measureReal_preimage_eq_sum_fibers
+    {Ω α : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    [Fintype α] (μ : ProbabilityMeasure Ω) (Z : Ω → α) (P : α → Prop) :
+    (μ : Measure Ω).real {ω | P (Z ω)} =
+      ∑ z : α, if P z then (μ : Measure Ω).real (Z ⁻¹' {z}) else 0 :=
+  FiniteMeasureSpace.measureReal_preimage_eq_sum_fibers (μ : Measure Ω) Z P
 
 open Classical in
 /-- On a finite measurable space, absolute continuity is equivalent to absolute continuity on
@@ -204,6 +225,28 @@ theorem FiniteMeasureSpace.integral_comp_eq_sum_measureReal_fibers
   apply Finset.sum_congr rfl
   intro z _
   rw [map_measureReal_apply Measurable.of_discrete MeasurableSet.of_discrete]
+
+open Classical in
+/-- Law of total probability over the fibers of a finite-valued random variable, in real-valued
+measure form. -/
+theorem FiniteMeasureSpace.measureReal_eq_sum_cond_fiber_real
+    {Ω α : Type*} [MeasurableSpace Ω] [FiniteMeasureSpace Ω]
+    [MeasurableSpace α] [DiscreteMeasurableSpace α] [Fintype α]
+    (μ : Measure Ω) [IsFiniteMeasure μ] (Z : Ω → α) (S : Set Ω) :
+    μ.real S =
+      ∑ z : α, μ.real (Z ⁻¹' {z}) * (μ[|(Z ⁻¹' {z})]).real S := by
+  have htotal := ProbabilityTheory.sum_meas_smul_cond_fiber (X := Z) Measurable.of_discrete μ
+  have hS : (∑ z, μ (Z ⁻¹' {z}) • μ[|(Z ⁻¹' {z})]) S = μ S := by
+    rw [htotal]
+  rw [Measure.real, ← hS]
+  simp only [Measure.real, Measure.coe_finset_sum, Finset.sum_apply, Measure.coe_smul,
+    Pi.smul_apply, smul_eq_mul]
+  rw [ENNReal.toReal_sum]
+  · apply Finset.sum_congr rfl
+    intro z _
+    rw [ENNReal.toReal_mul]
+  · intro z _
+    exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _)
 
 instance finiteMeasureSpaceBool : FiniteMeasureSpace Bool :=
   FiniteMeasureSpace.of Bool

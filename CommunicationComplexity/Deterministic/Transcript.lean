@@ -87,6 +87,29 @@ theorem run_eq_of_transcript_eq
   rw [h]
   exact mem_transcript p xy'
 
+open Classical in
+/-- The output associated to a transcript leaf. Empty leaf rectangles are assigned `default`;
+on nonempty leaves this is the protocol output on any input in the leaf. -/
+noncomputable def leafOutput [Inhabited α] (p : Protocol X Y α) (R : p.Leaf) : α :=
+  if h : ∃ xy : X × Y, xy ∈ (R : Set (X × Y)) then
+    p.run (Classical.choose h).1 (Classical.choose h).2
+  else
+    default
+
+open Classical in
+/-- Every input in a transcript leaf has that leaf's output. -/
+theorem run_eq_leafOutput_of_mem_leaf [Inhabited α]
+    (p : Protocol X Y α) (R : p.Leaf) {xy : X × Y}
+    (hxy : xy ∈ (R : Set (X × Y))) :
+    p.run xy.1 xy.2 = p.leafOutput R := by
+  rw [leafOutput]
+  have hnonempty : ∃ xy : X × Y, xy ∈ (R : Set (X × Y)) := ⟨xy, hxy⟩
+  rw [dif_pos hnonempty]
+  exact
+    leafRectangles_mono p p.run rfl (R : Set (X × Y)) R.2
+      xy.1 (Classical.choose hnonempty).1 xy.2 (Classical.choose hnonempty).2 hxy
+      (Classical.choose_spec hnonempty)
+
 /-- The transcript alphabet has at most one value for each protocol leaf, hence at most
 `2 ^ p.complexity` values. -/
 theorem card_leaf_le_two_pow_complexity (p : Protocol X Y α) :
