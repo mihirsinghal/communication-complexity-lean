@@ -418,20 +418,123 @@ abbrev TranscriptType
   Deterministic.Protocol.Transcript p
 
 /-- The raw type of values of the `Z = (M, T, X_<T, Y_>T)` variable for a protocol. -/
-abbrev RawZType
-    (p : ProtocolType n) : Type :=
-  TranscriptType n p × (Fin n × (Fin n → Bool) × (Fin n → Bool))
+structure RawZType
+    (p : ProtocolType n) where
+  transcript : TranscriptType n p
+  specialCoordinate : Fin n
+  xBefore : Fin n → Bool
+  yAfter : Fin n → Bool
+
+namespace RawZType
+
+@[ext]
+theorem ext
+    {z z' : RawZType n p}
+    (htranscript : z.transcript = z'.transcript)
+    (hT : z.specialCoordinate = z'.specialCoordinate)
+    (hxBefore : z.xBefore = z'.xBefore)
+    (hyAfter : z.yAfter = z'.yAfter) :
+    z = z' := by
+  rcases z with ⟨m, T, x, y⟩
+  rcases z' with ⟨m', T', x', y'⟩
+  change m = m' at htranscript
+  change T = T' at hT
+  change x = x' at hxBefore
+  change y = y' at hyAfter
+  subst m'
+  subst T'
+  subst x'
+  subst y'
+  rfl
+
+/-- A raw `Z` value is equivalent to the product of its named fields. -/
+def equivProd
+    (p : ProtocolType n) :
+    RawZType n p ≃ TranscriptType n p × Fin n × (Fin n → Bool) × (Fin n → Bool) where
+  toFun z := (z.transcript, z.specialCoordinate, z.xBefore, z.yAfter)
+  invFun z :=
+    { transcript := z.1
+      specialCoordinate := z.2.1
+      xBefore := z.2.2.1
+      yAfter := z.2.2.2 }
+  left_inv z := by
+    cases z
+    rfl
+  right_inv z := by
+    rcases z with ⟨transcript, specialCoordinate, xBefore, yAfter⟩
+    rfl
+
+end RawZType
+
+open Classical in
+noncomputable instance rawZTypeFintype (p : ProtocolType n) : Fintype (RawZType n p) :=
+  Fintype.ofEquiv
+    (TranscriptType n p × Fin n × (Fin n → Bool) × (Fin n → Bool))
+    (RawZType.equivProd n p).symm
+
+open Classical in
+noncomputable instance rawZTypeDecidableEq (p : ProtocolType n) : DecidableEq (RawZType n p) :=
+  Classical.decEq _
 
 /-- The raw `Z = (M, T, X_<T, Y_>T)` variable used in Claim 6.21. -/
 noncomputable def rawZVariable
     (p : ProtocolType n)
     (ω : HardSample n) : RawZType n p :=
-  (p.transcript (input n ω), coarseConditioning n ω)
+  { transcript := p.transcript (input n ω)
+    specialCoordinate := specialCoordinate n ω
+    xBefore := xBeforeSpecial n ω
+    yAfter := yAfterSpecial n ω }
 
 /-- The type of achievable values of the `Z = (M, T, X_<T, Y_>T)` variable for a protocol. -/
 abbrev ZType
     (p : ProtocolType n) : Type :=
   {z : RawZType n p // ∃ ω : HardSample n, rawZVariable n p ω = z}
+
+namespace ZType
+
+/-- The transcript component of an achievable `Z` value. -/
+def transcript
+    (z : ZType n p) : TranscriptType n p :=
+  z.1.transcript
+
+/-- The special-coordinate component of an achievable `Z` value. -/
+def specialCoordinate
+    (z : ZType n p) : Fin n :=
+  z.1.specialCoordinate
+
+/-- The `X_<T` component of an achievable `Z` value. -/
+def xBefore
+    (z : ZType n p) : Fin n → Bool :=
+  z.1.xBefore
+
+/-- The `Y_>T` component of an achievable `Z` value. -/
+def yAfter
+    (z : ZType n p) : Fin n → Bool :=
+  z.1.yAfter
+
+/-- The raw value underlying an achievable `Z` value. -/
+def raw
+    (z : ZType n p) : RawZType n p :=
+  z.1
+
+/-- The achievability proof carried by a `ZType` value. -/
+theorem achievable
+    (z : ZType n p) :
+    ∃ ω : HardSample n, rawZVariable n p ω = z.raw :=
+  z.2
+
+@[ext]
+theorem ext
+    {z z' : ZType n p}
+    (htranscript : z.transcript = z'.transcript)
+    (hT : z.specialCoordinate = z'.specialCoordinate)
+    (hxBefore : z.xBefore = z'.xBefore)
+    (hyAfter : z.yAfter = z'.yAfter) :
+    z = z' := by
+  apply Subtype.ext
+  exact RawZType.ext (n := n) (p := p) htranscript hT hxBefore hyAfter
+
+end ZType
 
 open Classical in
 noncomputable instance zTypeFintype (p : ProtocolType n) : Fintype (ZType n p) := by
@@ -456,7 +559,7 @@ def zFiber
 noncomputable def zOutput
     (p : ProtocolType n)
     (z : ZType n p) : Bool :=
-  Deterministic.Protocol.Transcript.output z.1.1
+  Deterministic.Protocol.Transcript.output z.transcript
 
 theorem run_eq_zOutput_of_zVariable_eq
     (p : ProtocolType n)
@@ -465,7 +568,8 @@ theorem run_eq_zOutput_of_zVariable_eq
     p.run (X n ω) (Y n ω) = zOutput n p z := by
   simpa [zOutput, input] using
     (Deterministic.Protocol.run_eq_transcript_output p (input n ω)).trans
-      (congrArg Deterministic.Protocol.Transcript.output (congrArg (fun z : ZType n p => z.1.1) hω))
+      (congrArg Deterministic.Protocol.Transcript.output
+        (congrArg (fun z : ZType n p => z.transcript) hω))
 
 open Classical in
 /-- Every achievable `Z` fiber has positive ambient hard-distribution mass. -/
@@ -473,10 +577,10 @@ theorem volume_zFiber_ne_zero
     (p : ProtocolType n)
     (z : ZType n p) :
     volume (zFiber n p z) ≠ 0 := by
-  rcases z.2 with ⟨ω, hω⟩
+  rcases z.achievable with ⟨ω, hω⟩
   have hzω : zVariable n p ω = z := by
     apply Subtype.ext
-    simpa [zVariable] using hω
+    simpa [ZType.raw, zVariable] using hω
   rw [← MeasureTheory.measureReal_ne_zero_iff]
   rw [zFiber]
   rw [Measure.real]
@@ -2335,18 +2439,21 @@ def dualRawZValue
     (p : ProtocolType n)
     (z : RawZType n p) :
     RawZType n (dualProtocol n p) :=
-  (dualProtocolTranscriptMap n p z.1, dualConditioningValue n z.2)
+  { transcript := dualProtocolTranscriptMap n p z.transcript
+    specialCoordinate := Fin.rev z.specialCoordinate
+    xBefore := reverseBoolVector n z.yAfter
+    yAfter := reverseBoolVector n z.xBefore }
 
 theorem rawZVariable_dualProtocol_dualHardSample
     (p : ProtocolType n)
     (ω : HardSample n) :
     rawZVariable n (dualProtocol n p) (dualHardSample n ω) =
       dualRawZValue n p (rawZVariable n p ω) := by
-  change (message n (dualProtocol n p) (dualHardSample n ω),
-      coarseConditioning n (dualHardSample n ω)) =
-    (dualProtocolTranscriptMap n p (message n p ω),
-      dualConditioningValue n (coarseConditioning n ω))
-  rw [message_dualProtocol_dualHardSample, coarseConditioning_dualHardSample]
+  apply RawZType.ext
+  · exact message_dualProtocol_dualHardSample n p ω
+  · simp [rawZVariable, dualRawZValue, specialCoordinate, dualHardSample]
+  · simpa [rawZVariable, dualRawZValue] using xBeforeSpecial_dualHardSample n ω
+  · simpa [rawZVariable, dualRawZValue] using yAfterSpecial_dualHardSample n ω
 
 /-- Dualize an achievable `Z = (M,T,X_<T,Y_>T)` value by recoding the transcript and coarse
 conditioning data. -/
@@ -2354,8 +2461,8 @@ noncomputable def dualZValue
     (p : ProtocolType n)
     (z : ZType n p) :
     ZType n (dualProtocol n p) :=
-  ⟨dualRawZValue n p z.1, by
-    rcases z.2 with ⟨ω, hω⟩
+  ⟨dualRawZValue n p z.raw, by
+    rcases z.achievable with ⟨ω, hω⟩
     refine ⟨dualHardSample n ω, ?_⟩
     rw [rawZVariable_dualProtocol_dualHardSample]
     exact congrArg (dualRawZValue n p) hω⟩
@@ -2365,10 +2472,13 @@ theorem dualRawZValue_injective
     (p : ProtocolType n) :
     Function.Injective (dualRawZValue n p) := by
   intro z z' h
-  rcases z with ⟨transcript, c⟩
-  rcases z' with ⟨transcript', c'⟩
-  simp only [dualRawZValue, Prod.mk.injEq] at h ⊢
-  exact ⟨dualProtocolTranscriptMap_injective n p h.1, dualConditioningValue_injective n h.2⟩
+  apply RawZType.ext
+  · exact dualProtocolTranscriptMap_injective n p (congrArg RawZType.transcript h)
+  · have hT := congrArg RawZType.specialCoordinate h
+    have hT' := congrArg Fin.rev hT
+    simpa [dualRawZValue] using hT'
+  · exact reverseBoolVector_injective n (congrArg RawZType.yAfter h)
+  · exact reverseBoolVector_injective n (congrArg RawZType.xBefore h)
 
 /-- The `Z`-value recoding induced by protocol and hard-sample duality is injective. -/
 theorem dualZValue_injective
@@ -3070,15 +3180,16 @@ theorem input_mem_transcript
       Deterministic.Protocol.Transcript.inputSet (message n p ω) :=
   Deterministic.Protocol.mem_transcript p (input n ω)
 
-/-- If a sample has `Z=z`, its generated input follows the transcript component `z.1`. -/
+/-- If a sample has `Z=z`, its generated input follows the transcript component of `z`. -/
 theorem input_mem_transcript_of_zVariable_eq
     (p : ProtocolType n)
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
-    input n ω ∈ Deterministic.Protocol.Transcript.inputSet z.1.1 := by
-  have hmsg : message n p ω = z.1.1 := by
-    simpa [zVariable, rawZVariable, message] using congrArg (fun z : ZType n p => z.1.1) hω
+    input n ω ∈ Deterministic.Protocol.Transcript.inputSet z.transcript := by
+  have hmsg : message n p ω = z.transcript := by
+    simpa [zVariable, rawZVariable, message, ZType.transcript] using
+      congrArg (fun z : ZType n p => z.transcript) hω
   simpa [hmsg] using input_mem_transcript n p ω
 
 /-- Equal `Z` value fixes the special coordinate. -/
@@ -3087,8 +3198,9 @@ theorem specialCoordinate_eq_of_zVariable_eq
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
-    specialCoordinate n ω = z.1.2.1 := by
-  simpa [zVariable, rawZVariable] using congrArg (fun z : ZType n p => z.1.2.1) hω
+    specialCoordinate n ω = z.specialCoordinate := by
+  simpa [zVariable, rawZVariable, ZType.specialCoordinate] using
+    congrArg (fun z : ZType n p => z.specialCoordinate) hω
 
 /-- Equal `Z` value fixes Alice's bits before the special coordinate. -/
 theorem xBeforeSpecial_eq_of_zVariable_eq
@@ -3096,8 +3208,9 @@ theorem xBeforeSpecial_eq_of_zVariable_eq
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
-    xBeforeSpecial n ω = z.1.2.2.1 := by
-  simpa [zVariable, rawZVariable] using congrArg (fun z : ZType n p => z.1.2.2.1) hω
+    xBeforeSpecial n ω = z.xBefore := by
+  simpa [zVariable, rawZVariable, ZType.xBefore] using
+    congrArg (fun z : ZType n p => z.xBefore) hω
 
 /-- Equal `Z` value fixes Bob's bits after the special coordinate. -/
 theorem yAfterSpecial_eq_of_zVariable_eq
@@ -3105,8 +3218,9 @@ theorem yAfterSpecial_eq_of_zVariable_eq
     {z : ZType n p}
     {ω : HardSample n}
     (hω : zVariable n p ω = z) :
-    yAfterSpecial n ω = z.1.2.2.2 := by
-  simpa [zVariable, rawZVariable] using congrArg (fun z : ZType n p => z.1.2.2.2) hω
+    yAfterSpecial n ω = z.yAfter := by
+  simpa [zVariable, rawZVariable, ZType.yAfter] using
+    congrArg (fun z : ZType n p => z.yAfter) hω
 
 /-- The transcript component of `Z` is a rectangle: two samples in the same `Z` fiber also
 contain the two mixed input pairs in that transcript rectangle. -/
@@ -3116,14 +3230,14 @@ theorem mixed_inputs_mem_transcript_of_zVariable_eq
     {ω ω' : HardSample n}
     (hω : zVariable n p ω = z)
     (hω' : zVariable n p ω' = z) :
-    (X n ω', Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.1.1 ∧
-      (X n ω, Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.1.1 := by
+    (X n ω', Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.transcript ∧
+      (X n ω, Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.transcript := by
   have hrect :
-      Rectangle.IsRectangle (Deterministic.Protocol.Transcript.inputSet z.1.1) :=
-    Deterministic.Protocol.Transcript.inputSet_isRectangle z.1.1
-  have hωmem : (X n ω, Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.1.1 := by
+      Rectangle.IsRectangle (Deterministic.Protocol.Transcript.inputSet z.transcript) :=
+    Deterministic.Protocol.Transcript.inputSet_isRectangle z.transcript
+  have hωmem : (X n ω, Y n ω) ∈ Deterministic.Protocol.Transcript.inputSet z.transcript := by
     simpa [input] using input_mem_transcript_of_zVariable_eq n p hω
-  have hω'mem : (X n ω', Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.1.1 := by
+  have hω'mem : (X n ω', Y n ω') ∈ Deterministic.Protocol.Transcript.inputSet z.transcript := by
     simpa [input] using input_mem_transcript_of_zVariable_eq n p hω'
   exact (Rectangle.IsRectangle_iff _).mp hrect (X n ω) (X n ω') (Y n ω) (Y n ω')
     hωmem hω'mem
@@ -3178,22 +3292,26 @@ theorem zVariable_mix_eq_of_same_zVariable
   have hinput := input_mix n hT hBefore hAfter
   have hleaf :
       input n (mix n ωX ωY) ∈
-        Deterministic.Protocol.Transcript.inputSet z.1.1 := by
+        Deterministic.Protocol.Transcript.inputSet z.transcript := by
     have hmixed := mixed_inputs_mem_transcript_of_zVariable_eq n p hωX hωY
     simpa [hinput] using hmixed.2
-  have htranscript : p.transcript (input n (mix n ωX ωY)) = z.1.1 :=
-    Deterministic.Protocol.transcript_eq_of_mem z.1.1 hleaf
-  have hTz : specialCoordinate n (mix n ωX ωY) = z.1.2.1 := by
+  have htranscript : p.transcript (input n (mix n ωX ωY)) = z.transcript :=
+    Deterministic.Protocol.transcript_eq_of_mem z.transcript hleaf
+  have hTz : specialCoordinate n (mix n ωX ωY) = z.specialCoordinate := by
     have hTωX := specialCoordinate_eq_of_zVariable_eq n p hωX
     simpa [specialCoordinate, mix] using hTωX
-  have hBeforeZ : xBeforeSpecial n (mix n ωX ωY) = z.1.2.2.1 := by
+  have hBeforeZ : xBeforeSpecial n (mix n ωX ωY) = z.xBefore := by
     rw [xBeforeSpecial_mix n hT hBefore hAfter]
     exact xBeforeSpecial_eq_of_zVariable_eq n p hωX
-  have hAfterZ : yAfterSpecial n (mix n ωX ωY) = z.1.2.2.2 := by
+  have hAfterZ : yAfterSpecial n (mix n ωX ωY) = z.yAfter := by
     rw [yAfterSpecial_mix n hT hBefore hAfter]
     exact yAfterSpecial_eq_of_zVariable_eq n p hωY
   apply Subtype.ext
-  simp [zVariable, rawZVariable, coarseConditioning, htranscript, hTz, hBeforeZ, hAfterZ]
+  apply RawZType.ext
+  · simpa [zVariable, rawZVariable] using htranscript
+  · simpa [zVariable, rawZVariable, ZType.specialCoordinate] using hTz
+  · simpa [zVariable, rawZVariable, ZType.xBefore] using hBeforeZ
+  · simpa [zVariable, rawZVariable, ZType.yAfter] using hAfterZ
 
 /-- If two samples are in a `Z=z` fiber, and the first has Alice special bit `bX` while the
 second has Bob special bit `bY`, then their mix is in the same fiber with special pair
@@ -4640,10 +4758,11 @@ theorem mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse
   let swapZ :
       ZType n p →
         (Fin n × (Fin n → Bool) × (Fin n → Bool)) × TranscriptType n p :=
-    fun z => (z.1.2, z.1.1)
+    fun z => ((z.specialCoordinate, z.xBefore, z.yAfter), z.transcript)
   have hswap_fun : swappedZ = swapZ ∘ zVariable n p := by
     funext ω
-    simp [swappedZ, swapZ, zVariable, rawZVariable, message]
+    simp [swappedZ, swapZ, zVariable, rawZVariable, message, coarseConditioning,
+      ZType.specialCoordinate, ZType.xBefore, ZType.yAfter, ZType.transcript]
   have hrec :
       I[specialX n : swappedZ ; μ] =
         I[specialX n : zVariable n p ; μ] := by
@@ -4655,8 +4774,11 @@ theorem mutualInfo_specialX_zVariable_eq_aliceCoarseInfoTermSpecialYFalse
       (by
         intro z z' h
         have h' := Prod.ext_iff.mp h
-        apply Subtype.ext
-        exact Prod.ext h'.2 h'.1)
+        apply ZType.ext
+        · exact h'.2
+        · exact congrArg Prod.fst h'.1
+        · exact congrArg (fun c => c.2.1) h'.1
+        · exact congrArg (fun c => c.2.2) h'.1)
   have hchain :
       I[specialX n : swappedZ ; μ] =
         I[specialX n : coarseConditioning n ; μ] +
