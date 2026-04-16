@@ -51,7 +51,7 @@ theorem isGapHamming_false_iff (n : ℕ) (x y : BitString n) :
 This is stated directly for private-coin protocols solving the promise
 problem, without introducing a global promise-problem complexity API. -/
 theorem privateCoin_protocol_lower_bound
-    (ε : ℝ) (hε : ε < 1 / 2) :
+    (ε : ℝ) (hε : 0 ≤ ε ∧ ε < 1 / 2) :
     ∃ c > 0,
       ∀ {n nX nY : ℕ}
         (p : PrivateCoin.Protocol (CoinTape nX) (CoinTape nY)
@@ -63,7 +63,7 @@ theorem privateCoin_protocol_lower_bound
 
 /-- Public-coin variant of the Gap-Hamming linear lower bound. -/
 theorem publicCoin_protocol_lower_bound
-    (ε : ℝ) (hε : ε < 1 / 2) :
+    (ε : ℝ) (hε : 0 ≤ ε ∧ ε < 1 / 2) :
     ∃ c > 0,
       ∀ {n m : ℕ}
         (p : PublicCoin.Protocol (CoinTape m)
