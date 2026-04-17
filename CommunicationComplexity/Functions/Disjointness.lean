@@ -17,6 +17,11 @@ noncomputable def disjointness (n : ℕ) (X Y : Set (Fin n)) : Bool :=
     classical
     exact decide (Disjoint X Y)
 
+/-- Disjointness is symmetric in Alice's and Bob's inputs. -/
+theorem disjointness_comm (n : ℕ) (X Y : Set (Fin n)) :
+    disjointness n X Y = disjointness n Y X := by
+  simp [disjointness, disjoint_comm]
+
 /-- The candidate fooling set for disjointness: pairs `(X, Xᶜ)`. -/
 def foolingSet (n : ℕ) : Set (Set (Fin n) × Set (Fin n)) :=
   {p | p.2 = p.1ᶜ}
@@ -91,7 +96,6 @@ theorem communicationComplexity_le (n : ℕ) :
         rw [hbool]
         norm_num
 
-open Deterministic.Protocol Rectangle in
 /-- For `n ≥ 1`, disjointness on subsets of `[n]` has deterministic
 communication complexity at least `n + 1`. -/
 theorem le_communicationComplexity (n : ℕ) (hn : 1 ≤ n) :

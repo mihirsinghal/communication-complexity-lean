@@ -51,8 +51,8 @@ theorem discrepancy_eq_prob_false_sub_prob_true
     (g : X → Y → Bool)
     (S : Set (X × Y)) :
     discrepancy g S =
-      (volume {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = false}).toReal -
-      (volume {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = true}).toReal := by
+      volume.real {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = false} -
+      volume.real {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = true} := by
   classical
   let SFalse : Set (X × Y) := {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = false}
   let STrue : Set (X × Y) := {xy : X × Y | xy ∈ S ∧ g xy.1 xy.2 = true}
@@ -189,7 +189,8 @@ private lemma signedBias_eq_one_sub_two_distributionalError
   rw [MeasureTheory.integral_const_mul]
   rw [← FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
     (Ω := X × Y) Err]
-  simp [Deterministic.Protocol.distributionalError, Err]
+  rw [probReal_univ]
+  simp [Deterministic.Protocol.distributionalError, Measure.real, Err]
 
 private lemma signedBias_eq_sum_rectangles
     [μ : FiniteProbabilitySpace (X × Y)]

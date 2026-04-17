@@ -377,7 +377,8 @@ theorem distributionalError_ge_one_eighth_of_bad_half
 
 /-! ### Counting lemmas for the distributional indexing lower bound -/
 
-/-- For indices `i` strictly below `n/4`, the binomial coefficients grow by at least a factor of `3`.
+/-- For indices `i` strictly below `n/4`, the binomial coefficients grow by at least a factor
+of `3`.
 This is the quantitative step used to control the partial binomial sum up to `n/4`. -/
 private lemma choose_three_mul_le_succ_choose_quarter
     {n i : ℕ} (hi : i < n / 4) :
@@ -502,7 +503,7 @@ private lemma div_nat_div_four_le_101_25
       _ = 4 + (((n % 4 : ℕ) : ℝ) / (k : ℝ)) := by
             rw [add_div]
             have hmul : (4 * (k : ℝ)) / (k : ℝ) = 4 := by field_simp [hk_ne]
-            simpa [hmul]
+            simp [hmul]
   have hfrac1 : (((n % 4 : ℕ) : ℝ) / (k : ℝ)) ≤ 3 / (k : ℝ) := by
     exact div_le_div_of_nonneg_right hmod hk_pos.le
   have hk75_real : (75 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk75
@@ -561,7 +562,7 @@ private lemma choose_quarter_le_eleven_pow
     have hdiv :
         (n : ℝ) / ((k : ℝ) / Real.exp 1) = Real.exp 1 * ((n : ℝ) / (k : ℝ)) := by
       field_simp [hk_ne]
-    simpa [hdiv]
+    simp [hdiv]
   have hratio :
       ((n : ℝ) / (k : ℝ)) ≤ (101 / 25 : ℝ) := by
     simpa [k] using div_nat_div_four_le_101_25 n hn300
@@ -618,7 +619,8 @@ private lemma goodInput_card_le
   have hcard_union :
       good.card ≤
         ((answerSet (n := n) p).biUnion
-          (fun a : BoolInput n => hammingBall (n := (n : ℕ)) (α := Bool) a ((n : ℕ) / 4))).card := by
+          (fun a : BoolInput n =>
+            hammingBall (n := (n : ℕ)) (α := Bool) a ((n : ℕ) / 4))).card := by
     exact Finset.card_le_card hsubset
   have hball :
       ∀ a ∈ answerSet (n := n) p,
@@ -630,7 +632,8 @@ private lemma goodInput_card_le
     exact_mod_cast hreal
   have hcard_mul :
       ((answerSet (n := n) p).biUnion
-        (fun a : BoolInput n => hammingBall (n := (n : ℕ)) (α := Bool) a ((n : ℕ) / 4))).card ≤
+        (fun a : BoolInput n =>
+          hammingBall (n := (n : ℕ)) (α := Bool) a ((n : ℕ) / 4))).card ≤
           (answerSet (n := n) p).card * (2 * Nat.choose (n : ℕ) ((n : ℕ) / 4)) := by
     exact Finset.card_biUnion_le_card_mul
       (answerSet (n := n) p)
@@ -647,7 +650,8 @@ private lemma badInput_card_ge_half_of_small_cost
     (hcost : p.cost ≤ (n : ℕ) / 10) :
     2 ^ (((n : ℕ)) - 1) ≤
       (Finset.univ.filter (fun x : BoolInput n => badInput (n := n) p x)).card := by
-  let bad : Finset (BoolInput n) := Finset.univ.filter (fun x : BoolInput n => badInput (n := n) p x)
+  let bad : Finset (BoolInput n) :=
+    Finset.univ.filter (fun x : BoolInput n => badInput (n := n) p x)
   let good : Finset (BoolInput n) :=
     Finset.univ.filter (fun x : BoolInput n => ¬ badInput (n := n) p x)
   have hgood_le0 :

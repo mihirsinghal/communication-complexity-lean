@@ -23,7 +23,7 @@ noncomputable def distributionalError
     (μ : FiniteProbabilitySpace (X × Y))
     (f : X → Y → α) : ℝ := by
   letI := μ
-  exact (volume {xy : X × Y | p.run xy.1 xy.2 ≠ f xy.1 xy.2}).toReal
+  exact volume.real {xy : X × Y | p.run xy.1 xy.2 ≠ f xy.1 xy.2}
 
 end Protocol
 
@@ -35,18 +35,18 @@ private lemma failureIntegral_swap
     {X Y α : Type*} {m : ℕ} [μ : FiniteProbabilitySpace (X × Y)]
     (p : Protocol (CoinTape m) X Y α)
     (f : X → Y → α) :
-    ∫ ω, (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
-      ∫ xy : X × Y, (volume {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal := by
+    ∫ ω, volume.real {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} =
+      ∫ xy : X × Y, volume.real {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} := by
   -- Rewrite each probability as an integral of the corresponding failure indicator,
   -- then swap the order of integration.
-  have hg_eq : ∀ ω, (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
+  have hg_eq : ∀ ω, volume.real {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} =
       ∫ xy : X × Y,
         Set.indicator {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
           (fun _ => (1 : ℝ)) xy := by
     intro ω
     apply FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
   have hh_eq : ∀ xy : X × Y,
-      (volume {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal =
+      volume.real {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} =
         ∫ ω : CoinTape m,
           Set.indicator {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
             (fun _ => (1 : ℝ)) ω := by
@@ -83,7 +83,7 @@ theorem minimax_lower_bound
   obtain ⟨m, p, hp, hc⟩ := (communicationComplexity_le_iff f ε n).mp hle
   -- By h, each p.toDeterministic ω has failure prob > ε under μ
   have hdet_fail : ∀ ω : CoinTape m,
-      (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal > ε := by
+      volume.real {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2} > ε := by
     intro ω
     have h1 := h (p.toDeterministic ω) (by simp [hc])
     simpa [Deterministic.Protocol.distributionalError, Protocol.toDeterministic_run] using h1
@@ -91,11 +91,11 @@ theorem minimax_lower_bound
   letI : FiniteProbabilitySpace (X × Y) := μ
   -- g(ω) = vol_μ({(x,y) | p fails with randomness ω}), satisfies g(ω) > ε
   set g : CoinTape m → ℝ := fun ω =>
-    (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal
+    volume.real {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
   have hg_gt : ∀ ω, ε < g ω := hdet_fail
   -- h(x,y) = vol_CoinTape({ω | p fails on (x,y)}), satisfies h(x,y) ≤ ε
   set h' : X × Y → ℝ := fun xy =>
-    (volume {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal
+    volume.real {ω : CoinTape m | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
   have hh_le : ∀ xy : X × Y, h' xy ≤ ε := fun ⟨x, y⟩ => hp x y
   -- Lower bound: ∫_ω g(ω) > ε (since g > ε pointwise)
   have h_lower : ε < ∫ ω, g ω :=
