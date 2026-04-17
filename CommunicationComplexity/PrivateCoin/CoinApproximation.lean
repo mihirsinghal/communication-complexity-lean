@@ -197,8 +197,8 @@ theorem single_coin_approx
     (δ : ℝ) (hδ : 0 < δ) :
     ∃ (n : ℕ) (φ : CoinTape n → Ω),
       ∀ (S : Set Ω),
-        (volume (φ ⁻¹' S : Set (CoinTape n))).toReal ≤
-        (volume S).toReal + δ := by
+        volume.real (φ ⁻¹' S : Set (CoinTape n)) ≤
+        volume.real S + δ := by
   classical
   set k := Fintype.card Ω with hk_def
   have hk_pos : 0 < k := Fintype.card_pos
@@ -245,13 +245,13 @@ theorem single_coin_approx
       Finset.univ.filter (fun c => g c ∈ S_idx) from Finset.filter_congr (fun c _ => this c)]
     exact (Finset.sum_card_fiberwise_eq_card_filter _ _ _).symm
   -- CoinTape volume = counting / N
-  have hvol_pre : (volume (φ ⁻¹' S : Set (CoinTape n))).toReal =
+  have hvol_pre : volume.real (φ ⁻¹' S : Set (CoinTape n)) =
       ((Finset.univ.filter (fun c : CoinTape n => φ c ∈ S)).card : ℝ) / N := by
     simpa [N, Set.mem_preimage] using
       uniformOn_univ_measureReal_eq_card_filter
         (Ω := CoinTape n) (φ ⁻¹' S : Set (CoinTape n))
   -- Volume of S as sum of q
-  have hvol_S : (volume S).toReal = ∑ i ∈ S_idx, (q i).toReal := by
+  have hvol_S : volume.real S = ∑ i ∈ S_idx, (q i).toReal := by
     have hpre : e ⁻¹' (↑S_idx : Set (Fin k)) = S := by
       ext x
       change (e x ∈ S_idx) ↔ x ∈ S
@@ -270,7 +270,6 @@ theorem single_coin_approx
         subst x
         exact e.apply_symm_apply i
     rw [hs]
-    change (volume ({e.symm i} : Set Ω)).toReal = (volume ({e.symm i} : Set Ω)).toReal
     rfl
   -- Combine
   rw [hvol_pre, hfiber]; push_cast
@@ -284,12 +283,12 @@ theorem single_coin_approx
         Finset.sum_le_sum (fun i _ => helem i)
     _ = (∑ i ∈ S_idx, (q i).toReal) + S_idx.card / N := by
         rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]; ring
-    _ ≤ (volume S).toReal + k / N := by
+    _ ≤ volume.real S + k / N := by
         rw [hvol_S]
         have hcard : (S_idx.card : ℝ) ≤ k := by
           have h := S_idx.card_le_univ; simp only [Fintype.card_fin] at h; exact_mod_cast h
         linarith [div_le_div_of_nonneg_right hcard hN_pos_real.le]
-    _ ≤ (volume S).toReal + δ := by
+    _ ≤ volume.real S + δ := by
         have : (k : ℝ) / N ≤ δ := by rw [hN_eq]; push_cast; exact hn
         linarith
 
@@ -332,9 +331,9 @@ private theorem product_coin_approx
     ∃ (nX nY : ℕ) (φ_X : CoinTape nX → Ω_X)
       (φ_Y : CoinTape nY → Ω_Y),
       ∀ (S : Set (Ω_X × Ω_Y)),
-        (volume (Prod.map φ_X φ_Y ⁻¹' S :
-          Set (CoinTape nX × CoinTape nY))).toReal ≤
-        (volume S).toReal + δ := by
+        volume.real (Prod.map φ_X φ_Y ⁻¹' S :
+          Set (CoinTape nX × CoinTape nY)) ≤
+        volume.real S + δ := by
   have hδ2 : (0 : ℝ) < δ / 2 := by linarith
   obtain ⟨nX, φ_X, hX⟩ := single_coin_approx (Ω := Ω_X) (δ / 2) hδ2
   obtain ⟨nY, φ_Y, hY⟩ := single_coin_approx (Ω := Ω_Y) (δ / 2) hδ2
@@ -355,18 +354,18 @@ private theorem product_coin_approx
       simpa only [Set.mem_prod, Set.mem_preimage, Set.mem_singleton_iff] using h2.1
     exact hab (hcx.symm.trans hcx')
   -- LHS = ∑_a vol(φ_X⁻¹({a})) * vol(φ_Y⁻¹(S_a))
-  have hLHS : (volume (Prod.map φ_X φ_Y ⁻¹' S :
-      Set (CoinTape nX × CoinTape nY))).toReal =
-      ∑ a : Ω_X, (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal *
-        (volume (φ_Y ⁻¹' S_a a : Set (CoinTape nY))).toReal := by
+  have hLHS : volume.real (Prod.map φ_X φ_Y ⁻¹' S :
+      Set (CoinTape nX × CoinTape nY)) =
+      ∑ a : Ω_X, volume.real (φ_X ⁻¹' {a} : Set (CoinTape nX)) *
+        volume.real (φ_Y ⁻¹' S_a a : Set (CoinTape nY)) := by
     rw [hunion, FiniteProbabilitySpace.measureReal_iUnion_fintype _ hdisj]
     refine Finset.sum_congr rfl ?_
     intro a ha
     simpa using FiniteProbabilitySpace.measureReal_prod
       (φ_X ⁻¹' ({a} : Set Ω_X)) (φ_Y ⁻¹' S_a a)
   -- RHS = ∑_a vol({a}) * vol(S_a)
-  have hRHS : (volume S).toReal = ∑ a : Ω_X, (volume ({a} : Set Ω_X)).toReal *
-      (volume (S_a a)).toReal := by
+  have hRHS : volume.real S = ∑ a : Ω_X, volume.real ({a} : Set Ω_X) *
+      volume.real (S_a a) := by
     have hS : S = ⋃ a : Ω_X, ({a} : Set Ω_X) ×ˢ S_a a := by
       ext ⟨x, y⟩; simp [S_a]
     have hdisj' : Pairwise (fun a b : Ω_X => Disjoint
@@ -383,34 +382,36 @@ private theorem product_coin_approx
     intro a ha
     simpa using FiniteProbabilitySpace.measureReal_prod ({a} : Set Ω_X) (S_a a)
   -- Step 1: bound using hY on each slice
-  set pX := fun a => (volume (φ_X ⁻¹' {a} : Set (CoinTape nX))).toReal
-  set qX := fun a => (volume ({a} : Set Ω_X)).toReal
+  set pX := fun a => volume.real (φ_X ⁻¹' {a} : Set (CoinTape nX))
+  set qX := fun a => volume.real ({a} : Set Ω_X)
   rw [hLHS]
-  have hstep1 : ∑ a : Ω_X, pX a * (volume (φ_Y ⁻¹' S_a a : Set (CoinTape nY))).toReal ≤
-      ∑ a : Ω_X, pX a * ((volume (S_a a)).toReal + δ / 2) :=
-    Finset.sum_le_sum (fun a _ => mul_le_mul_of_nonneg_left (hY _) ENNReal.toReal_nonneg)
+  have hstep1 : ∑ a : Ω_X, pX a * volume.real (φ_Y ⁻¹' S_a a : Set (CoinTape nY)) ≤
+      ∑ a : Ω_X, pX a * (volume.real (S_a a) + δ / 2) :=
+    Finset.sum_le_sum (fun a _ => mul_le_mul_of_nonneg_left (hY _)
+      (by simp [pX, Measure.real]))
   -- ∑ pX * (g + δ/2) = ∑ pX * g + δ/2 (since ∑ pX = 1)
   have hpX_sum : ∑ a : Ω_X, pX a = 1 := by
     calc ∑ a : Ω_X, pX a
-        = (volume (φ_X ⁻¹' (Set.univ : Set Ω_X) : Set (CoinTape nX))).toReal := by
+        = volume.real (φ_X ⁻¹' (Set.univ : Set Ω_X) : Set (CoinTape nX)) := by
             symm
             simpa [pX] using
               (FiniteProbabilitySpace.measureReal_preimage_finset
                 (Ξ := CoinTape nX) (Ω := Ω_X) φ_X Finset.univ)
-      _ = 1 := by simp [measure_univ]
-  have hexpand : ∑ a, pX a * ((volume (S_a a)).toReal + δ / 2) =
-      (∑ a, pX a * (volume (S_a a)).toReal) + δ / 2 := by
+      _ = 1 := by simp
+  have hexpand : ∑ a, pX a * (volume.real (S_a a) + δ / 2) =
+      (∑ a, pX a * volume.real (S_a a)) + δ / 2 := by
     simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, hpX_sum, one_mul]
   -- Step 2: bound ∑ pX * g ≤ ∑ qX * g + δ/2 using weighted_sum_approx
-  set gval := fun a : Ω_X => (volume (S_a a)).toReal
+  set gval := fun a : Ω_X => volume.real (S_a a)
   have hstep2 : ∑ a, pX a * gval a ≤ ∑ a, qX a * gval a + δ / 2 := by
     apply weighted_sum_approx pX qX gval
-      (fun _ => ENNReal.toReal_nonneg)
+      (fun _ => MeasureTheory.measureReal_nonneg)
       (fun a => by
-        calc gval a = (volume (S_a a)).toReal := rfl
-          _ ≤ (volume (Set.univ : Set Ω_Y)).toReal := by
+        calc gval a = volume.real (S_a a) := rfl
+          _ ≤ volume.real (Set.univ : Set Ω_Y) := by
+              rw [Measure.real, Measure.real]
               exact ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono (Set.subset_univ _))
-          _ = 1 := by simp [measure_univ])
+          _ = 1 := by simp)
       (δ / 2)
       (fun T => by
         have := hX (↑T : Set Ω_X)
@@ -420,11 +421,11 @@ private theorem product_coin_approx
           (Ξ := CoinTape nX) (Ω := Ω_X) φ_X T] at this
         rw [FiniteProbabilitySpace.measureReal_finset (Ω := Ω_X) T] at this
         linarith)
-  calc ∑ a, pX a * (volume (φ_Y ⁻¹' S_a a : Set (CoinTape nY))).toReal
+  calc ∑ a, pX a * volume.real (φ_Y ⁻¹' S_a a : Set (CoinTape nY))
       ≤ (∑ a, pX a * gval a) + δ / 2 := by linarith [hstep1, hexpand]
     _ ≤ (∑ a, qX a * gval a) + δ / 2 + δ / 2 := by linarith [hstep2]
     _ = (∑ a, qX a * gval a) + δ := by ring
-    _ = (volume S).toReal + δ := by rw [hRHS]
+    _ = volume.real S + δ := by rw [hRHS]
 
 end Internal
 
@@ -488,10 +489,12 @@ theorem FiniteMessage.Protocol.toCoinTape_approxSatisfies
       FiniteMessage.Protocol.rrun,
       Deterministic.FiniteMessage.Protocol.comap_run, Function.id_def]
   rw [hset]
-  calc (volume (Prod.map φ_X φ_Y ⁻¹' S :
-          Set (CoinTape data.choose × CoinTape data.choose_spec.choose))).toReal
-      ≤ (volume S).toReal + δ := happrox S
-    _ ≤ ε + δ := by linarith [hp x y]
+  calc volume.real (Prod.map φ_X φ_Y ⁻¹' S :
+          Set (CoinTape data.choose × CoinTape data.choose_spec.choose))
+      ≤ volume.real S + δ := happrox S
+    _ ≤ ε + δ := by
+        have hpS : volume.real S ≤ ε := by simpa [S] using hp x y
+        linarith
 
 end PrivateCoin
 

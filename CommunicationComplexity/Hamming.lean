@@ -232,7 +232,10 @@ lemma hammingBall_card (u : Word n α) (r : ℕ) :
   | succ k ih =>
     have hdisj : Disjoint (hammingBall u k) (hammingSphere u (k + 1)) := by
       simp only [Finset.disjoint_left, hammingBall, hammingSphere]
-      intro x h1 h2; simp only [Finset.mem_filter, Finset.mem_univ, true_and] at h1 h2; rw [h2] at h1; linarith
+      intro x h1 h2
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at h1 h2
+      rw [h2] at h1
+      linarith
     have hbs : hammingBall u (k + 1) = hammingBall u k ∪ hammingSphere u (k + 1) := by
       ext v
       simp only [Finset.mem_union, hammingBall, hammingSphere, Finset.mem_filter,

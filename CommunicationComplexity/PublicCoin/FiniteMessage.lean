@@ -52,8 +52,8 @@ def ApproxSatisfies
     (p : Protocol Ω X Y α) (Q : X → Y → α → Prop)
     (ε : ℝ) : Prop :=
   ∀ x y,
-    (volume {ω : Ω |
-      ¬Q x y (p.rrun x y ω)}).toReal ≤ ε
+    volume.real {ω : Ω |
+      ¬Q x y (p.rrun x y ω)} ≤ ε
 
 /-- A public-coin finite-message protocol `ε`-computes a function `f`
 if for every input `(x, y)`, the probability of producing an
@@ -62,8 +62,8 @@ noncomputable def ApproxComputes
     [MeasureSpace Ω]
     (p : Protocol Ω X Y α) (f : X → Y → α) (ε : ℝ) : Prop :=
   ∀ x y,
-    (volume {ω : Ω |
-      p.rrun x y ω ≠ f x y}).toReal ≤ ε
+    volume.real {ω : Ω |
+      p.rrun x y ω ≠ f x y} ≤ ε
 
 theorem ApproxComputes_eq_ApproxSatisfies
     [MeasureSpace Ω]

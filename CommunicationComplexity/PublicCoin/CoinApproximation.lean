@@ -65,9 +65,11 @@ theorem FiniteMessage.Protocol.toCoinTape_approxSatisfies
       Deterministic.FiniteMessage.Protocol.comap_run, Prod.map,
       Function.id_def]
   rw [hset]
-  calc (volume (φ ⁻¹' S : Set (CoinTape data.choose))).toReal
-      ≤ (volume S).toReal + δ := happrox S
-    _ ≤ ε + δ := by linarith [hp x y]
+  calc volume.real (φ ⁻¹' S : Set (CoinTape data.choose))
+      ≤ volume.real S + δ := happrox S
+    _ ≤ ε + δ := by
+        have hpS : volume.real S ≤ ε := by simpa [S] using hp x y
+        linarith
 
 end PublicCoin
 

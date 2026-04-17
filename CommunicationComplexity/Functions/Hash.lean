@@ -86,7 +86,8 @@ private lemma hashRange_singleton_measure
 
 private lemma hashRange_singleton_measureReal
     (k : ℕ) [NeZero k] (a : Fin k) :
-    (volume ({a} : Set (Fin k))).toReal = (1 : ℝ) / k := by
+    volume.real ({a} : Set (Fin k)) = (1 : ℝ) / k := by
+  rw [Measure.real]
   rw [hashRange_singleton_measure]
   rw [ENNReal.toReal_div]
   simp
@@ -95,40 +96,40 @@ open Classical in
 private lemma collisionPiece_measureReal
     {α : Type*} [Fintype α]
     (k : ℕ) [NeZero k] (x y : α) (hxy : x ≠ y) (a : Fin k) :
-    (volume (collisionPiece k x y a)).toReal = ((1 : ℝ) / k) ^ 2 := by
+    volume.real (collisionPiece k x y a) = ((1 : ℝ) / k) ^ 2 := by
   have hyx : y ≠ x := fun hyx => hxy hyx.symm
-  change (volume
+  change volume.real
     (Set.pi Set.univ
       (Function.update
         (Function.update (fun _ : α => (Set.univ : Set (Fin k))) x ({a} : Set (Fin k)))
         y
-        ({a} : Set (Fin k))))).toReal = _
+        ({a} : Set (Fin k)))) = _
   rw [FiniteProbabilitySpace.measureReal_pi_univ]
   rw [← Finset.prod_erase_mul (s := Finset.univ)
     (f := fun z : α =>
-      (volume
+      volume.real
         (Function.update
           (Function.update (fun _ : α => (Set.univ : Set (Fin k))) x ({a} : Set (Fin k)))
           y
-          ({a} : Set (Fin k)) z)).toReal)
+          ({a} : Set (Fin k)) z))
     (a := x) (by simp)]
   have hy_mem : y ∈ (Finset.univ : Finset α).erase x := by
     simp [Finset.mem_erase, hyx]
   rw [← Finset.prod_erase_mul (s := (Finset.univ : Finset α).erase x)
     (f := fun z : α =>
-      (volume
+      volume.real
         (Function.update
           (Function.update (fun _ : α => (Set.univ : Set (Fin k))) x ({a} : Set (Fin k)))
           y
-          ({a} : Set (Fin k)) z)).toReal)
+          ({a} : Set (Fin k)) z))
     (a := y) hy_mem]
   have hrest :
       ∏ z ∈ ((Finset.univ : Finset α).erase x).erase y,
-        (volume
+        volume.real
           (Function.update
             (Function.update (fun _ : α => (Set.univ : Set (Fin k))) x ({a} : Set (Fin k)))
             y
-            ({a} : Set (Fin k)) z)).toReal = 1 := by
+            ({a} : Set (Fin k)) z) = 1 := by
     refine Finset.prod_eq_one ?_
     intro z hz
     have hz_ne_y : z ≠ y := (Finset.mem_erase.1 hz).1
@@ -142,7 +143,7 @@ private lemma collisionPiece_measureReal
 theorem collision_prob_le
     (α : Type*) [Fintype α]
     (k : ℕ) [NeZero k] (x y : α) (hxy : x ≠ y) :
-    (volume {h : HashSpace α k | h x = h y}).toReal ≤ (1 : ℝ) / k := by
+    volume.real {h : HashSpace α k | h x = h y} ≤ (1 : ℝ) / k := by
   classical
   let q := Fin k
   rw [collision_mem_iUnion k x y]

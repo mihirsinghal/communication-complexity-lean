@@ -99,7 +99,7 @@ theorem minimax_lower_bound
   have hdet_fail : ∀ ω : CoinTape m,
       (volume {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}).toReal > ε := by
     intro ω
-    have h1 := h (Protocol.toDeterministic p ω) (by simpa [hc])
+    have h1 := h (Protocol.toDeterministic p ω) (by simp [hc])
     simpa [Deterministic.OneWay.Protocol.distributionalError, Protocol.toDeterministic_run] using h1
   letI : FiniteProbabilitySpace (X × Y) := μ
   set g : CoinTape m → ℝ := fun ω =>
