@@ -4807,7 +4807,6 @@ theorem xFiberKL_integral_eq_aliceInfoTermSpecialYFalse
   rw [aliceInfoTermSpecialYFalse_eq_aliceCoarseInfoTermSpecialYFalse]
   exact xFiberKL_integral_eq_aliceCoarseInfoTermSpecialYFalse n p
 
-open Classical in
 /-- Textbook Claim 6.21 reweighting:
 `(2/3) I(X_T : M | T, X_< T, Y_≥T, Y_T=0, D) ≤
  I(X_T : M | T, X_< T, Y_≥T, D)`.
@@ -4835,7 +4834,6 @@ theorem two_thirds_mul_aliceInfoTermSpecialYFalse_le_aliceInfoTerm
   simpa [μ, Y0, hmass, aliceInfoTermSpecialYFalse, aliceInfoTerm,
     disjointSpecialYFalseMeasure] using h
 
-open Classical in
 /-- Textbook Claim 6.21, Alice information step under `D ∧ Y_T=false`: the average one-bit KL
 cost is bounded by Alice's term from (6.6), with the `2/3` conditioning factor. -/
 theorem claim621_x_fiberKL_disjointSpecialYFalse_le_three_halves_aliceInfoTerm
@@ -4857,18 +4855,9 @@ theorem claim621_x_fiberKL_disjointSpecialYFalse_le
       2 * γ ^ 4 := by
   have hkl :=
     claim621_x_fiberKL_disjointSpecialYFalse_le_three_halves_aliceInfoTerm n p
-  have halice : aliceInfoTerm n p ≤ claimInfo n p :=
-    aliceInfoTerm_le_claimInfo n p
-  have hclaim :
-      (3 / 2 : ℝ) * aliceInfoTerm n p ≤ (3 / 2 : ℝ) * claimInfo n p :=
-    mul_le_mul_of_nonneg_left halice (by norm_num)
-  have hsmall : (3 / 2 : ℝ) * claimInfo n p ≤ γ ^ 4 := by
-    have hmul := mul_le_mul_of_nonneg_left hinfo (by norm_num : (0 : ℝ) ≤ 3 / 2)
-    nlinarith
   have hγ4_nonneg : 0 ≤ γ ^ 4 := by positivity
-  linarith
+  linarith [aliceInfoTerm_le_claimInfo n p]
 
-open Classical in
 /-- Textbook Claim 6.21, Alice Pinsker/information step under `D ∧ Y_T=false`: the squared
 one-bit marginal distance has average at most `γ^4`. This is the KL-to-information comparison
 from the displayed
@@ -4981,13 +4970,7 @@ theorem textbook_claim_6_21
       μ.real (goodZEvent n p γ ∪ (A ∩ badX)) ≤
         μ.real (goodZEvent n p γ) + μ.real (A ∩ badX) :=
     measureReal_union_le _ _
-  have htotal :
-      μ.real A ≤ μ.real (goodZEvent n p γ) + μ.real (A ∩ badX) + μ.real (A ∩ badY) := by
-    linarith
-  have hgood : (1 / 4 : ℝ) ≤ μ.real (goodZEvent n p γ) + γ := by
-    linarith
-  simpa [μ] using (by linarith : (1 / 4 : ℝ) * (1 - 4 * γ) ≤
-    μ.real (goodZEvent n p γ))
+  linarith
 
 /-- Intersecting with the defining `Z=z` fiber does not change probabilities under the
 corresponding fiber measure. -/
