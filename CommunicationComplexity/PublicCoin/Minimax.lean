@@ -25,6 +25,15 @@ noncomputable def distributionalError
   letI := μ
   exact volume.real {xy : X × Y | p.run xy.1 xy.2 ≠ f xy.1 xy.2}
 
+/-- The distributional failure probability of a deterministic protocol
+with respect to a correctness predicate `Q`. -/
+noncomputable def distributionalFailure
+    (p : Protocol X Y α)
+    (μ : FiniteProbabilitySpace (X × Y))
+    (Q : X → Y → α → Prop) : ℝ := by
+  letI := μ
+  exact (volume {xy : X × Y | ¬Q xy.1 xy.2 (p.run xy.1 xy.2)}).toReal
+
 end Protocol
 
 end Deterministic
@@ -60,6 +69,36 @@ private lemma failureIntegral_swap
           (fun _ => (1 : ℝ)) ω =
       ∫ ω : CoinTape m, ∫ xy : X × Y,
         Set.indicator {xy : X × Y | p.rrun xy.1 xy.2 ω ≠ f xy.1 xy.2}
+          (fun _ => (1 : ℝ)) xy).symm
+
+private lemma failureIntegral_swap_satisfies
+    {X Y α : Type*} {m : ℕ} [μ : FiniteProbabilitySpace (X × Y)]
+    (p : Protocol (CoinTape m) X Y α)
+    (Q : X → Y → α → Prop) :
+    ∫ ω, (volume {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal =
+      ∫ xy : X × Y, (volume {ω : CoinTape m | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal := by
+  have hg_eq : ∀ ω,
+      (volume {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal =
+        ∫ xy : X × Y,
+          Set.indicator {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}
+            (fun _ => (1 : ℝ)) xy := by
+    intro ω
+    apply FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+  have hh_eq : ∀ xy : X × Y,
+      (volume {ω : CoinTape m | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal =
+        ∫ ω : CoinTape m,
+          Set.indicator {ω : CoinTape m | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}
+            (fun _ => (1 : ℝ)) ω := by
+    intro xy
+    apply FiniteProbabilitySpace.measureReal_eq_integral_indicator_one
+  simp_rw [hg_eq, hh_eq]
+  simpa [Set.indicator_apply] using
+    (MeasureTheory.integral_integral_swap (Integrable.of_finite) :
+      ∫ xy : X × Y, ∫ ω : CoinTape m,
+        Set.indicator {ω : CoinTape m | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}
+          (fun _ => (1 : ℝ)) ω =
+      ∫ ω : CoinTape m, ∫ xy : X × Y,
+        Set.indicator {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}
           (fun _ => (1 : ℝ)) xy).symm
 
 open Classical in
@@ -106,6 +145,43 @@ theorem minimax_lower_bound
   -- Fubini: average first over randomness or first over inputs.
   have h_fubini : ∫ ω, g ω = ∫ xy : X × Y, h' xy := by
     simpa [g, h'] using failureIntegral_swap (p := p) (f := f)
+  linarith
+
+/-- Predicate version of Yao's minimax principle, stated directly for
+protocols. If every deterministic protocol of complexity at most `n`
+violates `Q` with distributional probability greater than `ε`, then no
+public-coin protocol of complexity at most `n` can `ε`-satisfy `Q`. -/
+theorem protocol_lower_bound_satisfies
+    {X Y α : Type*}
+    (Q : X → Y → α → Prop) (ε : ℝ) (n : ℕ)
+    (μ : FiniteProbabilitySpace (X × Y))
+    (h : ∀ (p : Deterministic.Protocol X Y α),
+      p.complexity ≤ n →
+      p.distributionalFailure μ Q > ε) :
+    ∀ {m : ℕ} (p : Protocol (CoinTape m) X Y α),
+      p.ApproxSatisfies Q ε →
+      n < p.complexity := by
+  intro m p hp
+  by_contra hnp
+  have hc : p.complexity ≤ n := Nat.not_lt.mp hnp
+  have hdet_fail : ∀ ω : CoinTape m,
+      (volume {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal > ε := by
+    intro ω
+    have h1 := h (p.toDeterministic ω) (by simpa [hc])
+    simpa [Deterministic.Protocol.distributionalFailure, Protocol.toDeterministic_run] using h1
+  letI : FiniteProbabilitySpace (X × Y) := μ
+  set g : CoinTape m → ℝ := fun ω =>
+    (volume {xy : X × Y | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal
+  have hg_gt : ∀ ω, ε < g ω := hdet_fail
+  set h' : X × Y → ℝ := fun xy =>
+    (volume {ω : CoinTape m | ¬Q xy.1 xy.2 (p.rrun xy.1 xy.2 ω)}).toReal
+  have hh_le : ∀ xy : X × Y, h' xy ≤ ε := fun ⟨x, y⟩ => hp x y
+  have h_lower : ε < ∫ ω, g ω :=
+    FiniteProbabilitySpace.lt_integral_of_lt hg_gt
+  have h_upper : ∫ xy : X × Y, h' xy ≤ ε :=
+    FiniteProbabilitySpace.integral_le_of_le hh_le
+  have h_fubini : ∫ ω, g ω = ∫ xy : X × Y, h' xy := by
+    simpa [g, h'] using failureIntegral_swap_satisfies (p := p) (Q := Q)
   linarith
 
 end PublicCoin
