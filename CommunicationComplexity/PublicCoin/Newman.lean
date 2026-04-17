@@ -124,10 +124,11 @@ theorem FiniteMessage.Protocol.newmanProtocol_ApproxComputes
   rw [hset]
   -- Identify the product-space error probability with the measure of the bad index set.
   rw [FiniteProbabilitySpace.measureReal_prod]
-  simp only [ne_eq, measure_univ, ENNReal.toReal_one, mul_one, ge_iff_le]
+  rw [probReal_univ, mul_one]
   let BadIdx : Set (newmanIndexSpace X Y ε c) :=
     {i | p.run (ωs i, x) (ωs i, y) ≠ f x y}
   -- Now compute that measure in the uniform index space by cardinality.
+  rw [Measure.real]
   change (((ProbabilityTheory.uniformOn Set.univ : Measure (newmanIndexSpace X Y ε c))
     BadIdx).toReal ≤ c * ε)
   rw [uniformOn_univ_measureReal_eq_card_filter

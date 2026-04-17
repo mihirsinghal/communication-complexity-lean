@@ -129,7 +129,7 @@ theorem exists_good_randomness
   · exfalso
     obtain ⟨x₀⟩ := hX; obtain ⟨y₀⟩ := hY
     linarith [hp x₀ y₀,
-      ENNReal.toReal_nonneg (a := volume {ω | p.rrun x₀ y₀ ω ≠ f x₀ y₀})]
+      MeasureTheory.measureReal_nonneg (μ := volume) (s := {ω | p.rrun x₀ y₀ ω ≠ f x₀ y₀})]
   push_neg at hε_neg -- hε_neg : 0 ≤ ε
   -- Handle ε = 0: protocol computes f exactly, pick any good ω
   by_cases hε_zero : ε = 0
@@ -137,9 +137,10 @@ theorem exists_good_randomness
     -- Each bad set has measure 0 (measure ≥ 0 and ≤ 0)
     have h_bad_zero : ∀ x y, volume {ω : Ω | p.rrun x y ω ≠ f x y} = 0 := by
       intro x y
-      apply le_antisymm _ (zero_le _)
-      by_contra h; push_neg at h
-      linarith [hp x y, ENNReal.toReal_pos h.ne' (measure_ne_top _ _)]
+      have hreal : volume.real {ω : Ω | p.rrun x y ω ≠ f x y} = 0 :=
+        le_antisymm (hp x y) MeasureTheory.measureReal_nonneg
+      exact (MeasureTheory.measureReal_eq_zero_iff
+        (μ := volume) (s := {ω : Ω | p.rrun x y ω ≠ f x y})).mp hreal
     -- Unfold rrun so we can use h_bad_zero in measure goals
     simp only [PublicCoin.FiniteMessage.Protocol.rrun] at h_bad_zero
     -- Union of bad sets has measure 0, so some ω₀ is good for all (x,y)

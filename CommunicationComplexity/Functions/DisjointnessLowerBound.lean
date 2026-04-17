@@ -130,7 +130,7 @@ noncomputable instance isProbabilityMeasure :
 noncomputable instance finiteProbabilitySpace : FiniteProbabilitySpace (HardSample n) :=
   FiniteProbabilitySpace.of (HardSample n)
 
-private def equivProd :
+def equivProd :
     HardSample n ≃ Fin n × Bool × Bool × (Fin n → DisjointCoordinate) where
   toFun ω := (ω.T, ω.xT, ω.yT, ω.other)
   invFun p :=
@@ -157,6 +157,155 @@ theorem card :
       ring
 
 end HardSample
+
+/-- Uniform law on the special coordinate. -/
+noncomputable def uniformFin : ProbabilityMeasure (Fin n) :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- Each coordinate has mass `1 / n` under the uniform law on `Fin n`. -/
+theorem uniformFin_singleton (i : Fin n) :
+    (uniformFin n : Measure (Fin n)).real {i} =
+      (1 / (n : ℝ) : ℝ) := by
+  rw [uniformFin]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure (Fin n)).real {i} =
+    (1 / (n : ℝ) : ℝ)
+  rw [Measure.real, ProbabilityTheory.uniformOn_univ]
+  simp
+
+open Classical in
+/-- The uniform law on `Fin n` assigns mass by normalized cardinality. -/
+theorem uniformFin_real (S : Set (Fin n)) :
+    (uniformFin n : Measure (Fin n)).real S =
+      (Fintype.card {i : Fin n // i ∈ S} : ℝ) / (n : ℝ) := by
+  rw [uniformFin]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure (Fin n)).real S =
+    (Fintype.card {i : Fin n // i ∈ S} : ℝ) / (n : ℝ)
+  rw [Measure.real, uniformOn_univ_measureReal_eq_card_subtype]
+  simp
+
+/-- The uniform law on `Fin n` has total mass `1`. -/
+theorem uniformFin_univ :
+    (uniformFin n : Measure (Fin n)).real Set.univ = 1 := by
+  rw [uniformFin_real]
+  simp
+
+/-- Uniform law on one bit. -/
+noncomputable def uniformBool : ProbabilityMeasure Bool :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- Each bit has mass `1 / 2` under the uniform law on one bit. -/
+theorem uniformBool_singleton (b : Bool) :
+    (uniformBool : Measure Bool).real {b} =
+      (1 / 2 : ℝ) := by
+  rw [uniformBool]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure Bool).real {b} = (1 / 2 : ℝ)
+  rw [Measure.real, ProbabilityTheory.uniformOn_univ]
+  norm_num
+
+open Classical in
+/-- The uniform law on `Bool` assigns mass by normalized cardinality. -/
+theorem uniformBool_real (S : Set Bool) :
+    (uniformBool : Measure Bool).real S =
+      (Fintype.card {b : Bool // b ∈ S} : ℝ) / 2 := by
+  rw [uniformBool]
+  change (ProbabilityTheory.uniformOn Set.univ : Measure Bool).real S =
+    (Fintype.card {b : Bool // b ∈ S} : ℝ) / 2
+  rw [Measure.real, uniformOn_univ_measureReal_eq_card_subtype]
+  norm_num
+
+/-- The uniform law on `Bool` has total mass `1`. -/
+theorem uniformBool_univ :
+    (uniformBool : Measure Bool).real Set.univ = 1 := by
+  rw [uniformBool_real]
+  norm_num
+
+/-- The uniform law on generated disjoint coordinate vectors. -/
+noncomputable def uniformDisjointCoordinateVector :
+    ProbabilityMeasure (Fin n → DisjointCoordinate) :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+/-- The uniform law on one disjoint coordinate. -/
+noncomputable def uniformDisjointCoordinate :
+    ProbabilityMeasure DisjointCoordinate :=
+  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
+
+open Classical in
+/-- Each generated disjoint coordinate vector has mass `3^{-n}` under the uniform law. -/
+theorem uniformDisjointCoordinateVector_singleton
+    (coords : Fin n → DisjointCoordinate) :
+    (uniformDisjointCoordinateVector n :
+        Measure (Fin n → DisjointCoordinate)).real {coords} =
+      (1 / (3 ^ (n : ℕ)) : ℝ) := by
+  rw [uniformDisjointCoordinateVector]
+  change ((ProbabilityTheory.uniformOn Set.univ :
+      Measure (Fin n → DisjointCoordinate)) ({coords} : Set (Fin n → DisjointCoordinate))).toReal =
+    (1 / (3 ^ (n : ℕ)) : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype]
+  have hcard :
+      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} = 1 := by
+    let e : {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} ≃ Unit := {
+      toFun _ := Unit.unit
+      invFun _ := ⟨coords, by simp⟩
+      left_inv x := by
+        apply Subtype.ext
+        simpa using x.2.symm
+      right_inv _ := rfl }
+    calc
+      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} =
+          Fintype.card Unit :=
+        Fintype.card_congr e
+      _ = 1 := by simp
+  rw [hcard]
+  simp [Fintype.card_pi, DisjointCoordinate.card]
+
+open Classical in
+/-- The uniform law on disjoint-coordinate vectors assigns mass by normalized cardinality. -/
+theorem uniformDisjointCoordinateVector_real
+    (S : Set (Fin n → DisjointCoordinate)) :
+    (uniformDisjointCoordinateVector n :
+        Measure (Fin n → DisjointCoordinate)).real S =
+      (Fintype.card {coords : Fin n → DisjointCoordinate // coords ∈ S} : ℝ) /
+        (3 ^ (n : ℕ) : ℝ) := by
+  rw [uniformDisjointCoordinateVector]
+  change (ProbabilityTheory.uniformOn Set.univ :
+      Measure (Fin n → DisjointCoordinate)).real S =
+    (Fintype.card {coords : Fin n → DisjointCoordinate // coords ∈ S} : ℝ) /
+      (3 ^ (n : ℕ) : ℝ)
+  rw [Measure.real, uniformOn_univ_measureReal_eq_card_subtype]
+  simp [Fintype.card_pi, DisjointCoordinate.card]
+
+/-- The uniform law on disjoint-coordinate vectors has total mass `1`. -/
+theorem uniformDisjointCoordinateVector_univ :
+    (uniformDisjointCoordinateVector n :
+        Measure (Fin n → DisjointCoordinate)).real Set.univ = 1 := by
+  rw [uniformDisjointCoordinateVector_real]
+  simp [Fintype.card_pi, DisjointCoordinate.card]
+
+open Classical in
+/-- Each disjoint coordinate has mass `1 / 3` under the one-coordinate uniform law. -/
+theorem uniformDisjointCoordinate_singleton (c : DisjointCoordinate) :
+    (uniformDisjointCoordinate :
+        Measure DisjointCoordinate).real {c} = (1 / 3 : ℝ) := by
+  rw [uniformDisjointCoordinate]
+  change ((ProbabilityTheory.uniformOn Set.univ :
+      Measure DisjointCoordinate) ({c} : Set DisjointCoordinate)).toReal = (1 / 3 : ℝ)
+  rw [uniformOn_univ_measureReal_eq_card_subtype]
+  have hcard :
+      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} = 1 := by
+    let e : {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} ≃ Unit := {
+      toFun _ := Unit.unit
+      invFun _ := ⟨c, by simp⟩
+      left_inv x := by
+        apply Subtype.ext
+        simpa using x.2.symm
+      right_inv _ := rfl }
+    calc
+      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} =
+          Fintype.card Unit :=
+        Fintype.card_congr e
+      _ = 1 := by simp
+  rw [hcard]
+  simp [DisjointCoordinate.card]
 
 /-- Alice's bit at coordinate `i` under a hard-distribution sample. -/
 def xBit (ω : HardSample n) (i : Fin n) : Bool :=
@@ -838,7 +987,7 @@ open Classical in
 one ambient sample's worth of mass. -/
 theorem measureReal_disjointEvent_inter_disjointModel_fiber
     (z : Fin n × (Fin n → DisjointCoordinate) × DisjointCoordinate) :
-    (volume (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
+    volume.real (disjointEvent n ∩ (disjointModel n) ⁻¹' {z}) =
       (1 / ((n : ℝ) * 4 * 3 ^ (n : ℕ)) : ℝ) := by
   change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
       (disjointEvent n ∩ (disjointModel n) ⁻¹' {z})).toReal =
@@ -1160,233 +1309,145 @@ theorem mix_mix_swap
     simp [xBit_of_ne_special n ωX hi, yBit_of_ne_special n ωX hi,
       coordinateOfBits_xBit_yBit]
 
-private def specialIntersectEquiv :
-    {ω : HardSample n // ω ∈ specialIntersect n} ≃
-      Fin n × (Fin n → DisjointCoordinate) where
-  toFun ω := (ω.1.T, ω.1.other)
-  invFun p :=
-    ⟨{ T := p.1
-       xT := true
-       yT := true
-       other := p.2 }, by simp [specialIntersect]⟩
-  left_inv ω := by
-    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
-    rcases hω with ⟨hxT, hyT⟩
-    cases hxT
-    cases hyT
-    rfl
-  right_inv p := by
-    rcases p with ⟨T, other⟩
-    rfl
-
-private def specialBitsEventEquiv (bx bY : Bool) :
-    {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} ≃
-      Fin n × (Fin n → DisjointCoordinate) where
-  toFun ω := (ω.1.T, ω.1.other)
-  invFun p :=
-    ⟨{ T := p.1
-       xT := bx
-       yT := bY
-       other := p.2 }, by simp [specialBitsEvent]⟩
-  left_inv ω := by
-    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
-    rcases hω with ⟨hxT, hyT⟩
-    cases hxT
-    cases hyT
-    rfl
-  right_inv p := by
-    rcases p with ⟨T, other⟩
-    rfl
-
-private def specialCoordinateEventEquiv (i : Fin n) :
-    {ω : HardSample n // ω ∈ specialCoordinateEvent n i} ≃
-      Bool × Bool × (Fin n → DisjointCoordinate) where
-  toFun ω := (ω.1.xT, ω.1.yT, ω.1.other)
-  invFun p :=
-    ⟨{ T := i
-       xT := p.1
-       yT := p.2.1
-       other := p.2.2 }, by simp [specialCoordinateEvent]⟩
-  left_inv ω := by
-    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
-    simp only [specialCoordinateEvent, Set.mem_setOf_eq] at hω
-    subst T
-    rfl
-  right_inv p := by
-    rcases p with ⟨xT, yT, other⟩
-    rfl
-
-private def specialCoordinateEventInterSpecialIntersectEquiv (i : Fin n) :
-    {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} ≃
-      (Fin n → DisjointCoordinate) where
-  toFun ω := ω.1.other
-  invFun other :=
-    ⟨{ T := i
-       xT := true
-       yT := true
-       other := other }, by simp [specialCoordinateEvent, specialIntersect]⟩
-  left_inv ω := by
-    rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
-    rcases hω with ⟨hT, hxT, hyT⟩
-    simp [specialCoordinateEvent] at hT
-    simp only at hxT hyT
-    subst T
-    subst xT
-    subst yT
-    rfl
-  right_inv other := rfl
-
-noncomputable instance specialCoordinateEventInterSpecialIntersectFintype (i : Fin n) :
-    Fintype {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} :=
-  Fintype.ofEquiv (Fin n → DisjointCoordinate)
-    (specialCoordinateEventInterSpecialIntersectEquiv n i).symm
-
-theorem card_specialIntersect :
-    Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
-      (n : ℕ) * 3 ^ (n : ℕ) := by
-  calc
-    Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} =
-        Fintype.card (Fin n × (Fin n → DisjointCoordinate)) :=
-      Fintype.card_congr (specialIntersectEquiv n)
-    _ = (n : ℕ) * 3 ^ (n : ℕ) := by
-      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
-
-theorem card_specialBitsEvent (bx bY : Bool) :
-    Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} =
-      (n : ℕ) * 3 ^ (n : ℕ) := by
-  calc
-    Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} =
-        Fintype.card (Fin n × (Fin n → DisjointCoordinate)) :=
-      Fintype.card_congr (specialBitsEventEquiv n bx bY)
-    _ = (n : ℕ) * 3 ^ (n : ℕ) := by
-      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
-
-theorem card_specialCoordinateEvent (i : Fin n) :
-    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
-      4 * 3 ^ (n : ℕ) := by
-  calc
-    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i} =
-        Fintype.card (Bool × Bool × (Fin n → DisjointCoordinate)) :=
-      Fintype.card_congr (specialCoordinateEventEquiv n i)
-    _ = 4 * 3 ^ (n : ℕ) := by
-      simp [Fintype.card_prod, Fintype.card_pi, DisjointCoordinate.card]
-      ring
-
-theorem card_specialCoordinateEvent_inter_specialIntersect (i : Fin n) :
-    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} =
-      3 ^ (n : ℕ) := by
-  calc
-    Fintype.card {ω : HardSample n // ω ∈ specialCoordinateEvent n i ∩ specialIntersect n} =
-        Fintype.card (Fin n → DisjointCoordinate) :=
-      Fintype.card_congr (specialCoordinateEventInterSpecialIntersectEquiv n i)
-    _ = 3 ^ (n : ℕ) := by
-      simp [Fintype.card_pi, DisjointCoordinate.card]
+open Classical in
+/-- The hard sample distribution is the product distribution on the independent fields
+`T`, `X_T`, `Y_T`, and `other`.  This rectangle form is the most convenient way to compute
+probabilities of events depending separately on the four fields. -/
+theorem hardSample_measureReal_fieldProduct
+    (TSet : Set (Fin n)) (XSet YSet : Set Bool)
+    (OtherSet : Set (Fin n → DisjointCoordinate)) :
+    (volume : Measure (HardSample n)).real
+        {ω | ω.T ∈ TSet ∧ ω.xT ∈ XSet ∧ ω.yT ∈ YSet ∧ ω.other ∈ OtherSet} =
+      ((uniformFin n : ProbabilityMeasure (Fin n)) : Measure (Fin n)).real TSet *
+        ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real XSet *
+          ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real YSet *
+            ((uniformDisjointCoordinateVector n :
+                ProbabilityMeasure (Fin n → DisjointCoordinate)) :
+                Measure (Fin n → DisjointCoordinate)).real OtherSet := by
+  let sampleEvent : Set (HardSample n) :=
+    {ω | ω.T ∈ TSet ∧ ω.xT ∈ XSet ∧ ω.yT ∈ YSet ∧ ω.other ∈ OtherSet}
+  change (volume : Measure (HardSample n)).real sampleEvent = _
+  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n)).real sampleEvent) = _
+  rw [Measure.real, uniformOn_univ_measureReal_eq_card_subtype]
+  rw [show
+      Fintype.card {ω : HardSample n // ω ∈ sampleEvent} =
+        Fintype.card {T : Fin n // T ∈ TSet} *
+          Fintype.card {x : Bool // x ∈ XSet} *
+            Fintype.card {y : Bool // y ∈ YSet} *
+              Fintype.card {other : Fin n → DisjointCoordinate // other ∈ OtherSet} by
+    let e :
+        {ω : HardSample n // ω ∈ sampleEvent} ≃
+          {T : Fin n // T ∈ TSet} × {x : Bool // x ∈ XSet} ×
+            {y : Bool // y ∈ YSet} ×
+              {other : Fin n → DisjointCoordinate // other ∈ OtherSet} := {
+      toFun := fun ω =>
+        (⟨ω.1.T, ω.2.1⟩, ⟨ω.1.xT, ω.2.2.1⟩,
+          ⟨ω.1.yT, ω.2.2.2.1⟩, ⟨ω.1.other, ω.2.2.2.2⟩)
+      invFun := fun z =>
+        ⟨{ T := z.1.1
+           xT := z.2.1.1
+           yT := z.2.2.1.1
+           other := z.2.2.2.1 },
+          ⟨z.1.2, z.2.1.2, z.2.2.1.2, z.2.2.2.2⟩⟩
+      left_inv := by
+        intro ω
+        rcases ω with ⟨⟨T, xT, yT, other⟩, hω⟩
+        rfl
+      right_inv := by
+        intro z
+        rcases z with ⟨⟨T, hT⟩, ⟨xT, hxT⟩, ⟨yT, hyT⟩, ⟨other, hother⟩⟩
+        rfl }
+    simpa [Fintype.card_prod, Nat.mul_assoc] using Fintype.card_congr e]
+  rw [uniformFin_real n TSet, uniformBool_real XSet, uniformBool_real YSet,
+    uniformDisjointCoordinateVector_real n OtherSet]
+  rw [HardSample.card]
+  have hn : (n : ℝ) ≠ 0 := by positivity
+  have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
+  norm_num [Nat.cast_mul, Nat.cast_pow]
+  field_simp [hn, hpow]
+  ring
 
 open Classical in
 /-- The hard distribution creates an intersection with probability `1 / 4`. -/
 theorem measureReal_specialIntersect :
-    (volume (specialIntersect n)).toReal = (1 / 4 : ℝ) := by
-  letI : DecidablePred (fun ω : HardSample n => ω ∈ specialIntersect n) :=
-    fun ω => Classical.propDecidable (ω ∈ specialIntersect n)
-  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
-      (specialIntersect n)).toReal = (1 / 4 : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_filter]
-  have hfilter :
-      (Finset.univ.filter fun ω : HardSample n => ω ∈ specialIntersect n).card =
-        Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} := by
-    simp [Fintype.card_subtype]
-  have hfilter_real :
-      ((Finset.univ.filter fun ω : HardSample n => ω ∈ specialIntersect n).card : ℝ) =
-        (Fintype.card {ω : HardSample n // ω ∈ specialIntersect n} : ℝ) := by
-    exact_mod_cast hfilter
-  rw [hfilter_real, card_specialIntersect, HardSample.card]
-  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
-  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
-  norm_num [Nat.cast_mul, Nat.cast_pow]
-  field_simp [hn, hpow]
+    volume.real (specialIntersect n) = (1 / 4 : ℝ) := by
+  rw [show specialIntersect n =
+      {ω : HardSample n |
+        ω.T ∈ Set.univ ∧ ω.xT ∈ ({true} : Set Bool) ∧
+          ω.yT ∈ ({true} : Set Bool) ∧
+            ω.other ∈ (Set.univ : Set (Fin n → DisjointCoordinate))} by
+    ext ω
+    simp [specialIntersect]]
+  rw [hardSample_measureReal_fieldProduct]
+  rw [uniformFin_univ, uniformDisjointCoordinateVector_univ, uniformBool_singleton true]
+  norm_num
 
 open Classical in
 /-- Each prescribed pair of special-coordinate bits has probability `1 / 4`. -/
 theorem measureReal_specialBitsEvent (bx bY : Bool) :
-    (volume (specialBitsEvent n bx bY)).toReal = (1 / 4 : ℝ) := by
-  letI : DecidablePred (fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY) :=
-    fun ω => Classical.propDecidable (ω ∈ specialBitsEvent n bx bY)
-  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
-      (specialBitsEvent n bx bY)).toReal = (1 / 4 : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_filter]
-  have hfilter :
-      (Finset.univ.filter fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY).card =
-        Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} := by
-    simp [Fintype.card_subtype]
-  have hfilter_real :
-      ((Finset.univ.filter fun ω : HardSample n => ω ∈ specialBitsEvent n bx bY).card : ℝ) =
-        (Fintype.card {ω : HardSample n // ω ∈ specialBitsEvent n bx bY} : ℝ) := by
-    exact_mod_cast hfilter
-  rw [hfilter_real, card_specialBitsEvent, HardSample.card]
-  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
-  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
-  norm_num [Nat.cast_mul, Nat.cast_pow]
-  field_simp [hn, hpow]
+    volume.real (specialBitsEvent n bx bY) = (1 / 4 : ℝ) := by
+  rw [show specialBitsEvent n bx bY =
+      {ω : HardSample n |
+        ω.T ∈ Set.univ ∧ ω.xT ∈ ({bx} : Set Bool) ∧
+          ω.yT ∈ ({bY} : Set Bool) ∧
+            ω.other ∈ (Set.univ : Set (Fin n → DisjointCoordinate))} by
+    ext ω
+    simp [specialBitsEvent]]
+  rw [hardSample_measureReal_fieldProduct]
+  rw [uniformFin_univ, uniformDisjointCoordinateVector_univ,
+    uniformBool_singleton bx, uniformBool_singleton bY]
+  norm_num
 
 open Classical in
 /-- Under the hard distribution, the special coordinate is uniform. -/
 theorem measureReal_specialCoordinateEvent (i : Fin n) :
-    (volume (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ) := by
-  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
-      (specialCoordinateEvent n i)).toReal = (1 / (n : ℝ) : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_subtype, card_specialCoordinateEvent, HardSample.card]
-  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
-  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
-  norm_num [Nat.cast_mul, Nat.cast_pow]
-  field_simp [hn, hpow]
+    volume.real (specialCoordinateEvent n i) = (1 / (n : ℝ) : ℝ) := by
+  rw [show specialCoordinateEvent n i =
+      {ω : HardSample n |
+        ω.T ∈ ({i} : Set (Fin n)) ∧ ω.xT ∈ Set.univ ∧
+          ω.yT ∈ Set.univ ∧
+            ω.other ∈ (Set.univ : Set (Fin n → DisjointCoordinate))} by
+    ext ω
+    simp [specialCoordinateEvent]]
+  rw [hardSample_measureReal_fieldProduct]
+  rw [uniformFin_singleton, uniformBool_univ, uniformDisjointCoordinateVector_univ]
+  ring
 
 open Classical in
 /-- Under the hard distribution, `T=i` and the special bits intersect with probability
 `1/(4n)`. -/
 theorem measureReal_specialCoordinateEvent_inter_specialIntersect (i : Fin n) :
-    (volume (specialCoordinateEvent n i ∩ specialIntersect n)).toReal =
+    volume.real (specialCoordinateEvent n i ∩ specialIntersect n) =
       (1 / (4 * (n : ℝ)) : ℝ) := by
-  change ((ProbabilityTheory.uniformOn Set.univ : Measure (HardSample n))
-      (specialCoordinateEvent n i ∩ specialIntersect n)).toReal =
-    (1 / (4 * (n : ℝ)) : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_subtype,
-    card_specialCoordinateEvent_inter_specialIntersect, HardSample.card]
-  have hn : ((n : ℕ) : ℝ) ≠ 0 := by positivity
-  have hpow : ((3 ^ (n : ℕ) : ℕ) : ℝ) ≠ 0 := by positivity
-  norm_num [Nat.cast_mul, Nat.cast_pow]
-  field_simp [hn, hpow]
+  rw [show specialCoordinateEvent n i ∩ specialIntersect n =
+      {ω : HardSample n |
+        ω.T ∈ ({i} : Set (Fin n)) ∧ ω.xT ∈ ({true} : Set Bool) ∧
+          ω.yT ∈ ({true} : Set Bool) ∧
+            ω.other ∈ (Set.univ : Set (Fin n → DisjointCoordinate))} by
+    ext ω
+    simp [specialCoordinateEvent, specialIntersect]]
+  rw [hardSample_measureReal_fieldProduct]
+  rw [uniformFin_singleton, uniformDisjointCoordinateVector_univ, uniformBool_singleton true]
+  ring
 
 /-- The event `(X_T, Y_T) = (0, 0)` has probability `1 / 4`. -/
 theorem measureReal_specialZeroZero :
-    (volume (specialZeroZero n)).toReal = (1 / 4 : ℝ) := by
+    volume.real (specialZeroZero n) = (1 / 4 : ℝ) := by
   rw [specialZeroZero, measureReal_specialBitsEvent]
 
 /-- The event `Y_T = false` has probability `1 / 2`. -/
 theorem measureReal_specialY_false :
-    (volume (((specialY n) ⁻¹' {false}) : Set (HardSample n))).toReal = (1 / 2 : ℝ) := by
-  have hset :
-      ((specialY n) ⁻¹' {false} : Set (HardSample n)) =
-        specialBitsEvent n false false ∪ specialBitsEvent n true false := by
+    volume.real (((specialY n) ⁻¹' {false}) : Set (HardSample n)) = (1 / 2 : ℝ) := by
+  rw [show ((specialY n) ⁻¹' {false} : Set (HardSample n)) =
+      {ω : HardSample n |
+        ω.T ∈ Set.univ ∧ ω.xT ∈ Set.univ ∧
+          ω.yT ∈ ({false} : Set Bool) ∧
+            ω.other ∈ (Set.univ : Set (Fin n → DisjointCoordinate))} by
     ext ω
-    rcases ω with ⟨T, xT, yT, other⟩
-    cases xT <;> cases yT <;> simp [specialY, specialBitsEvent]
-  have hdisj : Disjoint (specialBitsEvent n false false) (specialBitsEvent n true false) := by
-    rw [Set.disjoint_left]
-    intro ω hfalse htrue
-    have hxFalse : ω.xT = false := by
-      simpa [specialBitsEvent] using hfalse.1
-    have hxTrue : ω.xT = true := by
-      simpa [specialBitsEvent] using htrue.1
-    rw [hxFalse] at hxTrue
-    simp at hxTrue
-  change volume.real ((specialY n) ⁻¹' {false}) = (1 / 2 : ℝ)
-  rw [hset, measureReal_union hdisj MeasurableSet.of_discrete]
-  rw [show volume.real (specialBitsEvent n false false) =
-      (1 / 4 : ℝ) by
-    simpa [Measure.real] using measureReal_specialBitsEvent n false false]
-  rw [show volume.real (specialBitsEvent n true false) =
-      (1 / 4 : ℝ) by
-    simpa [Measure.real] using measureReal_specialBitsEvent n true false]
+    simp [specialY]]
+  rw [hardSample_measureReal_fieldProduct]
+  rw [uniformFin_univ, uniformBool_univ, uniformDisjointCoordinateVector_univ,
+    uniformBool_singleton false]
   norm_num
 
 /-- The disjoint event is the complement of the special-intersection event. -/
@@ -1397,9 +1458,8 @@ theorem disjointEvent_eq_compl_specialIntersect :
 
 /-- The hard distribution generates disjoint inputs with probability `3 / 4`. -/
 theorem measureReal_disjointEvent :
-    (volume (disjointEvent n)).toReal = (3 / 4 : ℝ) := by
+    volume.real (disjointEvent n) = (3 / 4 : ℝ) := by
   rw [disjointEvent_eq_compl_specialIntersect]
-  change (volume.real ((specialIntersect n)ᶜ)) = (3 / 4 : ℝ)
   rw [measureReal_compl MeasurableSet.of_discrete]
   rw [probReal_univ]
   rw [show volume.real (specialIntersect n) = (1 / 4 : ℝ) by
@@ -1409,7 +1469,7 @@ theorem measureReal_disjointEvent :
 open Classical in
 /-- Under the hard distribution, `T=i` and disjointness have probability `3/(4n)`. -/
 theorem measureReal_specialCoordinateEvent_inter_disjointEvent (i : Fin n) :
-    (volume (specialCoordinateEvent n i ∩ disjointEvent n)).toReal =
+    volume.real (specialCoordinateEvent n i ∩ disjointEvent n) =
       (3 / (4 * (n : ℝ)) : ℝ) := by
   have hset :
       specialCoordinateEvent n i ∩ disjointEvent n =
@@ -1438,7 +1498,7 @@ theorem measureReal_specialCoordinateEvent_inter_disjointEvent (i : Fin n) :
 theorem measure_disjointEvent_ne_zero :
     volume (disjointEvent n) ≠ 0 := by
   have hreal :
-      (volume (disjointEvent n)).toReal ≠ 0 := by
+      volume.real (disjointEvent n) ≠ 0 := by
     rw [measureReal_disjointEvent n]
     norm_num
   exact (ENNReal.toReal_ne_zero.mp hreal).1
@@ -1785,71 +1845,6 @@ theorem disjointCondMeasure_cond_specialCoordinate_measureReal_disjointCoordinat
   have hn : (n : ℝ) ≠ 0 := by positivity
   have hpow : (3 ^ (n : ℕ) : ℝ) ≠ 0 := by positivity
   field_simp [hn, hpow]
-
-/-- The uniform law on generated disjoint coordinate vectors. -/
-noncomputable def uniformDisjointCoordinateVector :
-    ProbabilityMeasure (Fin n → DisjointCoordinate) :=
-  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
-
-/-- The uniform law on one disjoint coordinate. -/
-noncomputable def uniformDisjointCoordinate :
-    ProbabilityMeasure DisjointCoordinate :=
-  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
-
-open Classical in
-/-- Each generated disjoint coordinate vector has mass `3^{-n}` under the uniform law. -/
-theorem uniformDisjointCoordinateVector_singleton
-    (coords : Fin n → DisjointCoordinate) :
-    ((uniformDisjointCoordinateVector n : ProbabilityMeasure (Fin n → DisjointCoordinate)) :
-        Measure (Fin n → DisjointCoordinate)).real {coords} =
-      (1 / (3 ^ (n : ℕ)) : ℝ) := by
-  rw [uniformDisjointCoordinateVector]
-  change ((ProbabilityTheory.uniformOn Set.univ :
-      Measure (Fin n → DisjointCoordinate)) ({coords} : Set (Fin n → DisjointCoordinate))).toReal =
-    (1 / (3 ^ (n : ℕ)) : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_subtype]
-  have hcard :
-      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} = 1 := by
-    let e : {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} ≃ Unit := {
-      toFun _ := Unit.unit
-      invFun _ := ⟨coords, by simp⟩
-      left_inv x := by
-        apply Subtype.ext
-        simpa using x.2.symm
-      right_inv _ := rfl }
-    calc
-      Fintype.card {x : Fin n → DisjointCoordinate // x ∈ ({coords} : Set _)} =
-          Fintype.card Unit :=
-        Fintype.card_congr e
-      _ = 1 := by simp
-  rw [hcard]
-  simp [Fintype.card_pi, DisjointCoordinate.card]
-
-open Classical in
-/-- Each disjoint coordinate has mass `1 / 3` under the uniform one-coordinate law. -/
-theorem uniformDisjointCoordinate_singleton (c : DisjointCoordinate) :
-    ((uniformDisjointCoordinate : ProbabilityMeasure DisjointCoordinate) :
-      Measure DisjointCoordinate).real {c} = (1 / 3 : ℝ) := by
-  rw [uniformDisjointCoordinate]
-  change ((ProbabilityTheory.uniformOn Set.univ : Measure DisjointCoordinate)
-    ({c} : Set DisjointCoordinate)).toReal = (1 / 3 : ℝ)
-  rw [uniformOn_univ_measureReal_eq_card_subtype]
-  have hcard :
-      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} = 1 := by
-    let e : {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} ≃ Unit := {
-      toFun _ := Unit.unit
-      invFun _ := ⟨c, by simp⟩
-      left_inv x := by
-        apply Subtype.ext
-        simpa using x.2.symm
-      right_inv _ := rfl }
-    calc
-      Fintype.card {x : DisjointCoordinate // x ∈ ({c} : Set DisjointCoordinate)} =
-          Fintype.card Unit :=
-        Fintype.card_congr e
-      _ = 1 := by simp
-  rw [hcard]
-  simp [DisjointCoordinate.card]
 
 open Classical in
 /-- The uniform law on disjoint coordinate vectors is the product of the one-coordinate uniform
@@ -2545,12 +2540,12 @@ theorem volume_measureReal_zVariable_dualProtocol_dualZValue
 space by taking preimages under `input`. -/
 theorem inputDist_measureReal_eq_preimage (S : Set (Set (Fin n) × Set (Fin n))) :
     letI := inputDist n
-    (volume S).toReal =
-      (volume ((input n) ⁻¹' S : Set (HardSample n))).toReal := by
+    volume.real S =
+      volume.real ((input n) ⁻¹' S : Set (HardSample n)) := by
   change
     ((inputProbabilityMeasure n : ProbabilityMeasure (Set (Fin n) × Set (Fin n))) :
         Measure (Set (Fin n) × Set (Fin n))).real S =
-      (volume ((input n) ⁻¹' S : Set (HardSample n))).toReal
+      volume.real ((input n) ⁻¹' S : Set (HardSample n))
   rw [inputProbabilityMeasure]
   rw [Measure.real]
   rw [ProbabilityMeasure.map_apply' _ _ MeasurableSet.of_discrete]
@@ -2565,28 +2560,19 @@ def protocolErrorEvent
 sample-space error event. -/
 theorem distributionalError_inputDist_eq_protocolErrorEvent
     (p : ProtocolType n) :
-    p.distributionalError (inputDist n) (disjointness n) =
-      (volume (protocolErrorEvent n p)).toReal := by
+  p.distributionalError (inputDist n) (disjointness n) =
+      volume.real (protocolErrorEvent n p) := by
   rw [Deterministic.Protocol.distributionalError]
+  letI := inputDist n
+  change volume.real
+      {xy : Set (Fin n) × Set (Fin n) | p.run xy.1 xy.2 ≠ disjointness n xy.1 xy.2} =
+    volume.real (protocolErrorEvent n p)
   rw [inputDist_measureReal_eq_preimage]
   rfl
 
 /-- The special-coordinate bit-pair. -/
 def specialPair (ω : HardSample n) : Bool × Bool :=
   (specialX n ω, specialY n ω)
-
-/-- Uniform law on one bit. -/
-noncomputable def uniformBool : ProbabilityMeasure Bool :=
-  ⟨ProbabilityTheory.uniformOn Set.univ, inferInstance⟩
-
-/-- Each bit has mass `1 / 2` under the uniform law on one bit. -/
-theorem uniformBool_singleton (b : Bool) :
-    ((uniformBool : ProbabilityMeasure Bool) : Measure Bool).real {b} =
-      (1 / 2 : ℝ) := by
-  rw [uniformBool]
-  change (ProbabilityTheory.uniformOn Set.univ : Measure Bool).real {b} = (1 / 2 : ℝ)
-  rw [Measure.real, ProbabilityTheory.uniformOn_univ]
-  norm_num
 
 open Classical in
 /-- The law of `X_T` under `D ∧ Y_T=false` is the uniform bit law. -/
@@ -4635,9 +4621,8 @@ theorem volume_measureReal_specialYFalse_inter_coarseConditioning_inter_specialX
       Measure.measure_preimage_of_map_eq_self
         (volume_measurePreserving_flipSpecialX n).map_eq
         MeasurableSet.of_discrete.nullMeasurableSet
-    change (volume (Y0 ∩ C ∩ XF)).toReal =
-      (volume (Y0 ∩ C ∩ XT)).toReal
-    rw [← hpre, hpre_measure]
+    rw [← hpre]
+    simpa [Measure.real] using congrArg ENNReal.toReal hpre_measure
   have hunion : Y0 ∩ C = (Y0 ∩ C ∩ XF) ∪ (Y0 ∩ C ∩ XT) := by
     ext ω
     by_cases hx : specialX n ω = false
@@ -4956,7 +4941,6 @@ theorem claim621_y_bad_on_specialZeroZero_le
     claim621_x_bad_on_specialZeroZero_le n (dualProtocol n p) hγ hinfoDual
   simpa [volume_specialZeroZero_inter_xDistance_dualProtocol_eq_yDistance n p γ] using h
 
-open Classical in
 /-- Claim 6.21 in the corrected transcription. If the corrected information from (6.6) is
 `≤ 2γ^4 / 3`, then the set of `Z` fibers where the conditional law of `(X_T, Y_T)` is within
 `2γ` of uniform has hard-distribution mass at least `(1 - 4γ) / 4`. -/
@@ -4976,8 +4960,8 @@ theorem textbook_claim_6_21
   have hyBad : μ.real (A ∩ badY) ≤ γ / 2 := by
     simpa [μ, A, badY] using claim621_y_bad_on_specialZeroZero_le n p hγ hinfo
   have hA : μ.real A = (1 / 4 : ℝ) := by
-    simpa [μ, A, Measure.real] using measureReal_specialZeroZero n
-  have hcover : A ⊆ (goodZEvent n p γ ∪ (A ∩ badX)) ∪ (A ∩ badY) := by
+    simpa [μ, A] using measureReal_specialZeroZero n
+  have hcover : A ⊆ goodZEvent n p γ ∪ (A ∩ badX) ∪ (A ∩ badY) := by
     intro ω hωA
     by_cases hx : γ < xDistance n p (zVariable n p ω)
     · exact Or.inl (Or.inr ⟨hωA, hx⟩)
@@ -5005,7 +4989,6 @@ theorem textbook_claim_6_21
   simpa [μ] using (by linarith : (1 / 4 : ℝ) * (1 - 4 * γ) ≤
     μ.real (goodZEvent n p γ))
 
-open Classical in
 /-- Intersecting with the defining `Z=z` fiber does not change probabilities under the
 corresponding fiber measure. -/
 theorem zFiberMeasure_inter_fiber
@@ -5019,29 +5002,6 @@ theorem zFiberMeasure_inter_fiber
   rw [ProbabilityTheory.cond_inter_self MeasurableSet.of_discrete]
   rfl
 
-/-- Protocol error probability decomposed over the finite `zVariable` fibers. -/
-theorem protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real
-    (p : ProtocolType n) :
-    volume.real (protocolErrorEvent n p) =
-      ∑ z : ZType n p,
-        volume.real (zFiber n p z) *
-          (zFiberMeasure n p z).real (protocolErrorEvent n p) :=
-  FiniteMeasureSpace.measureReal_eq_sum_cond_fiber_real
-    (μ := volume) (Z := zVariable n p) (S := protocolErrorEvent n p)
-
-open Classical in
-/-- The mass of `goodZEvent` is the sum of the masses of the good `zVariable` fibers. -/
-theorem goodZEvent_measureReal_eq_sum_zFibers
-    (p : ProtocolType n)
-    (γ : ℝ) :
-    volume.real (goodZEvent n p γ) =
-      ∑ z : ZType n p,
-        if goodZ n p γ z then
-          volume.real (zFiber n p z)
-        else 0 :=
-  FiniteMeasureSpace.measureReal_preimage_eq_sum_fibers
-    (μ := volume) (Z := zVariable n p) (P := goodZ n p γ)
-
 open Classical in
 /-- A good `z` gives the expected singleton-mass estimate for the conditional special-pair law. -/
 theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
@@ -5050,7 +5010,7 @@ theorem abs_conditionalSpecialPairLaw_singleton_sub_quarter_le
     {z : ZType n p}
     (hgood : goodZ n p γ z)
     (b : Bool × Bool) :
-    |((conditionalSpecialPairLaw n p z : ProbabilityMeasure (Bool × Bool)) :
+    |(conditionalSpecialPairLaw n p z :
         Measure (Bool × Bool)).real {b} - (1 / 4 : ℝ)| ≤ 2 * γ := by
   have htv :=
     TVDistance.abs_measureReal_sub_le_tvDistance
@@ -5070,13 +5030,12 @@ theorem quarter_sub_two_mul_le_conditionalSpecialPairLaw_singleton
     (hgood : goodZ n p γ z)
     (b : Bool × Bool) :
     (1 / 4 : ℝ) - 2 * γ ≤
-      ((conditionalSpecialPairLaw n p z : ProbabilityMeasure (Bool × Bool)) :
+      (conditionalSpecialPairLaw n p z :
         Measure (Bool × Bool)).real {b} := by
   have h := abs_conditionalSpecialPairLaw_singleton_sub_quarter_le n p hgood b
   rw [abs_le] at h
   linarith
 
-open Classical in
 /-- On a fixed `Z=z` fiber, inputs whose special pair equals the `Z`-determined protocol output
 on both sides are protocol errors. -/
 theorem zFiber_inter_diag_specialPair_subset_protocolErrorEvent
@@ -5106,7 +5065,6 @@ theorem zFiber_inter_diag_specialPair_subset_protocolErrorEvent
       exact not_not_intro hbits
     simp [protocolErrorEvent, disjointness, hrun', hnot_disj, hb]
 
-open Classical in
 /-- On a good `Z` fiber, the conditional protocol-error probability is at least
 `1 / 4 - 2 * γ`. If the protocol output on the fiber is `true`, then the `(true, true)` special
 bit-pair witnesses errors; otherwise `(false, false)` witnesses errors. -/
@@ -5133,7 +5091,6 @@ theorem quarter_sub_two_mul_le_zFiberMeasure_protocolErrorEvent
   rw [← conditionalSpecialPairLaw_singleton n p z (b, b)] at hmono
   exact hmass.trans hmono
 
-open Classical in
 /-- Averaging the good-fiber error lower bound over all good `Z` fibers gives an unconditional
 error lower bound. -/
 theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
@@ -5141,8 +5098,10 @@ theorem goodZEvent_mul_quarter_sub_two_mul_le_protocolErrorEvent
     (γ : ℝ) :
     volume.real (goodZEvent n p γ) * ((1 / 4 : ℝ) - 2 * γ) ≤
       volume.real (protocolErrorEvent n p) := by
-  rw [protocolErrorEvent_measureReal_eq_sum_zFiberMeasure_real]
-  rw [goodZEvent_measureReal_eq_sum_zFibers]
+  rw [FiniteMeasureSpace.measureReal_eq_sum_cond_fiber_real
+    (μ := volume) (Z := zVariable n p) (S := protocolErrorEvent n p)]
+  unfold goodZEvent
+  rw [FiniteMeasureSpace.measureReal_preimage_eq_sum_fibers]
   rw [Finset.sum_mul]
   apply Finset.sum_le_sum
   intro z _

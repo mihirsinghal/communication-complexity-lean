@@ -356,8 +356,9 @@ finite probability space factors as the product of the two measures. -/
 theorem measureReal_prod
     {Ω₁ Ω₂ : Type*} [FiniteProbabilitySpace Ω₁] [FiniteProbabilitySpace Ω₂]
     (A : Set Ω₁) (B : Set Ω₂) :
-    (volume (A ×ˢ B : Set (Ω₁ × Ω₂))).toReal =
-      (volume A).toReal * (volume B).toReal := by
+    volume.real (A ×ˢ B : Set (Ω₁ × Ω₂)) =
+      volume.real A * volume.real B := by
+  rw [Measure.real, Measure.real, Measure.real]
   rw [show (volume : Measure (Ω₁ × Ω₂)) = volume.prod volume from rfl]
   rw [Measure.prod_prod, ENNReal.toReal_mul]
 
@@ -366,9 +367,11 @@ the real-valued measures of its parts. -/
 theorem measureReal_iUnion_fintype
     {Ω ι : Type*} [FiniteProbabilitySpace Ω] [Fintype ι]
     (A : ι → Set Ω) (hdisj : Pairwise (fun i j => Disjoint (A i) (A j))) :
-    (volume (⋃ i, A i)).toReal = ∑ i, (volume (A i)).toReal := by
+    volume.real (⋃ i, A i) = ∑ i, volume.real (A i) := by
+  rw [Measure.real]
   rw [measure_iUnion hdisj (fun _ => MeasurableSet.of_discrete),
     tsum_fintype, ENNReal.toReal_sum (fun _ _ => measure_ne_top _ _)]
+  simp [Measure.real]
 
 /-- The real-valued measure of the preimage of a finite set splits as
 a sum over singleton fibers. -/
@@ -376,8 +379,9 @@ theorem measureReal_preimage_finset
     {Ξ Ω : Type*} [FiniteProbabilitySpace Ξ]
     [MeasurableSpace Ω] [DiscreteMeasurableSpace Ω]
     (φ : Ξ → Ω) (T : Finset Ω) :
-    (volume (φ ⁻¹' (↑T : Set Ω) : Set Ξ)).toReal =
-      ∑ a ∈ T, (volume (φ ⁻¹' ({a} : Set Ω) : Set Ξ)).toReal := by
+    volume.real (φ ⁻¹' (↑T : Set Ω) : Set Ξ) =
+      ∑ a ∈ T, volume.real (φ ⁻¹' ({a} : Set Ω) : Set Ξ) := by
+  rw [Measure.real]
   rw [show (φ ⁻¹' (↑T : Set Ω) : Set Ξ) = ⋃ a ∈ T, φ ⁻¹' ({a} : Set Ω) from by
     ext ξ
     simp]
@@ -385,12 +389,13 @@ theorem measureReal_preimage_finset
     (fun a _ b _ h => Disjoint.preimage _ (Set.disjoint_singleton.mpr h))
     (fun _ _ => MeasurableSet.of_discrete)]
   rw [ENNReal.toReal_sum (fun _ _ => measure_ne_top _ _)]
+  simp [Measure.real]
 
 /-- The real-valued measure of a finite set splits as a sum over its singleton parts. -/
 theorem measureReal_finset
     {Ω : Type*} [FiniteProbabilitySpace Ω] (T : Finset Ω) :
-    (volume (↑T : Set Ω)).toReal = ∑ a ∈ T, (volume ({a} : Set Ω)).toReal := by
-  simpa using measureReal_preimage_finset (Ξ := Ω) (Ω := Ω) id T
+    volume.real (↑T : Set Ω) = ∑ a ∈ T, volume.real ({a} : Set Ω) := by
+  exact measureReal_preimage_finset id T
 
 /-- On a finite probability space, integrating a real-valued function is a finite weighted sum. -/
 theorem integral_eq_pmf_sum {Ω : Type*} [FiniteProbabilitySpace Ω]
@@ -404,7 +409,7 @@ theorem sq_integral_le_integral_sq
     {Ω : Type*} [FiniteProbabilitySpace Ω] (f : Ω → ℝ) :
     (∫ ω, f ω)^2 ≤ ∫ ω, (f ω)^2 :=
   FiniteMeasureSpace.probabilityMeasure_sq_integral_le_integral_sq
-    (⟨(volume : Measure Ω), inferInstance⟩ : ProbabilityMeasure Ω) f
+    (⟨volume, inferInstance⟩ : ProbabilityMeasure Ω) f
 
 /-- Integrating a function over a coordinate of a finite product space is the same as
 integrating it over the original finite probability space. -/
@@ -427,23 +432,24 @@ theorem measureReal_pi_univ
     {ι : Type*} [Fintype ι] {Ω : ι → Type*}
     [∀ i, FiniteProbabilitySpace (Ω i)]
     (s : ∀ i, Set (Ω i)) :
-    (volume (Set.pi Set.univ s : Set ((i : ι) → Ω i))).toReal =
-      ∏ i, (volume (s i)).toReal := by
+    volume.real (Set.pi Set.univ s : Set ((i : ι) → Ω i)) =
+      ∏ i, volume.real (s i) := by
+  rw [Measure.real]
   change (Measure.pi (fun i => (volume : Measure (Ω i))) (Set.pi Set.univ s)).toReal = _
   rw [Measure.pi_pi, ENNReal.toReal_prod]
+  simp [Measure.real]
 
 /-- The real-valued measure of a set is the integral of its indicator. -/
 theorem measureReal_eq_integral_indicator_one
     {Ω : Type*} [FiniteProbabilitySpace Ω] (S : Set Ω) :
-    (volume S).toReal = ∫ ω, Set.indicator S (1 : Ω → ℝ) ω := by
+    volume.real S = ∫ ω, Set.indicator S (1 : Ω → ℝ) ω := by
   rw [MeasureTheory.integral_indicator_one MeasurableSet.of_discrete]
-  simp [Measure.real]
 
 open Classical in
 /-- The real-valued measure of a set is the integral of the corresponding `0/1` function. -/
 theorem measureReal_eq_integral_indicator
     {Ω : Type*} [FiniteProbabilitySpace Ω] (S : Set Ω) :
-    (volume S).toReal = ∫ ω, if ω ∈ S then (1 : ℝ) else 0 := by
+    volume.real S = ∫ ω, if ω ∈ S then (1 : ℝ) else 0 := by
   have hfun : Set.indicator S (1 : Ω → ℝ) = fun ω => if ω ∈ S then (1 : ℝ) else 0 := by
     funext ω
     by_cases hω : ω ∈ S <;> simp [hω]
@@ -484,9 +490,9 @@ theorem integral_le_of_le {Ω : Type*} [FiniteProbabilitySpace Ω]
 theorem measureReal_ge_le_integral_div
     {Ω : Type*} [FiniteProbabilitySpace Ω]
     {f : Ω → ℝ} {ε : ℝ} (hf_nonneg : ∀ ω, 0 ≤ f ω) (hε : 0 < ε) :
-    (volume {ω : Ω | ε ≤ f ω}).toReal ≤ (∫ ω, f ω) / ε := by
+    volume.real {ω : Ω | ε ≤ f ω} ≤ (∫ ω, f ω) / ε := by
   have hmarkov :
-      ε * (volume : Measure Ω).real {ω : Ω | ε ≤ f ω} ≤ ∫ ω, f ω :=
+      ε * volume.real {ω : Ω | ε ≤ f ω} ≤ ∫ ω, f ω :=
     mul_meas_ge_le_integral_of_nonneg
       (μ := (volume : Measure Ω)) (f := f)
       (ae_of_all _ hf_nonneg) Integrable.of_finite ε
